@@ -5,3 +5,4 @@ from scripts.training.data_loader import (
     collate_fn,
     create_dataloader,
 )
+from scripts.training.data_collator import DataCollatorForQwen3ASR
