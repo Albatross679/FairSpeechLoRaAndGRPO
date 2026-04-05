@@ -45,8 +45,8 @@ Plans:
   4. A short training run (e.g., 50-100 steps) on a small subset shows decreasing loss
 **Plans**: 2 plans
 Plans:
-- [x] 01.0-01-PLAN.md -- Create Fair-Speech train/eval splits and validation script
-- [x] 01.0-02-PLAN.md -- Build PyTorch Dataset and DataLoader with demographic-stratified sampling
+- [ ] 01.1-01-PLAN.md -- LoRA model setup, data collator, and prototype training script
+- [ ] 01.1-02-PLAN.md -- Validation script and end-to-end GPU verification
 
 ### Phase 1.2: Standard LoRA Baseline
 **Goal**: Standard LoRA baseline is fully trained and evaluated with fairness metrics on both datasets
@@ -114,7 +114,7 @@ Note: Phase 2 and Phase 3 depend only on Phase 1.2 and could run in parallel.
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1.0 Prepare Fine-Tuning Dataset | 0/TBD | Not started | - |
-| 1.1 LoRA Prototype | 0/TBD | Not started | - |
+| 1.1 LoRA Prototype | 0/2 | Planning complete | - |
 | 1.2 Standard LoRA Baseline | 0/TBD | Not started | - |
 | 2. GRPO Training Loop | 0/TBD | Not started | - |
 | 3. Fairness Baselines | 0/TBD | Not started | - |
