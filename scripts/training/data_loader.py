@@ -1,11 +1,16 @@
-"""PyTorch Dataset and DataLoader with demographic-stratified sampling for ASR fine-tuning.
+"""
+PyTorch Dataset and DataLoader with demographic-stratified sampling for ASR fine-tuning.
 
-Provides ASRFairnessDataset for loading audio from manifest CSVs, a
-DemographicStratifiedSampler that oversamples small groups to ensure balanced
-batching, a collate_fn that pads variable-length audio, and a create_dataloader
-factory function for one-call setup.
+Provides ASRFairnessDataset (loads audio via soundfile), DemographicStratifiedSampler
+(oversamples small demographic groups), collate_fn (pads variable-length audio), and
+create_dataloader (single entry point for training and evaluation data loading).
 
-Audio loading uses soundfile (NOT torchaudio.load, which is broken without torchcodec).
+Supports both Fair-Speech (ethnicity axis) and Common Voice (accent axis) datasets.
+Audio loading uses soundfile.read() -- torchaudio.load() is broken in this environment
+(requires torchcodec which is not installed).
+
+Usage:
+    python scripts/training/data_loader.py --manifest /path/to/fs_train.csv --axis ethnicity
 """
 
 import numpy as np
@@ -15,36 +20,34 @@ import torch
 import torchaudio.functional
 from torch.utils.data import Dataset, DataLoader, Sampler
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
+# -- Constants ----------------------------------------------------------------
 DEFAULT_SAMPLE_RATE = 16000
 MIN_GROUP_SIZE = 50
 
 
-# ---------------------------------------------------------------------------
-# Dataset
-# ---------------------------------------------------------------------------
+# -- Dataset ------------------------------------------------------------------
 
 class ASRFairnessDataset(Dataset):
-    """Dataset that loads audio from a manifest CSV with demographic labels.
+    """PyTorch Dataset for ASR fairness training/evaluation.
 
-    Each sample is a dict with keys: audio (1-D float32 tensor), transcript,
-    demographic_group, and utterance_id.
+    Loads audio via soundfile (NOT torchaudio.load), returns dicts with
+    audio tensor, transcript, demographic group label, and utterance ID.
 
-    Works for both Fair-Speech (ethnicity axis) and Common Voice (accent axis).
+    Handles both Fair-Speech (ethnicity axis) and Common Voice (accent axis)
+    manifests. Missing demographic labels are represented as empty strings
+    per D-08: excluded from R_fair but included in R_acc.
 
     Args:
         manifest_csv: Path to CSV with columns: utterance_id, audio_path,
             sentence, and demographic columns.
         demographic_axis: Column name for demographic grouping.
             Use "ethnicity" for Fair-Speech, "accent" for Common Voice.
-        sample_rate: Target sample rate (default 16 kHz).
+        sample_rate: Target sample rate (default 16kHz).
     """
 
     def __init__(self, manifest_csv: str, demographic_axis: str = "ethnicity",
                  sample_rate: int = DEFAULT_SAMPLE_RATE):
+        self.manifest_csv = manifest_csv
         self.df = pd.read_csv(manifest_csv)
         self.demographic_axis = demographic_axis
         self.sample_rate = sample_rate
@@ -63,9 +66,7 @@ class ASRFairnessDataset(Dataset):
 
         # Build demographic group labels (per D-08: empty string for missing)
         if demographic_axis:
-            self.demographics = (
-                self.df[demographic_axis].fillna("").astype(str).values
-            )
+            self.demographics = self.df[demographic_axis].fillna("").astype(str).values
         else:
             self.demographics = np.array([""] * len(self.df))
 
@@ -79,32 +80,40 @@ class ASRFairnessDataset(Dataset):
         audio, sr = sf.read(row["audio_path"], dtype="float32")
         audio = torch.from_numpy(audio)
 
+        # Handle stereo -> mono if needed
+        if audio.dim() > 1:
+            audio = audio.mean(dim=-1)
+
         # Resample if needed (torchaudio.functional.resample works fine)
         if sr != self.sample_rate:
             audio = torchaudio.functional.resample(audio, sr, self.sample_rate)
 
         return {
-            "audio": audio,                              # 1-D float32 tensor
+            "audio": audio,                              # 1D float32 tensor
             "transcript": str(row["sentence"]),
             "demographic_group": self.demographics[idx],  # empty string if missing (D-08)
             "utterance_id": str(row["utterance_id"]),
         }
 
 
-# ---------------------------------------------------------------------------
-# Collate function
-# ---------------------------------------------------------------------------
+# -- Collate Function ---------------------------------------------------------
 
-def collate_fn(batch: list[dict]) -> dict:
-    """Collate variable-length audio into a padded batch.
+def collate_fn(batch):
+    """Collate variable-length audio into padded batch.
+
+    Pads audio to the max length in the current batch (not global max)
+    to mitigate OOM from unnecessarily large tensors (T-01.0-05).
+
+    Args:
+        batch: List of dicts from ASRFairnessDataset.__getitem__.
 
     Returns:
-        Dict with keys:
+        Dict with:
             audio: (B, T) float32 padded tensor
             audio_lengths: (B,) int64 original lengths
-            transcripts: list[str]
-            demographic_groups: list[str]
-            utterance_ids: list[str]
+            transcripts: list of str
+            demographic_groups: list of str
+            utterance_ids: list of str
     """
     audios = [item["audio"] for item in batch]
     lengths = torch.tensor([a.shape[0] for a in audios])
@@ -124,9 +133,7 @@ def collate_fn(batch: list[dict]) -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
-# Demographic-Stratified Sampler
-# ---------------------------------------------------------------------------
+# -- Stratified Sampler -------------------------------------------------------
 
 class DemographicStratifiedSampler(Sampler):
     """Sampler that ensures each batch contains utterances from multiple demographic groups.
@@ -197,9 +204,7 @@ class DemographicStratifiedSampler(Sampler):
         return self._num_samples
 
 
-# ---------------------------------------------------------------------------
-# DataLoader factory
-# ---------------------------------------------------------------------------
+# -- DataLoader Factory -------------------------------------------------------
 
 def create_dataloader(
     manifest_csv: str,
@@ -211,14 +216,14 @@ def create_dataloader(
     seed: int = 42,
     num_workers: int = 2,
     num_batches: int | None = None,
-) -> DataLoader:
+):
     """Create a DataLoader for ASR fairness training/evaluation.
 
     Args:
         manifest_csv: Path to CSV manifest (fs_train.csv, fs_eval.csv,
             or cv_test_manifest.csv).
-        demographic_axis: Column for demographic grouping
-            ("ethnicity" for FS, "accent" for CV).
+        demographic_axis: Column for demographic grouping ("ethnicity"
+            for Fair-Speech, "accent" for Common Voice).
         batch_size: Samples per batch.
         sample_rate: Target audio sample rate.
         stratified: If True, use DemographicStratifiedSampler (for training).
@@ -261,9 +266,7 @@ def create_dataloader(
     )
 
 
-# ---------------------------------------------------------------------------
-# Smoke test
-# ---------------------------------------------------------------------------
+# -- CLI Smoke Test -----------------------------------------------------------
 
 if __name__ == "__main__":
     import argparse
