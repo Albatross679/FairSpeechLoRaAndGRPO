@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GRPO Fairness-Aware ASR Fine-Tuning — Project Overview</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<style>
+html { font-size: 62.5%; }
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  font-family: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  font-size: 1.7rem;
+  line-height: 1.618;
+  color: #4a4a4a;
+  background: #f5f4f0;
+  margin: 0;
+  padding: 0;
+}
+
+a { color: #7c3043; text-decoration: none; }
+a:visited { color: #5c2233; }
+a:hover { color: #a3415a; text-decoration: underline; }
+
+.page-wrapper { display: flex; max-width: 80em; margin: 0 auto; }
+
+.sidebar {
+  width: 240px; min-width: 240px; position: sticky; top: 0; height: 100vh;
+  overflow-y: auto; background: #f0efeb; padding: 2em 1.2em;
+  border-right: 1px solid #ddd; font-size: 1em;
+}
+.sidebar strong { display: block; font-size: 1.15em; color: #7c3043; margin-bottom: 0.8em; letter-spacing: 0.02em; }
+.sidebar ul { list-style: none; padding: 0; margin: 0; }
+.sidebar li { margin-bottom: 0.4em; }
+.sidebar a { display: block; padding: 0.35em 0.7em; border-radius: 4px; color: #4a4a4a; transition: background 0.15s, color 0.15s; }
+.sidebar a:hover { background: #ebe7e3; color: #7c3043; text-decoration: none; }
+.sidebar a.active { background: #ebe7e3; color: #7c3043; font-weight: 600; }
+
+.main-content { flex: 1; max-width: 56em; padding: 1.3em 2em 2em 2.5em; }
+
+h1 { font-size: 2em; color: #3a3a3a; margin-bottom: 0.1em; font-weight: 700; }
+p.subtitle { font-size: 1.15em; color: #7c3043; margin-top: 0; margin-bottom: 1.5em; font-style: italic; }
+hr { border: none; border-top: 2px solid #7c3043; margin: 1.5em 0; }
+h2 { font-size: 1.7em; color: #3a3a3a; border-bottom: 2px solid #7c3043; padding-bottom: 0.25em; margin-top: 2em; }
+h3 { font-size: 1.45em; color: #3a3a3a; margin-top: 1.5em; }
+
+table { width: 100%; border-collapse: collapse; font-size: 0.92em; margin: 1.2em 0; }
+thead th { background: #7c3043; color: #fff; padding: 0.6em 0.8em; text-align: left; font-weight: 600; }
+tbody td { padding: 0.55em 0.8em; border-bottom: 1px solid #ddd; }
+tbody tr:nth-child(even) { background: #f5f3f0; }
+tbody tr:hover { background: #f0ece8; }
+tr.highlight { background: #f5eaed !important; }
+
+.callout { border-left: 4px solid #7c3043; background: #f1f1f1; padding: 1em 1.2em; margin: 1.2em 0; border-radius: 0 6px 6px 0; }
+
+ul, ol { padding-left: 1.5em; }
+li { margin-bottom: 0.3em; }
+
+nav#toc { display: none; background: #f0efeb; padding: 1em 1.5em; border-radius: 6px; margin-bottom: 1.5em; }
+nav#toc strong { color: #7c3043; display: block; margin-bottom: 0.5em; }
+nav#toc ul { list-style: none; padding: 0; }
+nav#toc li { margin-bottom: 0.3em; }
+
+.math-block { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 1.2em 1.5em; margin: 1.2em 0; text-align: center; overflow-x: auto; }
+
+footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-size: 0.85em; color: #999; }
+
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  nav#toc { display: block; }
+  .main-content { padding: 1em; max-width: 100%; }
+}
+@media (max-width: 684px) { body { font-size: 1.35rem; } }
+@media (max-width: 382px) { body { font-size: 1.2rem; } }
+@media print {
+  .sidebar { display: none; }
+  nav#toc { display: block; }
+  .main-content { max-width: 100%; padding: 0; }
+  body { background: #fff; font-size: 11pt; }
+  h2 { break-after: avoid; }
+  table, .callout { break-inside: avoid; }
+  a { color: #333; }
+}
+</style>
+</head>
+<body>
+<div class="page-wrapper">
+
+  <aside class="sidebar" id="sidebar-toc">
+    <strong>Contents</strong>
+    <ul>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#datasets">Datasets</a></li>
+      <li><a href="#models">Models</a></li>
+      <li><a href="#perturbations">Perturbations</a></li>
+      <li><a href="#metrics">Metrics</a></li>
+      <li><a href="#findings">Key Findings</a></li>
+      <li><a href="#next">Next Steps</a></li>
+    </ul>
+  </aside>
+
+  <div class="main-content">
+    <h1>Do LLM Decoders Listen Fairly?</h1>
+    <p class="subtitle">CSE 5525 &mdash; Srishti Ginjala &amp; Qifan Wen</p>
+    <hr>
+
+    <nav id="toc">
+      <strong>Table of Contents</strong>
+      <ul>
+        <li><a href="#overview">1. Overview</a></li>
+        <li><a href="#datasets">2. Datasets</a></li>
+        <li><a href="#models">3. Models Evaluated</a></li>
+        <li><a href="#perturbations">4. Perturbations</a></li>
+        <li><a href="#metrics">5. Metrics</a></li>
+        <li><a href="#findings">6. Key Findings</a></li>
+        <li><a href="#next">7. Next Steps</a></li>
+      </ul>
+    </nav>
+
+    <!-- Overview -->
+    <h2 id="overview">Overview</h2>
+    <p>
+      As pretrained large language models replace task-specific decoders in speech recognition, a critical
+      question arises: do their text-derived priors make recognition fairer or more biased across demographic groups?
+    </p>
+    <p>
+      We evaluated <strong>nine ASR models</strong> spanning three architectural generations on
+      ~43,000 utterances across <strong>five demographic axes</strong> (ethnicity, accent, gender, age, first language)
+      using Common Voice 24 and Meta's Fair-Speech. We then stress-tested all models under
+      <strong>12 acoustic degradation conditions</strong> across both datasets, totaling 216 inference runs.
+      The midterm paper, <em>"Do LLM Decoders Listen Fairly?"</em>, is under review at COLM 2026.
+    </p>
+
+    <!-- Datasets -->
+    <h2 id="datasets">Datasets</h2>
+
+    <table>
+      <thead>
+        <tr><th>Dataset</th><th>Source</th><th>Utterances</th><th>Duration</th><th>Size</th><th>Demographic Axes</th></tr>
+      </thead>
+      <tbody>
+        <tr class="highlight">
+          <td><strong>Fair-Speech</strong></td>
+          <td>Meta Research (Veliche et al., 2024)</td>
+          <td>~26,470</td>
+          <td>~54 hrs</td>
+          <td>~6 GB (WAV)</td>
+          <td>Ethnicity (7), gender, age, L1 (30+), SES (3)</td>
+        </tr>
+        <tr class="highlight">
+          <td><strong>Common Voice 24</strong></td>
+          <td>Mozilla (Ardila et al., 2020)</td>
+          <td>~16,400</td>
+          <td>~23 hrs</td>
+          <td>~1.2 GB (MP3)</td>
+          <td>Accent (6 groups, $n \geq 50$), gender, age (5 bins)</td>
+        </tr>
+        <tr>
+          <td><strong>LibriSpeech test-clean</strong></td>
+          <td>OpenSLR (Panayotov et al., 2015)</td>
+          <td>2,620</td>
+          <td>~5.4 hrs</td>
+          <td>346 MB (FLAC)</td>
+          <td>None</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Why Fair-Speech matters</h3>
+    <p>
+      Because all speakers read the <em>same prompted sentences</em>, any WER differences are attributable to
+      acoustic or model factors, not vocabulary confounds. This makes Fair-Speech the primary dataset for
+      isolating demographic bias. To our knowledge, we report the first comprehensive multi-model benchmark on Fair-Speech.
+    </p>
+
+    <h3>Fair-Speech schema</h3>
+    <p>
+      Distributed as a tab-separated metadata file with WAV audio (~6 GB total, ~54 hours).
+      U.S. English speakers; mobile-recorded. Average utterance: 7.4 seconds.
+    </p>
+    <table>
+      <thead><tr><th>Column</th><th>Description</th><th>Example values</th></tr></thead>
+      <tbody>
+        <tr><td>hash_name</td><td>Unique utterance identifier</td><td>(hex hash)</td></tr>
+        <tr><td>transcription</td><td>Reference text (prompted sentence)</td><td>"boyd was not always popular with rank and file officers"</td></tr>
+        <tr><td>ethnicity</td><td>Self-reported ethnicity (7 groups)</td><td>Black or African American, White, Asian/South Asian/Asian American, Hispanic/Latino/Spanish, Native American, Pacific Islander, Middle Eastern/North African</td></tr>
+        <tr><td>gender</td><td>Binary</td><td>male, female</td></tr>
+        <tr><td>age</td><td>Bracket</td><td>18-22, 23-30, 31-45, 46-65</td></tr>
+        <tr><td>first_language</td><td>Self-reported L1 (30+ languages)</td><td>English, Spanish, Mandarin, Hindi, Tagalog, French, ...</td></tr>
+        <tr><td>socioeconomic_bkgd</td><td>Self-reported SES (3 levels)</td><td>Low, Medium, Affluent</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Audio stored as WAV files in a flat directory, named by hash_name.
+      ~593 unique speakers, ~26,470 utterances. Because all speakers read the same prompted sentences,
+      any WER differences are attributable to acoustic or model factors, not vocabulary confounds.
+    </p>
+
+    <h3>Common Voice 24 schema</h3>
+    <p>
+      Standard Mozilla Common Voice format: a tab-separated metadata file with MP3 audio clips (~1.2 GB for test split, ~23 hours).
+      We use the English test split. Average utterance: ~5 seconds.
+    </p>
+    <table>
+      <thead><tr><th>Column</th><th>Description</th><th>Example values</th></tr></thead>
+      <tbody>
+        <tr><td>client_id</td><td>Speaker identifier (hashed)</td><td>(hex string)</td></tr>
+        <tr><td>path</td><td>MP3 filename</td><td>common_voice_en_XXXXX.mp3</td></tr>
+        <tr><td>sentence</td><td>Reference transcription (Wikipedia text)</td><td>"in korea carnations express admiration love and gratitude"</td></tr>
+        <tr><td>accents</td><td>Self-reported accent (long-form)</td><td>United States English, India and South Asia, England English, Canadian English, Australian English, African</td></tr>
+        <tr><td>gender</td><td>Self-reported</td><td>male_masculine, female_feminine</td></tr>
+        <tr><td>age</td><td>Decade bin</td><td>teens, twenties, thirties, fourties, fifties, ...</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Audio stored as MP3 clips in a flat directory. ~16,400 utterances across 6 accent groups ($n \geq 50$ each),
+      including a large Indian-accent subgroup ($n = 511$) that enabled fine-grained hallucination analysis.
+    </p>
+
+    <h3>LibriSpeech test-clean schema</h3>
+    <p>
+      Hierarchical directory structure with FLAC audio (346 MB compressed, ~5.4 hours).
+      2,620 utterances from Project Gutenberg audiobooks. No demographic metadata &mdash; used only as a
+      reference baseline to confirm model competence (all 9 models achieve 1.5&ndash;3.5% WER).
+    </p>
+    <table>
+      <thead><tr><th>Element</th><th>Format</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>Audio path</td><td>speaker_id / chapter_id / speaker_id-chapter_id-utterance_id.flac</td><td>Hierarchical by speaker and chapter</td></tr>
+        <tr><td>Transcripts</td><td>.trans.txt (one per chapter directory)</td><td>Lines formatted as "file_id TRANSCRIPTION" (uppercase)</td></tr>
+        <tr><td>speaker_id</td><td>Integer</td><td>Unique speaker identifier</td></tr>
+        <tr><td>chapter_id</td><td>Integer</td><td>Audiobook chapter identifier</td></tr>
+        <tr><td>utterance_id</td><td>Integer</td><td>Utterance number within chapter</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Processed manifests</h3>
+    <p>
+      Raw datasets are normalized into standardized CSV manifests for the inference pipeline.
+      Demographic labels are shortened (e.g., "Black or African American" &rarr; "Black/AA",
+      "United States English" &rarr; "us"), gender is standardized, and age brackets are cleaned.
+      Each manifest row contains an utterance ID, absolute audio path, normalized reference text, and all
+      available demographic columns for that dataset.
+    </p>
+
+    <h3>Dataset access</h3>
+    <table>
+      <thead>
+        <tr><th>Dataset</th><th>Access method</th><th>Auth required</th><th>Full download size</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>LibriSpeech test-clean</strong></td>
+          <td>Direct download from OpenSLR</td>
+          <td>None</td>
+          <td>346 MB (.tar.gz)</td>
+        </tr>
+        <tr>
+          <td><strong>Common Voice 25.0 English</strong></td>
+          <td>Mozilla Data Collective REST API</td>
+          <td>MDC API key (env: <code>MDC_CLIENT_ID</code>, <code>MDC_API_KEY</code>). Must accept dataset terms in browser before API access works.</td>
+          <td>88 GB (.tar.gz)</td>
+        </tr>
+        <tr>
+          <td><strong>Fair-Speech</strong></td>
+          <td>Manual download from Meta AI</td>
+          <td>License agreement form on Meta website &mdash; no API available. Meta emails a download link after acceptance.</td>
+          <td>~6 GB (estimated)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>Download URLs:</strong></p>
+    <ul>
+      <li><strong>LibriSpeech</strong>: <code>https://www.openslr.org/resources/12/test-clean.tar.gz</code></li>
+      <li><strong>Common Voice</strong>: presigned URL via <code>POST /api/datasets/cmndapwry02jnmh07dyo46mot/download</code> at <code>datacollective.mozillafoundation.org</code> (dataset ID: <code>cmndapwry02jnmh07dyo46mot</code>). URL valid 12 hours, rate limit 30/day.</li>
+      <li><strong>Fair-Speech</strong>: <code>https://ai.meta.com/datasets/speech-fairness-dataset/</code> (manual form)</li>
+    </ul>
+
+    <p><strong>Note:</strong> Common Voice is available as version 25.0 on MDC (version 24.0 used in the midterm paper is no longer listed).
+      Neither Common Voice 24 nor Fair-Speech are on HuggingFace. LibriSpeech is available via HuggingFace (<code>librispeech_asr</code>) but the OpenSLR direct download is simpler.</p>
+
+    <!-- Models -->
+    <h2 id="models">Models Evaluated</h2>
+    <p>Nine open-weight models from HuggingFace, grouped by the role of the language model in decoding:</p>
+
+    <table>
+      <thead>
+        <tr><th>Model</th><th>Gen</th><th>Params</th><th>Audio Compression</th><th>LM Type</th><th>FS WER</th><th>CV WER</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Wav2Vec2-large</td><td>1</td><td>317M</td><td>None (raw frames)</td><td>No LM</td><td>32.15%</td><td>22.72%</td>
+        </tr>
+        <tr>
+          <td>Whisper-small</td><td>2</td><td>244M</td><td>Log-mel 80d</td><td>Implicit</td><td>11.51%</td><td>16.59%</td>
+        </tr>
+        <tr>
+          <td>Whisper-medium</td><td>2</td><td>764M</td><td>Log-mel 80d</td><td>Implicit</td><td>8.75%</td><td>12.59%</td>
+        </tr>
+        <tr>
+          <td>Whisper-large-v3</td><td>2</td><td>1.5B</td><td>Log-mel 128d</td><td>Implicit</td><td>7.79%</td><td>10.96%</td>
+        </tr>
+        <tr>
+          <td>Qwen3-ASR-0.6B</td><td>3</td><td>0.6B</td><td>Low (direct)</td><td>Explicit LLM</td><td>5.89%</td><td>10.08%</td>
+        </tr>
+        <tr class="highlight">
+          <td>Qwen3-ASR-1.7B</td><td>3</td><td>1.7B</td><td>Low (direct)</td><td>Explicit LLM</td><td>4.73%</td><td>7.76%</td>
+        </tr>
+        <tr>
+          <td>Canary-Qwen-2.5B</td><td>3</td><td>2.5B</td><td>Medium</td><td>Explicit LLM</td><td>6.60%</td><td>7.72%</td>
+        </tr>
+        <tr>
+          <td>Granite-Speech-2B</td><td>3</td><td>2.0B</td><td>High (Q-former)</td><td>Explicit LLM</td><td>8.99%</td><td>10.09%</td>
+        </tr>
+        <tr>
+          <td>Granite-Speech-8B</td><td>3</td><td>8.0B</td><td>High (Q-former)</td><td>Explicit LLM</td><td>8.04%</td><td>10.86%</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      <strong>Generation 1</strong>: CTC encoder, no language model.
+      <strong>Generation 2</strong>: encoder-decoder with implicit LM learned from training transcriptions.
+      <strong>Generation 3</strong>: audio embeddings routed into a pretrained LLM backbone.
+    </p>
+
+    <!-- Perturbations -->
+    <h2 id="perturbations">Perturbations</h2>
+    <p>
+      Real-world speech is rarely clean. Degraded signals force the decoder to compensate from its language prior,
+      potentially revealing demographic biases invisible on clean benchmarks. We tested all models under
+      4 perturbation types at 3 severity levels:
+    </p>
+    <table>
+      <thead>
+        <tr><th>Perturbation</th><th>Levels</th><th>Source</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Additive noise</td><td>SNR 20 / 10 / 0 dB</td><td>MUSAN noise corpus</td></tr>
+        <tr><td>Reverberation</td><td>RT60 0.3 / 0.6 / 1.0 s</td><td>OpenSLR RIRs</td></tr>
+        <tr><td>Silence injection</td><td>25 / 50 / 75% of duration</td><td>Synthetic (random position)</td></tr>
+        <tr><td>Chunk masking</td><td>10 / 20 / 30% zeroed</td><td>Synthetic (multiple chunks)</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Noise and reverb degrade signal quality while preserving temporal structure. Silence and masking remove
+      acoustic information entirely, maximally forcing decoder reliance on its language prior.
+      Total: 9 models &times; 12 conditions &times; 2 datasets = <strong>216 inference runs</strong>.
+    </p>
+
+    <!-- Metrics -->
+    <h2 id="metrics">Metrics</h2>
+    <p>Primary accuracy metric: Word Error Rate (WER). Primary fairness metric: max/min ratio (MMR):</p>
+    <div class="math-block">
+      $$\text{MMR} = \frac{\max_{g \in G}\, \text{WER}_g}{\min_{g \in G}\, \text{WER}_g}$$
+    </div>
+    <p>
+      where $G$ is the set of demographic groups with $n \geq 50$.
+      $\text{MMR} = 1.0$ is perfect parity; preferred over absolute gap because it is scale-invariant.
+      All group-level WERs include 95% bootstrap CIs (200 resamples).
+    </p>
+    <p>
+      Error decomposition following Morris et al. (2004): substitutions, insertions, and deletions &mdash;
+      distinguishing acoustic confusion from decoder-driven hallucinations.
+      Insertions further classified into <em>repetition</em> (autoregressive loops),
+      <em>syntactic</em> (function words), and <em>content</em> (semantic fabrications).
+    </p>
+    <p>
+      Perturbation fairness measured by amplification ratio:
+    </p>
+    <div class="math-block">
+      $$\alpha = \frac{\text{MMR}_\text{pert}}{\text{MMR}_\text{clean}}$$
+    </div>
+    <p>where $\alpha > 1$ means degradation widens demographic gaps and $\alpha < 1$ means compression.</p>
+
+    <!-- Findings -->
+    <h2 id="findings">Key Findings</h2>
+
+    <h3>Ethnicity fairness</h3>
+    <ol>
+      <li><strong>Black/AA speakers have the highest WER across all 9 models</strong>, regardless of generation or
+        architecture. Statistically significant (non-overlapping 95% CIs) for 8 of 9 models.</li>
+      <li><strong>LLM decoders do not amplify racial bias.</strong> Granite-8B (Gen 3, MMR = 2.28) achieves the
+        best ethnicity fairness among competitive models, outperforming all three Whisper models (MMR 3.13&ndash;4.04).</li>
+      <li><strong>Measurement paradox:</strong> Qwen3-1.7B achieves the lowest absolute Black/AA WER (8.45%) yet the
+        highest relative gap (+203%) because its White WER is very low (2.79%). Practitioners should report
+        both absolute WER per group and relative disparity.</li>
+    </ol>
+
+    <h3>Accent fairness and hallucination</h3>
+    <ol>
+      <li><strong>Audio compression predicts accent fairness</strong> more than LLM scale. Low-compression
+        Qwen3-1.7B (accent MMR = 1.82) outperforms high-compression Granite-2B (MMR = 3.30) at comparable parameter count.</li>
+      <li><strong>Whisper hallucinates on Indian-accented speech</strong> with a non-monotonic insertion rate:
+        small 3.22% &rarr; medium 1.53% &rarr; large-v3 <strong>9.62%</strong> (50.7% of all errors).
+        All Gen 3 models stay below 3.1% on the same utterances.</li>
+      <li><strong>Hallucination breakdown</strong> at the 9.62% rate (495 insertions on 511 utterances):
+        43% repetition loops, 48% syntactic completions, 9.3% content hallucinations
+        (e.g., "grow sea monkeys" &rarr; "go and see what happens").</li>
+    </ol>
+
+    <h3>Robustness under degradation</h3>
+    <ol>
+      <li><strong>Severe degradation paradoxically compresses fairness gaps.</strong> Under 30% masking, all models'
+        ethnicity MMR compresses ($\alpha = 0.36\text{-}0.79$) &mdash; "low-accuracy parity" where all groups converge
+        to high WER.</li>
+      <li><strong>Exception: silence amplifies Whisper's accent bias</strong> up to $4.64\times$
+        ($\text{MMR}: 3.23 \to 15.0$ at 25% silence for Whisper-small), driven by demographic-selective hallucination.</li>
+      <li><strong>Hallucination type is architecture-dependent.</strong> Under 30% masking, Whisper-small produces 51,797
+        insertions (86% repetition loops). Qwen3-1.7B produces 1,353 ($38\times$ fewer, 3% repetition).
+        High-compression Granite re-introduces Whisper-like repetition (49&ndash;57%) even with an explicit LLM decoder.</li>
+    </ol>
+
+    <div class="callout">
+      <strong>Bottom line:</strong> Qwen3-1.7B dominates on accuracy, accent fairness, and robustness.
+      Granite-8B is preferable for ethnicity fairness. Audio encoder design, not LLM scaling, is the
+      primary lever for equitable and robust speech recognition.
+    </div>
+
+    <!-- Next Steps -->
+    <h2 id="next">Next Steps</h2>
+    <p>
+      The midterm findings motivate a <strong>fairness-aware fine-tuning intervention</strong> for Qwen3-ASR-1.7B
+      using Group Relative Policy Optimization (GRPO) with a composite accuracy-fairness reward:
+    </p>
+    <div class="math-block">
+      $$R = (1 - \lambda)\,(1 - \text{WER}) \;+\; \lambda\bigl(-\lvert \text{WER}_g - \overline{\text{WER}} \rvert\bigr)$$
+    </div>
+    <p>
+      We have prepared speaker-level stratified train/eval splits for Fair-Speech (80/20, ~21K/5.3K utterances,
+      stratified by ethnicity with disjoint speakers) and a demographic-aware data loading pipeline.
+      The remaining work: LoRA adapter integration, GRPO training loop, three fairness baselines
+      (FairLoRA, Group-DRO, ICASSP 2026 fairness-prompted), and a $\lambda$ sweep to trace the
+      accuracy&ndash;fairness Pareto frontier.
+    </p>
+
+    <footer>
+      <p><small>Last updated: April 5, 2026</small></p>
+    </footer>
+  </div>
+
+</div>
+
+<script>
+(function() {
+  var sidebarLinks = document.querySelectorAll('#sidebar-toc a');
+  var sections = [];
+  sidebarLinks.forEach(function(link) {
+    var id = link.getAttribute('href').slice(1);
+    var el = document.getElementById(id);
+    if (el) sections.push({ id: id, el: el, link: link });
+  });
+  function onScroll() {
+    var scrollY = window.scrollY + 80;
+    var current = null;
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].el.offsetTop <= scrollY) current = sections[i];
+    }
+    sidebarLinks.forEach(function(l) { l.classList.remove('active'); });
+    if (current) current.link.classList.add('active');
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+</script>
+</body>
+</html>

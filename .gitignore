@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+__MACOSX/
+Thumbs.db
+
+# Data & results (large files, not tracked)
+data/
+results/
+outputs/
+checkpoints/
+*.wav
+*.flac
+*.mp3
+
+# Archives
+*.zip
+
+# Jupyter
+.ipynb_checkpoints/
+
+# W&B
+wandb/
