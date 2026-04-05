@@ -45,8 +45,8 @@ Plans:
   4. A short training run (e.g., 50-100 steps) on a small subset shows decreasing loss
 **Plans**: 2 plans
 Plans:
-- [ ] 01.1-01-PLAN.md -- LoRA model setup, data collator, and prototype training script
-- [ ] 01.1-02-PLAN.md -- Validation script and end-to-end GPU verification
+- [x] 01.1-01-PLAN.md -- LoRA model setup, data collator, and prototype training script
+- [x] 01.1-02-PLAN.md -- Validation script and end-to-end GPU verification
 
 ### Phase 1.2: Standard LoRA Baseline
 **Goal**: Standard LoRA baseline is fully trained and evaluated with fairness metrics on both datasets

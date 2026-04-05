@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 1.1 context gathered
-last_updated: "2026-04-05T18:04:15.492Z"
+last_updated: "2026-04-05T19:49:39.923Z"
 last_activity: 2026-04-05
 progress:
   total_phases: 6
-  completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  completed_phases: 2
+  total_plans: 4
+  completed_plans: 4
   percent: 100
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-05)
 
 **Core value:** Produce a working GRPO training pipeline that traces the accuracy-fairness Pareto frontier for Qwen3-ASR-1.7B
-**Current focus:** Phase 01.0 — Prepare Fine-Tuning Dataset
+**Current focus:** Phase 01.1 — lora-prototype
 
 ## Current Position
 
-Phase: 01.1
+Phase: 1.2
 Plan: Not started
-Status: Executing Phase 01.0
+Status: Executing Phase 01.1
 Last activity: 2026-04-05
 
 Progress: [░░░░░░░░░░] 0%
@@ -36,7 +36,7 @@ Progress: [░░░░░░░░░░] 0%
 
 **Velocity:**
 
-- Total plans completed: 4
+- Total plans completed: 6
 - Average duration: --
 - Total execution time: 0 hours
 
@@ -45,6 +45,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01.0 | 2 | - | - |
+| 01.1 | 2 | - | - |
 
 **Recent Trend:**
 
