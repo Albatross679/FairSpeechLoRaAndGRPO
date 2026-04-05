@@ -17,11 +17,12 @@ Produce a working GRPO training pipeline that traces the accuracy-fairness Paret
 - ✓ Common Voice 24 and Fair-Speech dataset preparation — existing
 - ✓ Perturbation generation (noise, reverb, silence, masking) — existing
 - ✓ Visualization pipeline for publication-ready figures — existing
+- ✓ LoRA adapter integration (freeze encoder, train ~1-2% decoder parameters) — Validated in Phase 1.1: LoRA Prototype
 
 ### Active
 
 - [ ] GRPO training loop with composite fairness reward R = (1-λ)(1-WER) + λ(-|WER_g - WER|)
-- [ ] LoRA adapter integration (freeze encoder, train ~1-2% decoder parameters)
+- [x] LoRA adapter integration (freeze encoder, train ~1-2% decoder parameters) — moved to Validated
 - [ ] λ sweep across multiple values to trace Pareto frontier
 - [ ] Fairness reward computed over both ethnicity and accent demographic axes
 - [ ] Standard LoRA baseline (λ=0, no fairness reward)
@@ -64,7 +65,7 @@ Produce a working GRPO training pipeline that traces the accuracy-fairness Paret
 |----------|-----------|---------|
 | Target Qwen3-ASR-1.7B | Best accuracy but worst ethnicity gap — most room for fairness improvement | — Pending |
 | GRPO over PPO | No value model needed, validated for ASR, lower compute | — Pending |
-| LoRA adapters (freeze encoder) | 16GB VRAM constraint, train ~1-2% parameters | — Pending |
+| LoRA adapters (freeze encoder) | 16GB VRAM constraint, train ~1-2% parameters | ✓ Phase 1.1 — VRAM < 14GB confirmed |
 | Both ethnicity and accent axes | Ethnicity is primary gap, accent adds completeness | — Pending |
 | Train on Fair-Speech + Common Voice | Fair-Speech for controlled evaluation, CV for diversity | — Pending |
 
@@ -86,4 +87,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-05 after initialization*
+*Last updated: 2026-04-05 after Phase 1.1 (LoRA Prototype) completion*
