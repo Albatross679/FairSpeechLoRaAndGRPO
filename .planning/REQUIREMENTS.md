@@ -7,6 +7,12 @@
 
 Requirements for initial release. Each maps to roadmap phases.
 
+### Data Preparation
+
+- [ ] **DATA-01**: Fair-Speech and Common Voice 24 train/eval splits created with demographic labels (ethnicity, accent) preserved
+- [ ] **DATA-02**: Data loaders yield batches of (audio_tensor, reference_transcript, demographic_group) for training
+- [ ] **DATA-03**: Each demographic group has sufficient representation in both train and eval splits for per-group metrics
+
 ### Infrastructure
 
 - [ ] **INFRA-01**: LoRA adapters attach to Qwen3-ASR-1.7B decoder with frozen encoder via PEFT
@@ -78,11 +84,14 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | Phase 1 | Pending |
-| INFRA-02 | Phase 1 | Pending |
-| INFRA-03 | Phase 1 | Pending |
-| INFRA-04 | Phase 1 | Pending |
-| INFRA-05 | Phase 1 | Pending |
+| DATA-01 | Phase 1.0 | Pending |
+| DATA-02 | Phase 1.0 | Pending |
+| DATA-03 | Phase 1.0 | Pending |
+| INFRA-01 | Phase 1.1 | Pending |
+| INFRA-02 | Phase 1.1 | Pending |
+| INFRA-03 | Phase 1.1 | Pending |
+| INFRA-04 | Phase 1.1 | Pending |
+| INFRA-05 | Phase 1.1 | Pending |
 | GRPO-01 | Phase 2 | Pending |
 | GRPO-02 | Phase 2 | Pending |
 | GRPO-03 | Phase 2 | Pending |
@@ -93,14 +102,14 @@ Deferred to future release. Tracked but not in current roadmap.
 | GRPO-08 | Phase 2 | Pending |
 | GRPO-09 | Phase 2 | Pending |
 | GRPO-10 | Phase 2 | Pending |
-| BASE-01 | Phase 1 | Pending |
+| BASE-01 | Phase 1.2 | Pending |
 | BASE-02 | Phase 3 | Pending |
 | BASE-03 | Phase 3 | Pending |
 | BASE-04 | Phase 3 | Pending |
-| EVAL-01 | Phase 1 | Pending |
-| EVAL-02 | Phase 1 | Pending |
-| EVAL-03 | Phase 1 | Pending |
-| EVAL-04 | Phase 1 | Pending |
+| EVAL-01 | Phase 1.2 | Pending |
+| EVAL-02 | Phase 1.2 | Pending |
+| EVAL-03 | Phase 1.2 | Pending |
+| EVAL-04 | Phase 1.2 | Pending |
 | EVAL-05 | Phase 3 | Pending |
 | EVAL-06 | Phase 3 | Pending |
 | EXPT-01 | Phase 4 | Pending |
@@ -109,8 +118,8 @@ Deferred to future release. Tracked but not in current roadmap.
 | EXPT-04 | Phase 4 | Pending |
 
 **Coverage:**
-- v1 requirements: 29 total
-- Mapped to phases: 29
+- v1 requirements: 32 total
+- Mapped to phases: 32
 - Unmapped: 0
 
 ---

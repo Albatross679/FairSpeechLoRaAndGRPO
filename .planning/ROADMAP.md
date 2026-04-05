@@ -74,7 +74,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 - [x] 01.0-01-PLAN.md -- Create Fair-Speech train/eval splits and validation script
-- [ ] 01.0-02-PLAN.md -- Build PyTorch Dataset and DataLoader with demographic-stratified sampling
+- [x] 01.0-02-PLAN.md -- Build PyTorch Dataset and DataLoader with demographic-stratified sampling
 
 ### Phase 3: Fairness Baselines
 **Goal**: All three fairness baselines are trained and evaluated, producing results directly comparable to the standard LoRA and GRPO methods
@@ -88,7 +88,7 @@ Plans:
   5. Error decomposition (sub/ins/del rates) by demographic group is computed for all trained models
 **Plans**: 2 plans
 Plans:
-- [ ] 01.0-01-PLAN.md -- Create Fair-Speech train/eval splits and validation script
+- [x] 01.0-01-PLAN.md -- Create Fair-Speech train/eval splits and validation script
 - [ ] 01.0-02-PLAN.md -- Build PyTorch Dataset and DataLoader with demographic-stratified sampling
 
 ### Phase 4: Lambda Sweep and Pareto Frontier
