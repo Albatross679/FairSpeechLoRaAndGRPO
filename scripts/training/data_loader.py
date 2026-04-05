@@ -122,3 +122,169 @@ def collate_fn(batch: list[dict]) -> dict:
         "demographic_groups": [item["demographic_group"] for item in batch],
         "utterance_ids": [item["utterance_id"] for item in batch],
     }
+
+
+# ---------------------------------------------------------------------------
+# Demographic-Stratified Sampler
+# ---------------------------------------------------------------------------
+
+class DemographicStratifiedSampler(Sampler):
+    """Sampler that ensures each batch contains utterances from multiple demographic groups.
+
+    Oversamples small groups to ensure minimum representation (D-09).
+    Groups with missing labels are included but not used for stratification.
+
+    Args:
+        demographics: Series or array of demographic group labels.
+        batch_size: Number of samples per batch.
+        min_per_group: Minimum samples per group per epoch (oversampling floor).
+            Defaults to MIN_GROUP_SIZE=50.
+        seed: Random seed for reproducibility.
+        num_batches: Number of batches per epoch. If None, computed from
+            oversampled dataset size / batch_size.
+    """
+
+    def __init__(self, demographics, batch_size: int,
+                 min_per_group: int = MIN_GROUP_SIZE, seed: int = 42,
+                 num_batches: int | None = None):
+        self.batch_size = batch_size
+        self.min_per_group = min_per_group
+        self.seed = seed
+        self.rng = np.random.RandomState(seed)
+
+        # Build per-group index lists (skip empty/missing labels)
+        self.group_indices = {}
+        self.unlabeled_indices = []
+        demographics_arr = np.asarray(demographics)
+        for idx, group in enumerate(demographics_arr):
+            group_str = str(group).strip()
+            if group_str and group_str != "nan":
+                self.group_indices.setdefault(group_str, []).append(idx)
+            else:
+                self.unlabeled_indices.append(idx)
+
+        self.groups = sorted(self.group_indices.keys())
+
+        # Compute oversampled indices per group
+        self._oversampled_pool = []
+        for group in self.groups:
+            indices = self.group_indices[group]
+            if len(indices) < self.min_per_group:
+                # Oversample to reach floor (D-09)
+                oversampled = list(indices) * (self.min_per_group // len(indices) + 1)
+                oversampled = oversampled[:self.min_per_group]
+            else:
+                oversampled = list(indices)
+            self._oversampled_pool.extend(oversampled)
+
+        # Add unlabeled indices (they contribute to R_acc per D-08)
+        self._oversampled_pool.extend(self.unlabeled_indices)
+
+        # Effective epoch length (per Pitfall 6 from RESEARCH.md)
+        self._num_samples = len(self._oversampled_pool)
+        if num_batches is not None:
+            self._num_samples = num_batches * batch_size
+
+    def __iter__(self):
+        # Shuffle the oversampled pool
+        pool = self._oversampled_pool.copy()
+        self.rng.shuffle(pool)
+        # Yield indices up to num_samples
+        for i in range(min(self._num_samples, len(pool))):
+            yield pool[i]
+
+    def __len__(self):
+        return self._num_samples
+
+
+# ---------------------------------------------------------------------------
+# DataLoader factory
+# ---------------------------------------------------------------------------
+
+def create_dataloader(
+    manifest_csv: str,
+    demographic_axis: str = "ethnicity",
+    batch_size: int = 8,
+    sample_rate: int = DEFAULT_SAMPLE_RATE,
+    stratified: bool = True,
+    min_per_group: int = MIN_GROUP_SIZE,
+    seed: int = 42,
+    num_workers: int = 2,
+    num_batches: int | None = None,
+) -> DataLoader:
+    """Create a DataLoader for ASR fairness training/evaluation.
+
+    Args:
+        manifest_csv: Path to CSV manifest (fs_train.csv, fs_eval.csv,
+            or cv_test_manifest.csv).
+        demographic_axis: Column for demographic grouping
+            ("ethnicity" for FS, "accent" for CV).
+        batch_size: Samples per batch.
+        sample_rate: Target audio sample rate.
+        stratified: If True, use DemographicStratifiedSampler (for training).
+            If False, sequential iteration (for evaluation).
+        min_per_group: Oversampling floor for small groups.
+        seed: Random seed.
+        num_workers: DataLoader workers.
+        num_batches: Fixed number of batches per epoch (None = use all data).
+
+    Returns:
+        DataLoader yielding batches from collate_fn.
+    """
+    dataset = ASRFairnessDataset(
+        manifest_csv=manifest_csv,
+        demographic_axis=demographic_axis,
+        sample_rate=sample_rate,
+    )
+
+    sampler = None
+    shuffle = False
+    if stratified:
+        sampler = DemographicStratifiedSampler(
+            demographics=dataset.demographics,
+            batch_size=batch_size,
+            min_per_group=min_per_group,
+            seed=seed,
+            num_batches=num_batches,
+        )
+    else:
+        shuffle = False  # Eval: sequential, no shuffle
+
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        sampler=sampler,
+        shuffle=shuffle,
+        collate_fn=collate_fn,
+        num_workers=num_workers,
+        pin_memory=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Smoke test
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Test data loader")
+    parser.add_argument("--manifest", required=True, help="Path to manifest CSV")
+    parser.add_argument("--axis", default="ethnicity", help="Demographic axis")
+    parser.add_argument("--batch-size", type=int, default=4)
+    args = parser.parse_args()
+
+    loader = create_dataloader(
+        manifest_csv=args.manifest,
+        demographic_axis=args.axis,
+        batch_size=args.batch_size,
+        stratified=True,
+        num_workers=0,
+    )
+
+    batch = next(iter(loader))
+    print(f"Audio shape: {batch['audio'].shape}")
+    print(f"Audio lengths: {batch['audio_lengths']}")
+    print(f"Transcripts: {batch['transcripts'][:2]}")
+    print(f"Demographics: {batch['demographic_groups']}")
+    print(f"Utterance IDs: {batch['utterance_ids'][:2]}")
