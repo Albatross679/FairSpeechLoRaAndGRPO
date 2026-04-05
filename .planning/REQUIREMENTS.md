@@ -13,14 +13,14 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **INFRA-02**: Model loads from raw HuggingFace weights (not qwen-asr inference wrapper) for backpropagation
 - [ ] **INFRA-03**: VRAM profiling confirms peak usage < 14GB on RTX A4000 with G=4 completions
 - [ ] **INFRA-04**: Gradient checkpointing enabled to fit within 16GB VRAM budget
-- [ ] **INFRA-05**: Adapter save/load/merge lifecycle works end-to-end (train → save → load → evaluate)
+- [ ] **INFRA-05**: Adapter save/load/merge lifecycle works end-to-end (train -> save -> load -> evaluate)
 
 ### GRPO Training
 
 - [ ] **GRPO-01**: Custom GRPO training loop generates G candidate outputs per input audio
-- [ ] **GRPO-02**: WER-based accuracy reward computed per candidate using jiwer: R_acc = (1-λ)(1-WER)
-- [ ] **GRPO-03**: Fairness penalty computed per candidate: R_fair = λ(-|WER_g - WER_mean|) over demographic groups
-- [ ] **GRPO-04**: Composite reward R = R_acc + R_fair with configurable λ
+- [ ] **GRPO-02**: WER-based accuracy reward computed per candidate using jiwer: R_acc = (1-lambda)(1-WER)
+- [ ] **GRPO-03**: Fairness penalty computed per candidate: R_fair = lambda(-|WER_g - WER_mean|) over demographic groups
+- [ ] **GRPO-04**: Composite reward R = R_acc + R_fair with configurable lambda
 - [ ] **GRPO-05**: Group-relative advantage normalization across G candidates
 - [ ] **GRPO-06**: Clipped surrogate policy loss (PPO-style) for stable updates
 - [ ] **GRPO-07**: Dr. GRPO variant available: removes std normalization, adds length normalization
@@ -30,10 +30,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Baselines
 
-- [ ] **BASE-01**: Standard LoRA baseline (λ=0, pure accuracy reward, no fairness term)
-- [ ] **BASE-02**: FairLoRA baseline: L = L_standard + λ * Var(L_g across groups)
+- [ ] **BASE-01**: Standard LoRA baseline (lambda=0, pure accuracy reward, no fairness term)
+- [ ] **BASE-02**: FairLoRA baseline: L = L_standard + lambda * Var(L_g across groups)
 - [ ] **BASE-03**: Group-DRO baseline with smoothed exponential group weight updates
-- [ ] **BASE-04**: ICASSP 2026 fairness-prompted baseline: L = λ_e*L_ERM + λ_s*L_SD + λ_d*L_DRO + λ_i*L_IRM
+- [ ] **BASE-04**: ICASSP 2026 fairness-prompted baseline: L = lambda_e*L_ERM + lambda_s*L_SD + lambda_d*L_DRO + lambda_i*L_IRM
 
 ### Evaluation
 
@@ -59,7 +59,7 @@ Deferred to future release. Tracked but not in current roadmap.
 
 - **EXT-01**: Multiple reward function ablation (WER, exact match, edit distance)
 - **EXT-02**: Beam search vs. multinomial sampling comparison for GRPO generation
-- **EXT-03**: Intersectional analysis (ethnicity × accent × gender) — group sizes may be too small
+- **EXT-03**: Intersectional analysis (ethnicity x accent x gender) -- group sizes may be too small
 - **EXT-04**: Demographic conditioning / group-specific LoRA adapters (MAS-LoRA style)
 
 ## Out of Scope
@@ -78,41 +78,41 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | Pending | Pending |
-| INFRA-02 | Pending | Pending |
-| INFRA-03 | Pending | Pending |
-| INFRA-04 | Pending | Pending |
-| INFRA-05 | Pending | Pending |
-| GRPO-01 | Pending | Pending |
-| GRPO-02 | Pending | Pending |
-| GRPO-03 | Pending | Pending |
-| GRPO-04 | Pending | Pending |
-| GRPO-05 | Pending | Pending |
-| GRPO-06 | Pending | Pending |
-| GRPO-07 | Pending | Pending |
-| GRPO-08 | Pending | Pending |
-| GRPO-09 | Pending | Pending |
-| GRPO-10 | Pending | Pending |
-| BASE-01 | Pending | Pending |
-| BASE-02 | Pending | Pending |
-| BASE-03 | Pending | Pending |
-| BASE-04 | Pending | Pending |
-| EVAL-01 | Pending | Pending |
-| EVAL-02 | Pending | Pending |
-| EVAL-03 | Pending | Pending |
-| EVAL-04 | Pending | Pending |
-| EVAL-05 | Pending | Pending |
-| EVAL-06 | Pending | Pending |
-| EXPT-01 | Pending | Pending |
-| EXPT-02 | Pending | Pending |
-| EXPT-03 | Pending | Pending |
-| EXPT-04 | Pending | Pending |
+| INFRA-01 | Phase 1 | Pending |
+| INFRA-02 | Phase 1 | Pending |
+| INFRA-03 | Phase 1 | Pending |
+| INFRA-04 | Phase 1 | Pending |
+| INFRA-05 | Phase 1 | Pending |
+| GRPO-01 | Phase 2 | Pending |
+| GRPO-02 | Phase 2 | Pending |
+| GRPO-03 | Phase 2 | Pending |
+| GRPO-04 | Phase 2 | Pending |
+| GRPO-05 | Phase 2 | Pending |
+| GRPO-06 | Phase 2 | Pending |
+| GRPO-07 | Phase 2 | Pending |
+| GRPO-08 | Phase 2 | Pending |
+| GRPO-09 | Phase 2 | Pending |
+| GRPO-10 | Phase 2 | Pending |
+| BASE-01 | Phase 1 | Pending |
+| BASE-02 | Phase 3 | Pending |
+| BASE-03 | Phase 3 | Pending |
+| BASE-04 | Phase 3 | Pending |
+| EVAL-01 | Phase 1 | Pending |
+| EVAL-02 | Phase 1 | Pending |
+| EVAL-03 | Phase 1 | Pending |
+| EVAL-04 | Phase 1 | Pending |
+| EVAL-05 | Phase 3 | Pending |
+| EVAL-06 | Phase 3 | Pending |
+| EXPT-01 | Phase 4 | Pending |
+| EXPT-02 | Phase 4 | Pending |
+| EXPT-03 | Phase 4 | Pending |
+| EXPT-04 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 29 total
-- Mapped to phases: 0
-- Unmapped: 29 ⚠️
+- Mapped to phases: 29
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-05*
-*Last updated: 2026-04-05 after initial definition*
+*Last updated: 2026-04-05 after roadmap creation*
