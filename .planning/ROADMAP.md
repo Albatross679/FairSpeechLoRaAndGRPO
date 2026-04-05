@@ -31,8 +31,8 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Splits are balanced enough that each demographic group has sufficient representation for per-group metrics
 **Plans**: 2 plans
 Plans:
-- [ ] 01.0-01-PLAN.md -- Create Fair-Speech train/eval splits and validation script
-- [ ] 01.0-02-PLAN.md -- Build PyTorch Dataset and DataLoader with demographic-stratified sampling
+- [x] 01.0-01-PLAN.md -- Create Fair-Speech train/eval splits and validation script
+- [x] 01.0-02-PLAN.md -- Build PyTorch Dataset and DataLoader with demographic-stratified sampling
 
 ### Phase 1.1: LoRA Prototype
 **Goal**: LoRA attaches to Qwen3-ASR-1.7B decoder and produces valid transcriptions within VRAM budget, validated on a small data subset
@@ -45,8 +45,8 @@ Plans:
   4. A short training run (e.g., 50-100 steps) on a small subset shows decreasing loss
 **Plans**: 2 plans
 Plans:
-- [ ] 01.0-01-PLAN.md -- Create Fair-Speech train/eval splits and validation script
-- [ ] 01.0-02-PLAN.md -- Build PyTorch Dataset and DataLoader with demographic-stratified sampling
+- [x] 01.0-01-PLAN.md -- Create Fair-Speech train/eval splits and validation script
+- [x] 01.0-02-PLAN.md -- Build PyTorch Dataset and DataLoader with demographic-stratified sampling
 
 ### Phase 1.2: Standard LoRA Baseline
 **Goal**: Standard LoRA baseline is fully trained and evaluated with fairness metrics on both datasets
@@ -59,8 +59,8 @@ Plans:
   4. Results are saved in a format compatible with the existing analysis pipeline
 **Plans**: 2 plans
 Plans:
-- [ ] 01.0-01-PLAN.md -- Create Fair-Speech train/eval splits and validation script
-- [ ] 01.0-02-PLAN.md -- Build PyTorch Dataset and DataLoader with demographic-stratified sampling
+- [x] 01.0-01-PLAN.md -- Create Fair-Speech train/eval splits and validation script
+- [x] 01.0-02-PLAN.md -- Build PyTorch Dataset and DataLoader with demographic-stratified sampling
 
 ### Phase 2: GRPO Training Loop
 **Goal**: Users can train Qwen3-ASR with GRPO using a composite fairness reward and observe per-group WER dynamics during training
@@ -73,7 +73,7 @@ Plans:
   4. Dr. GRPO variant (no std normalization, length normalization) is selectable via config and produces a trained adapter
 **Plans**: 2 plans
 Plans:
-- [ ] 01.0-01-PLAN.md -- Create Fair-Speech train/eval splits and validation script
+- [x] 01.0-01-PLAN.md -- Create Fair-Speech train/eval splits and validation script
 - [ ] 01.0-02-PLAN.md -- Build PyTorch Dataset and DataLoader with demographic-stratified sampling
 
 ### Phase 3: Fairness Baselines
