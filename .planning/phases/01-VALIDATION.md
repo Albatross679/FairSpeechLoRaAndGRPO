@@ -3,7 +3,7 @@
 **Generated:** 2026-04-07
 **Test file:** `tests/test_phase1_validation.py`
 **Runner:** `pytest tests/test_phase1_validation.py -v`
-**Result:** 45 passed, 7 skipped (whisper dep missing)
+**Result:** 52 passed, 0 skipped
 
 ## Phase 1.0 -- Prepare Fine-Tuning Dataset
 
@@ -24,22 +24,15 @@
 | INFRA-02 | LoRA targets decoder attention only (not MLP) | TestLoraTargetModules | 1 | `pytest tests/test_phase1_validation.py::TestLoraTargetModules -v` | green |
 | INFRA-03 | Stratified subset creation (100 FS + 100 CV) | TestCreateStratifiedSubset | 2 | `pytest tests/test_phase1_validation.py::TestCreateStratifiedSubset -v` | green |
 | INFRA-03 | VRAM profiling handles no-GPU | TestPrintGpuMemory | 1 | `pytest tests/test_phase1_validation.py::TestPrintGpuMemory -v` | green |
-| INFRA-04 | Validation thresholds (VRAM, WER, chatty) | TestValidateLoraPrototypeConstants | 3 | `pytest tests/test_phase1_validation.py::TestValidateLoraPrototypeConstants -v` | skipped (whisper) |
-| INFRA-04 | Loss trend detection | TestCheckLossTrend | 3 | `pytest tests/test_phase1_validation.py::TestCheckLossTrend -v` | skipped (whisper) |
+| INFRA-04 | Validation thresholds (VRAM, WER, chatty) | TestValidateLoraPrototypeConstants | 3 | `pytest tests/test_phase1_validation.py::TestValidateLoraPrototypeConstants -v` | green |
+| INFRA-04 | Loss trend detection | TestCheckLossTrend | 3 | `pytest tests/test_phase1_validation.py::TestCheckLossTrend -v` | green |
 | INFRA-05 | Forward patch safety (raises on bad model) | TestPatchOuterForward | 3 | `pytest tests/test_phase1_validation.py::TestPatchOuterForward -v` | green |
 
 ## Import Smoke Tests
 
 | Scope | Test Class | Tests | Command | Status |
 |-------|------------|-------|---------|--------|
-| All Phase 1 modules importable | TestImports | 5 (1 skipped) | `pytest tests/test_phase1_validation.py::TestImports -v` | green (4/5) |
-
-## Skipped Tests (Environment Gaps)
-
-7 tests skipped because `whisper` (openai-whisper) is not installed in this environment.
-These tests cover `scripts/training/validate_lora_prototype.py` which has `from whisper.normalizers import EnglishTextNormalizer` at module level.
-
-**To run skipped tests:** `pip install openai-whisper && pytest tests/test_phase1_validation.py -v`
+| All Phase 1 modules importable | TestImports | 5 | `pytest tests/test_phase1_validation.py::TestImports -v` | green |
 
 ## Remaining HPC/GPU-Only Validation (Cannot Automate Here)
 
