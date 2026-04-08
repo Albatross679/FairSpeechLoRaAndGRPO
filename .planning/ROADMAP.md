@@ -28,6 +28,31 @@ Decimal phases appear between their surrounding integers in numeric order.
 - **Depends on:** Phase 2 (validated config, evaluation bridge), Phase 2.1 (optional — improved sweep if available)
 - **Requirements:** BASE-01, EVAL-01
 
+### Phase 4: RL Prototyping Before Scaling Up RL
+- **Goal:** Prototype GRPO fairness-aware fine-tuning with a custom training loop (TRL incompatible), validate training signal exists on a 2K-sample subset with G=2 candidates, and run a 3-lambda sweep (0, 0.3, 0.7) to establish the accuracy-fairness tradeoff before full-scale Phase 5
+- **Depends on:** Phase 3 (production SFT baseline adapter)
+- **Requirements:** GRPO-01, GRPO-02, GRPO-03, GRPO-04, GRPO-05, GRPO-06, GRPO-07, GRPO-08, GRPO-09, EXPT-01 (prototype), EXPT-04 (prototype)
+- **Plans:** 2 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Prototype validation (lambda=0.0, 200 steps, signal check)
+- [ ] 04-02-PLAN.md — Lambda sweep (0, 0.3, 0.7) + evaluation + Pareto analysis
+
+### Phase 5: Launch the Scaled-Up RL
+- **Goal:** Launch the scaled-up RL training run using validated GRPO configuration from Phase 4 prototyping — producing the fairness-aware checkpoint at full scale
+- **Depends on:** Phase 4 (RL prototyping validated)
+- **Requirements:** TBD
+
+### Phase 6: Rejection Sampling — Fairness-Aware SFT (Optional)
+- **Goal:** Sample from best GRPO checkpoint, filter for low-gap + high-accuracy transcriptions, and use as data for a second SFT round — producing a model that is both fair and accurate without RL overhead at inference
+- **Depends on:** Phase 5 (best GRPO checkpoint)
+- **Requirements:** TBD
+
+### Phase 7: FairLoRA + Group-DRO + ICASSP Comparisons
+- **Goal:** Train the three comparison baselines: FairLoRA (supervised fairness regularizer), Group-DRO (distributionally robust optimization), and ICASSP 2026 fairness-prompted fine-tuning. All plotted on the same Pareto frontier.
+- **Depends on:** Phase 3 (production SFT baseline adapter)
+- **Requirements:** TBD
+
 ## Phase Details
 
 ### Phase 2: Standard LoRA Baseline + Evaluation Bridge
@@ -54,10 +79,44 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Avoids:** Pitfall #3 (premature scaling — only runs full training after config is validated)
 
+### Phase 4: RL Prototyping Before Scaling Up RL
+
+**Delivers:** Custom GRPO training loop (train_grpo.py), composite reward function (reward.py), VRAM profile on T4, training signal validation (advantage std, zero-std fraction), 3-lambda sweep results (0, 0.3, 0.7) showing accuracy-fairness tradeoff on 2K subset
+
+**Rationale:** GRPO for ASR is novel and risky — TRL doesn't support audio, VRAM is tight on T4, and the unique-answer problem may starve the learning signal. Prototyping at small scale validates that the algorithm works before committing to expensive full-scale training. The 3-lambda sweep establishes whether fairness reward produces a meaningful tradeoff.
+
+**Avoids:** Pitfall #3 (premature scaling — validates signal before Phase 5), Pitfall #1 (unique-answer — monitors frac_zero_std), Pitfall #2 (VRAM — starts with G=2, batch_size=1)
+
+### Phase 5: Launch the Scaled-Up RL
+
+**Delivers:** Full-scale GRPO training run with validated hyperparameters from Phase 4, fairness-aware checkpoint ready for evaluation and Pareto frontier analysis
+
+**Rationale:** Phase 4 prototypes and validates the GRPO reward design, training stability, and hyperparameters at small scale. Phase 5 takes that validated configuration and runs the full-scale training — longer training, full dataset, proper checkpointing — producing the definitive GRPO checkpoint that balances fairness and accuracy.
+
+**Avoids:** Pitfall #3 (premature scaling — only runs full RL training after config is validated in Phase 4)
+
+### Phase 6: Rejection Sampling — Fairness-Aware SFT (Optional)
+
+**Delivers:** Rejection-sampled dataset from best GRPO checkpoint (filtered for low demographic gap + high accuracy), second-round SFT adapter that embeds fairness into the model without RL at inference time
+
+**Rationale:** GRPO produces a checkpoint that balances fairness and accuracy, but RL inference overhead is expensive. Rejection sampling distills the GRPO policy into a standard SFT model: generate many transcriptions, keep only those that are both accurate and demographically fair, then fine-tune on this curated set. The result is a model with fairness baked in, deployable without RL.
+
+**Avoids:** Pitfall #3 (premature scaling — only runs after GRPO checkpoint is validated and Pareto frontier is established)
+
+### Phase 7: FairLoRA + Group-DRO + ICASSP Comparisons
+
+**Delivers:** Three trained comparison baselines (FairLoRA, Group-DRO, ICASSP 2026 fairness-prompted) with fairness metrics, all plotted on the shared Pareto frontier alongside GRPO results
+
+**Rationale:** The paper's contribution requires showing GRPO outperforms existing fairness methods. These three represent the state of the art: FairLoRA adds a supervised fairness regularizer during LoRA training, Group-DRO optimizes for worst-group performance, and ICASSP 2026 uses fairness-prompted fine-tuning. Training all three under identical conditions enables fair comparison on the Pareto frontier.
+
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 2 | 2/2 | Complete | 2026-04-07 |
 | 2.1 | 2/2 | Ready | — |
-| 3 | 2 | Planned | — |
+| 3 | 3/3 | Planned | — |
+| 4 | 0/2 | Planned | — |
+| 5 | 0 | Planned | — |
+| 6 | 0 | Planned | — |
+| 7 | 0 | Planned | — |
