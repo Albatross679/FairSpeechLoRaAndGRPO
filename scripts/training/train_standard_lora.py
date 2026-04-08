@@ -523,6 +523,10 @@ def run_train(args):
     warmup_ratio = float(params.get("warmup_ratio", 0.05))
     grad_accum = int(params.get("grad_accum_steps", 2))
     batch_size = int(params.get("batch_size", 4 if args.full_dataset else 2))
+    if args.batch_size is not None:
+        batch_size = args.batch_size
+    if args.grad_accum is not None:
+        grad_accum = args.grad_accum
 
     print(f"\n  Locked HPs: lr={lr:.2e}, rank={rank}, alpha={alpha}, "
           f"dropout={dropout:.2f}, mlp={target_mlp}, wd={weight_decay:.2e}, "
@@ -754,6 +758,10 @@ def main():
         help="Path to checkpoint directory to resume from")
     parser.add_argument("--locked_config_path", type=str, default=None,
         help="Path to locked_config.json (default: {output_dir}/locked_config.json)")
+    parser.add_argument("--batch_size", type=int, default=None,
+        help="Override per-device train batch size (takes precedence over locked config)")
+    parser.add_argument("--grad_accum", type=int, default=None,
+        help="Override gradient accumulation steps (takes precedence over locked config)")
     args = parser.parse_args()
 
     torch.manual_seed(SEED)
