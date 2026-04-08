@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02.1-02-PLAN.md
-last_updated: "2026-04-08T15:03:39.609Z"
+stopped_at: Phase 3 context updated with Phase 2.1 results
+last_updated: "2026-04-08T17:11:51.870Z"
 last_activity: 2026-04-08
 progress:
-  total_phases: 3
+  total_phases: 7
   completed_phases: 2
   total_plans: 6
   completed_plans: 4
@@ -71,6 +71,12 @@ Recent decisions affecting current work:
 
 None yet.
 
+### Roadmap Evolution
+
+- Phase 4 added: RL prototyping before scaling up RL
+- Phase 5 added: Launch the scaled-up RL
+- Phase 7 added: FairLoRA + Group-DRO + ICASSP Comparisons
+
 ### Blockers/Concerns
 
 - Phase 1 critical risk: Qwen3-ASR LoRA integration is underdocumented. The qwen-asr package may not expose the HuggingFace model cleanly for PEFT injection. Fallback: load via transformers directly.
@@ -79,6 +85,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-08T15:03:39.605Z
-Stopped at: Completed 02.1-02-PLAN.md
-Resume file: None
+Last session: 2026-04-08T17:11:51.859Z
+Stopped at: Phase 3 context updated with Phase 2.1 results
+Resume file: .planning/phases/03-full-sft-lora-training/03-CONTEXT.md
