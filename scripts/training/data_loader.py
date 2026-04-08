@@ -13,6 +13,10 @@ Usage:
     python scripts/training/data_loader.py --manifest /path/to/fs_train.csv --axis ethnicity
 """
 
+import hashlib
+import json
+import os
+
 import numpy as np
 import pandas as pd
 import soundfile as sf
@@ -69,6 +73,60 @@ class ASRFairnessDataset(Dataset):
             self.demographics = self.df[demographic_axis].fillna("").astype(str).values
         else:
             self.demographics = np.array([""] * len(self.df))
+
+        # Duration cache (populated lazily by get_durations())
+        self._durations = None
+
+    def get_durations(self, cache_dir=None):
+        """Return audio durations in seconds for all samples.
+
+        Reads audio file headers (not full audio) via soundfile.info().
+        Results are cached to disk for reuse across runs.
+
+        Args:
+            cache_dir: Directory for cache file. Defaults to same dir as manifest.
+
+        Returns:
+            np.ndarray of float32 durations in seconds, shape (len(self),).
+        """
+        if self._durations is not None:
+            return self._durations
+
+        # Build a cache key from manifest path + row count
+        manifest_hash = hashlib.md5(
+            f"{os.path.abspath(self.manifest_csv)}:{len(self.df)}".encode()
+        ).hexdigest()[:12]
+        if cache_dir is None:
+            cache_dir = os.path.dirname(os.path.abspath(self.manifest_csv))
+        cache_path = os.path.join(cache_dir, f".duration_cache_{manifest_hash}.npy")
+
+        if os.path.exists(cache_path):
+            self._durations = np.load(cache_path)
+            if len(self._durations) == len(self.df):
+                print(f"  Loaded duration cache: {cache_path} ({len(self._durations)} entries)")
+                return self._durations
+
+        # Compute durations from audio file headers
+        print(f"  Computing audio durations for {len(self.df):,} files...")
+        durations = np.zeros(len(self.df), dtype=np.float32)
+        errors = 0
+        for i, path in enumerate(self.df["audio_path"].values):
+            try:
+                info = sf.info(path)
+                durations[i] = info.frames / info.samplerate
+            except Exception:
+                durations[i] = 5.0  # fallback: assume 5s for unreadable files
+                errors += 1
+            if (i + 1) % 100000 == 0:
+                print(f"    {i + 1:,}/{len(self.df):,} done...")
+
+        if errors > 0:
+            print(f"  WARNING: {errors} files unreadable, using 5s fallback")
+
+        np.save(cache_path, durations)
+        print(f"  Saved duration cache: {cache_path}")
+        self._durations = durations
+        return self._durations
 
     def __len__(self):
         return len(self.df)
@@ -202,6 +260,131 @@ class DemographicStratifiedSampler(Sampler):
 
     def __len__(self):
         return self._num_samples
+
+
+# -- Frame Budget Batch Sampler -----------------------------------------------
+
+class FrameBudgetBatchSampler(Sampler):
+    """Dynamic batch sampler that caps total audio seconds per batch.
+
+    Instead of a fixed number of samples per batch, each batch is filled
+    greedily until adding the next sample would exceed the seconds budget.
+    Short samples get larger batches, long samples get smaller batches,
+    keeping VRAM usage stable across batches.
+
+    Samples are sorted by duration within random mega-batches (chunks of
+    ~1000 samples) to balance padding efficiency with randomness.
+
+    Args:
+        durations: Array of audio durations in seconds for each sample.
+        max_seconds_per_batch: Maximum total audio seconds in one batch.
+        mega_batch_factor: Number of batches worth of samples to sort at once
+            for length-bucketing. Higher = less padding waste, less randomness.
+        min_batch_size: Floor on batch size (even for very long samples).
+        max_batch_size: Ceiling on batch size (even for very short samples).
+        shuffle: Whether to shuffle mega-batches and batch order each epoch.
+        seed: Random seed.
+        drop_last: Drop the last incomplete batch.
+    """
+
+    def __init__(self, durations, max_seconds_per_batch=120.0,
+                 mega_batch_factor=20, min_batch_size=1, max_batch_size=64,
+                 shuffle=True, seed=42, drop_last=False):
+        self.durations = np.asarray(durations, dtype=np.float32)
+        self.max_seconds = max_seconds_per_batch
+        self.mega_batch_factor = mega_batch_factor
+        self.min_batch_size = min_batch_size
+        self.max_batch_size = max_batch_size
+        self.shuffle = shuffle
+        self.drop_last = drop_last
+        self.epoch = 0
+        self.seed = seed
+
+        # Pre-compute batches for length estimation
+        self._batches = self._build_batches(np.random.RandomState(seed))
+
+    def _build_batches(self, rng):
+        """Build list of batches (each batch = list of sample indices)."""
+        n = len(self.durations)
+        indices = np.arange(n)
+
+        if self.shuffle:
+            rng.shuffle(indices)
+
+        # Sort within mega-batches for length bucketing
+        avg_batch_size = max(1, int(self.max_seconds / (np.median(self.durations) + 1e-6)))
+        mega_size = avg_batch_size * self.mega_batch_factor
+
+        sorted_indices = []
+        for start in range(0, n, mega_size):
+            chunk = indices[start:start + mega_size]
+            # Sort chunk by duration
+            chunk_durations = self.durations[chunk]
+            order = np.argsort(chunk_durations)
+            sorted_indices.extend(chunk[order])
+
+        # Greedily fill batches
+        batches = []
+        current_batch = []
+        current_seconds = 0.0
+        current_max_dur = 0.0
+
+        for idx in sorted_indices:
+            dur = self.durations[idx]
+            # VRAM scales with batch_size × max_duration_in_batch (due to padding)
+            # So the real cost is: (len(current_batch) + 1) × max(current_max_dur, dur)
+            new_max = max(current_max_dur, dur)
+            new_cost = (len(current_batch) + 1) * new_max
+
+            if (len(current_batch) > 0 and
+                (new_cost > self.max_seconds or
+                 len(current_batch) >= self.max_batch_size)):
+                batches.append(current_batch)
+                current_batch = [idx]
+                current_seconds = dur
+                current_max_dur = dur
+            else:
+                current_batch.append(idx)
+                current_seconds += dur
+                current_max_dur = new_max
+
+        # Handle last batch
+        if current_batch:
+            if not self.drop_last or len(current_batch) >= self.min_batch_size:
+                batches.append(current_batch)
+
+        # Enforce min_batch_size by merging tiny batches
+        final_batches = []
+        carry = []
+        for batch in batches:
+            if len(batch) < self.min_batch_size:
+                carry.extend(batch)
+                if len(carry) >= self.min_batch_size:
+                    final_batches.append(carry)
+                    carry = []
+            else:
+                final_batches.append(batch)
+        if carry and not self.drop_last:
+            final_batches.append(carry)
+
+        # Shuffle batch order
+        if self.shuffle:
+            rng.shuffle(final_batches)
+
+        return final_batches
+
+    def __iter__(self):
+        rng = np.random.RandomState(self.seed + self.epoch)
+        batches = self._build_batches(rng)
+        for batch in batches:
+            yield batch
+
+    def __len__(self):
+        return len(self._batches)
+
+    def set_epoch(self, epoch):
+        """Set epoch for shuffling (called by Trainer)."""
+        self.epoch = epoch
 
 
 # -- DataLoader Factory -------------------------------------------------------

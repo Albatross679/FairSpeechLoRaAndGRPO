@@ -43,7 +43,7 @@ from peft import LoraConfig, get_peft_model, TaskType
 from sklearn.model_selection import GroupShuffleSplit
 from transformers import TrainingArguments, Trainer, EarlyStoppingCallback
 
-from scripts.training.data_loader import ASRFairnessDataset
+from scripts.training.data_loader import ASRFairnessDataset, FrameBudgetBatchSampler
 from scripts.training.data_collator import DataCollatorForQwen3ASR
 
 # -- Constants ----------------------------------------------------------------
@@ -53,6 +53,39 @@ SEED = 42
 DEFAULT_OUTPUT_DIR = "outputs/standard-lora"
 DEFAULT_HP_SWEEP_DIR = "outputs/hp-sweep"
 VRAM_BUDGET_GB = 14.0
+
+
+# -- Dynamic Batch Trainer ----------------------------------------------------
+
+class DynamicBatchTrainer(Trainer):
+    """Trainer subclass that uses FrameBudgetBatchSampler for dynamic batching.
+
+    Instead of fixed per_device_train_batch_size, batches are formed by a
+    frame budget: short samples get larger batches, long samples get smaller
+    batches. This keeps VRAM usage stable across batches.
+    """
+
+    def __init__(self, *args, frame_budget_sampler=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._frame_budget_sampler = frame_budget_sampler
+
+    def get_train_dataloader(self):
+        if self._frame_budget_sampler is None:
+            return super().get_train_dataloader()
+
+        from torch.utils.data import DataLoader
+
+        self._frame_budget_sampler.set_epoch(
+            int(self.state.epoch) if hasattr(self.state, "epoch") else 0
+        )
+
+        return DataLoader(
+            self.train_dataset,
+            batch_sampler=self._frame_budget_sampler,
+            collate_fn=self.data_collator,
+            num_workers=self.args.dataloader_num_workers,
+            pin_memory=self.args.dataloader_pin_memory,
+        )
 
 
 # -- Model Helpers (reused from phase2_hp_sweep.py) ---------------------------
@@ -644,17 +677,41 @@ def run_train(args):
         training_kwargs["num_train_epochs"] = args.num_epochs
     else:
         training_kwargs["max_steps"] = max_steps
-    training_args = TrainingArguments(**training_kwargs)
 
     callbacks = [EarlyStoppingCallback(early_stopping_patience=3, early_stopping_threshold=0.0)]
 
-    trainer = Trainer(
+    # Dynamic batching setup
+    frame_sampler = None
+    if args.dynamic_batch:
+        print(f"\n  Dynamic batching: computing audio durations...")
+        durations = train_dataset.get_durations(cache_dir=args.output_dir)
+        frame_sampler = FrameBudgetBatchSampler(
+            durations=durations,
+            max_seconds_per_batch=args.frame_budget,
+            max_batch_size=args.max_batch_size,
+            shuffle=True,
+            seed=SEED,
+        )
+        num_batches = len(frame_sampler)
+        median_dur = np.median(durations)
+        avg_batch = len(train_dataset) / num_batches if num_batches > 0 else 0
+        print(f"    Frame budget: {args.frame_budget}s, median duration: {median_dur:.1f}s")
+        print(f"    {num_batches:,} batches, avg {avg_batch:.1f} samples/batch")
+        # Trainer still needs a batch_size for internal bookkeeping; set to 1
+        # since the batch sampler handles actual batch formation
+        training_kwargs["per_device_train_batch_size"] = 1
+
+    training_args = TrainingArguments(**training_kwargs)
+
+    TrainerClass = DynamicBatchTrainer if args.dynamic_batch else Trainer
+    trainer = TrainerClass(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         data_collator=collator,
         callbacks=callbacks,
+        **({"frame_budget_sampler": frame_sampler} if args.dynamic_batch else {}),
     )
 
     # Train
@@ -703,6 +760,10 @@ def run_train(args):
         train_config["max_steps"] = max_steps
     if torch.cuda.is_available():
         train_config["peak_vram_gb"] = torch.cuda.max_memory_allocated() / 1024**3
+    if args.dynamic_batch:
+        train_config["dynamic_batch"] = True
+        train_config["frame_budget_seconds"] = args.frame_budget
+        train_config["max_batch_size"] = args.max_batch_size
 
     config_save_path = os.path.join(args.output_dir, "training_config.json")
     with open(config_save_path, "w") as f:
@@ -762,6 +823,12 @@ def main():
         help="Override per-device train batch size (takes precedence over locked config)")
     parser.add_argument("--grad_accum", type=int, default=None,
         help="Override gradient accumulation steps (takes precedence over locked config)")
+    parser.add_argument("--dynamic_batch", action="store_true",
+        help="Use dynamic batching by frame budget instead of fixed batch size")
+    parser.add_argument("--frame_budget", type=float, default=120.0,
+        help="Max total audio seconds per batch when --dynamic_batch is set (default: 120)")
+    parser.add_argument("--max_batch_size", type=int, default=64,
+        help="Ceiling on dynamic batch size (default: 64)")
     args = parser.parse_args()
 
     torch.manual_seed(SEED)
