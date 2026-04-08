@@ -41,7 +41,7 @@ import pandas as pd
 import torch
 from peft import LoraConfig, get_peft_model, TaskType
 from sklearn.model_selection import GroupShuffleSplit
-from transformers import TrainingArguments, Trainer
+from transformers import TrainingArguments, Trainer, EarlyStoppingCallback
 
 from scripts.training.data_loader import ASRFairnessDataset
 from scripts.training.data_collator import DataCollatorForQwen3ASR
@@ -240,6 +240,30 @@ def create_speaker_disjoint_split(df, test_size=0.1, seed=42):
         eval_df = eval_df.reset_index(drop=True)
 
     return train_df, eval_df
+
+
+def load_full_dataset(fs_manifest, cv_manifest):
+    """Load all data from both manifests without subsetting (D-01).
+
+    Unlike create_stratified_subset which enforces equal FS/CV split,
+    this uses ALL available data from both sources.
+    """
+    fs_df = pd.read_csv(fs_manifest)
+    cv_df = pd.read_csv(cv_manifest)
+
+    # Align columns — CV lacks ethnicity/first_language, FS lacks accent/speaker_id
+    for col in ["ethnicity", "first_language"]:
+        if col not in cv_df.columns:
+            cv_df[col] = ""
+    for col in ["accent", "speaker_id"]:
+        if col not in fs_df.columns:
+            fs_df[col] = ""
+
+    combined = pd.concat([fs_df, cv_df], ignore_index=True)
+    combined = combined.sample(frac=1, random_state=SEED).reset_index(drop=True)
+
+    print(f"  Full dataset: {len(fs_df):,} FS + {len(cv_df):,} CV = {len(combined):,} total")
+    return combined
 
 
 # -- Validate Mode (ML Prototype Phase 3) ------------------------------------
@@ -451,14 +475,20 @@ def run_validate(args):
 def run_train(args):
     """Final training with locked HP config."""
     print(f"\n{'='*60}")
-    print("ML PROTOTYPE PHASE 4: Final Training")
+    print("SFT LoRA Training" + (" (Full Dataset)" if args.full_dataset else " (Subset)"))
     print(f"{'='*60}")
 
-    # Pre-flight checklist
-    locked_path = os.path.join(args.output_dir, "locked_config.json")
+    # Pre-flight checklist — resolve locked config path
+    locked_path = args.locked_config_path or os.path.join(args.output_dir, "locked_config.json")
     if not os.path.exists(locked_path):
-        print(f"ERROR: {locked_path} not found. Run validate mode first.")
-        sys.exit(1)
+        # Fallback: check Phase 2 output dir
+        phase2_path = os.path.join("outputs/standard-lora", "locked_config.json")
+        if os.path.exists(phase2_path):
+            locked_path = phase2_path
+            print(f"  Using Phase 2 locked config: {locked_path}")
+        else:
+            print(f"ERROR: No locked_config.json found at {locked_path} or {phase2_path}")
+            sys.exit(1)
 
     with open(locked_path) as f:
         locked = json.load(f)
@@ -483,23 +513,34 @@ def run_train(args):
     # HP summary
     rank = int(params["rank"])
     alpha_ratio = int(params.get("alpha_ratio", 2))
-    alpha = rank * alpha_ratio
+    alpha = int(params.get("alpha", rank * alpha_ratio))
     dropout = float(params.get("dropout", 0.05))
     target_mlp = bool(params.get("target_mlp", False))
     lr = float(params["lr"])
     weight_decay = float(params.get("weight_decay", 1e-4))
 
-    print(f"\n  Locked HPs: lr={lr:.2e}, rank={rank}, alpha={alpha}, "
-          f"dropout={dropout:.2f}, mlp={target_mlp}, wd={weight_decay:.2e}")
+    lr_scheduler = str(params.get("lr_scheduler", "cosine"))
+    warmup_ratio = float(params.get("warmup_ratio", 0.05))
+    grad_accum = int(params.get("grad_accum_steps", 2))
+    batch_size = int(params.get("batch_size", 4 if args.full_dataset else 2))
 
-    # Create subset
-    print(f"\n  Creating {args.subset_size}-sample subset (equal FS/CV)...")
-    subset_df = create_stratified_subset(
-        args.fs_manifest, args.cv_manifest, args.subset_size, SEED)
-    print(f"  Subset: {len(subset_df)} samples")
+    print(f"\n  Locked HPs: lr={lr:.2e}, rank={rank}, alpha={alpha}, "
+          f"dropout={dropout:.2f}, mlp={target_mlp}, wd={weight_decay:.2e}, "
+          f"sched={lr_scheduler}, warmup={warmup_ratio}, "
+          f"batch={batch_size}, grad_accum={grad_accum}")
+
+    # Load data
+    if args.full_dataset:
+        print(f"\n  Loading FULL dataset (no subsetting)...")
+        combined_df = load_full_dataset(args.fs_manifest, args.cv_manifest)
+    else:
+        print(f"\n  Creating {args.subset_size}-sample subset (equal FS/CV)...")
+        combined_df = create_stratified_subset(
+            args.fs_manifest, args.cv_manifest, args.subset_size, SEED)
+    print(f"  Total samples: {len(combined_df):,}")
 
     # Speaker-disjoint split
-    train_df, eval_df = create_speaker_disjoint_split(subset_df, test_size=0.1, seed=SEED)
+    train_df, eval_df = create_speaker_disjoint_split(combined_df, test_size=0.1, seed=SEED)
     print(f"  Train: {len(train_df)}, Eval: {len(eval_df)}")
 
     # Save subsets for reproducibility and evaluation bridge
@@ -513,21 +554,36 @@ def run_train(args):
 
     axis = "ethnicity" if "ethnicity" in train_df.columns else "accent"
 
-    # Compute max_steps
-    effective_batch = 2 * 2  # batch_size * grad_accum
+    # Compute steps and intervals
+    effective_batch = batch_size * grad_accum
+    steps_per_epoch = max(1, len(train_df) // effective_batch)
+
+    # Dynamic eval/save intervals
+    eval_steps = max(500, min(5000, steps_per_epoch // 13))
+    save_steps = eval_steps  # must match for load_best_model_at_end
+
+    # Determine training duration
+    use_epochs = args.num_epochs is not None
     if args.max_steps:
         max_steps = args.max_steps
-    else:
-        # Auto-compute: ~3 epochs over training data
-        steps_per_epoch = max(1, len(train_df) // effective_batch)
-        max_steps = steps_per_epoch * 3
-        max_steps = min(max_steps, 1500)  # Cap at 1500 steps
-        max_steps = max(max_steps, 500)   # Floor at 500 steps
+    elif not use_epochs:
+        # Auto: 2 epochs for full dataset, 3 for subset
+        n_epochs = 2 if args.full_dataset else 3
+        max_steps = steps_per_epoch * n_epochs
+        if not args.full_dataset:
+            max_steps = min(max_steps, 1500)
+            max_steps = max(max_steps, 500)
 
-    warmup_steps = max(1, int(max_steps * 0.05))
-    print(f"\n  Training plan: {max_steps} steps, warmup={warmup_steps}, "
-          f"effective_batch={effective_batch}")
-    print(f"  Estimated wall-clock: ~{max_steps * 3 / 60:.0f}-{max_steps * 5 / 60:.0f} min")
+    warmup_steps = max(1, int((args.num_epochs * steps_per_epoch if use_epochs else max_steps) * warmup_ratio)) if warmup_ratio > 0 else 0
+
+    print(f"\n  Training plan:")
+    print(f"    Steps/epoch: {steps_per_epoch:,}, effective_batch={effective_batch}")
+    if use_epochs:
+        print(f"    Epochs: {args.num_epochs}, total steps: ~{steps_per_epoch * args.num_epochs:,}")
+    else:
+        print(f"    Max steps: {max_steps:,} ({max_steps/steps_per_epoch:.1f} epochs)")
+    print(f"    Eval every {eval_steps:,} steps, save every {save_steps:,} steps")
+    print(f"    Warmup: {warmup_steps} steps, early stopping patience=3")
 
     # Load model
     t0 = time.time()
@@ -553,28 +609,40 @@ def run_train(args):
     if report_to == "wandb":
         os.environ["WANDB_PROJECT"] = args.wandb_project
 
-    training_args = TrainingArguments(
+    run_name = f"full-lora-{args.num_epochs}ep" if use_epochs else "standard-lora-final"
+
+    training_kwargs = dict(
         output_dir=args.output_dir,
-        max_steps=max_steps,
-        per_device_train_batch_size=2,
-        gradient_accumulation_steps=2,
+        per_device_train_batch_size=batch_size,
+        per_device_eval_batch_size=1,
+        gradient_accumulation_steps=grad_accum,
         learning_rate=lr,
         weight_decay=weight_decay,
         bf16=True,
         logging_steps=10,
         eval_strategy="steps",
-        eval_steps=100,
+        eval_steps=eval_steps,
         save_strategy="steps",
-        save_steps=200,
+        save_steps=save_steps,
+        save_total_limit=args.save_total_limit,
         remove_unused_columns=False,
         dataloader_pin_memory=False,
         report_to=report_to,
-        run_name="standard-lora-final",
+        run_name=run_name,
         seed=SEED,
-        load_best_model_at_end=False,
+        load_best_model_at_end=True,
+        metric_for_best_model="eval_loss",
+        greater_is_better=False,
         warmup_steps=warmup_steps,
-        lr_scheduler_type="cosine",
+        lr_scheduler_type=lr_scheduler,
     )
+    if use_epochs:
+        training_kwargs["num_train_epochs"] = args.num_epochs
+    else:
+        training_kwargs["max_steps"] = max_steps
+    training_args = TrainingArguments(**training_kwargs)
+
+    callbacks = [EarlyStoppingCallback(early_stopping_patience=3, early_stopping_threshold=0.0)]
 
     trainer = Trainer(
         model=model,
@@ -582,11 +650,12 @@ def run_train(args):
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         data_collator=collator,
+        callbacks=callbacks,
     )
 
     # Train
     print(f"\n  Starting training...")
-    train_result = trainer.train()
+    train_result = trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
     elapsed = time.time() - t0
 
     print_gpu_memory("After training")
@@ -610,14 +679,24 @@ def run_train(args):
     # Save training config
     train_config = {
         "params": params,
-        "max_steps": max_steps,
         "effective_batch_size": effective_batch,
-        "subset_size": args.subset_size,
+        "batch_size": batch_size,
+        "grad_accum_steps": grad_accum,
+        "lr_scheduler": lr_scheduler,
+        "warmup_ratio": warmup_ratio,
+        "early_stopping_patience": 3,
+        "full_dataset": args.full_dataset,
         "train_samples": len(train_df),
         "eval_samples": len(eval_df),
+        "steps_per_epoch": steps_per_epoch,
         "final_train_loss": train_result.training_loss,
+        "final_step": train_result.global_step,
         "training_time_sec": elapsed,
     }
+    if use_epochs:
+        train_config["num_epochs"] = args.num_epochs
+    else:
+        train_config["max_steps"] = max_steps
     if torch.cuda.is_available():
         train_config["peak_vram_gb"] = torch.cuda.max_memory_allocated() / 1024**3
 
@@ -665,6 +744,16 @@ def main():
     parser.add_argument("--subset_size", type=int, default=1000)
     parser.add_argument("--max_steps", type=int, default=None)
     parser.add_argument("--wandb_project", default="asr-fairness-lora")
+    parser.add_argument("--full_dataset", action="store_true",
+        help="Use all data from both manifests (overrides --subset_size)")
+    parser.add_argument("--num_epochs", type=int, default=None,
+        help="Train for N epochs (alternative to --max_steps)")
+    parser.add_argument("--save_total_limit", type=int, default=3,
+        help="Keep only last N checkpoints")
+    parser.add_argument("--resume_from_checkpoint", type=str, default=None,
+        help="Path to checkpoint directory to resume from")
+    parser.add_argument("--locked_config_path", type=str, default=None,
+        help="Path to locked_config.json (default: {output_dir}/locked_config.json)")
     args = parser.parse_args()
 
     torch.manual_seed(SEED)
