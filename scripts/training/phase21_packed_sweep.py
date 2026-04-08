@@ -554,11 +554,12 @@ def run_packed_sweep(args):
         }
 
         # Compute pack size from first config's VRAM estimate
-        pack_size, est_total, per_adapter = compute_pack_size(
+        pack_size, est_total, per_adapter_list = compute_pack_size(
             [first_config], available_vram_mb=AVAILABLE_FOR_ADAPTERS_MB)
-        # How many more can we fit?
-        if per_adapter > 0:
-            max_pack = int(AVAILABLE_FOR_ADAPTERS_MB / per_adapter)
+        # How many more can we fit? per_adapter_list is a list of per-adapter MB
+        first_adapter_mb = per_adapter_list[0] if per_adapter_list else 0
+        if first_adapter_mb > 0:
+            max_pack = int(AVAILABLE_FOR_ADAPTERS_MB / first_adapter_mb)
         else:
             max_pack = remaining
         pack_size = min(max_pack, remaining)
@@ -583,7 +584,7 @@ def run_packed_sweep(args):
             batch_configs.append(config)
 
         # Recompute pack_size with actual configs
-        pack_size, est_total, per_adapter = compute_pack_size(
+        pack_size, est_total, _per_list = compute_pack_size(
             batch_configs, available_vram_mb=AVAILABLE_FOR_ADAPTERS_MB)
         pack_size = min(pack_size, len(batch_configs))
 
@@ -594,7 +595,7 @@ def run_packed_sweep(args):
             batch_trials = batch_trials[:pack_size]
             batch_configs = batch_configs[:pack_size]
             for unused_trial in extra_trials:
-                study.tell(unused_trial, float("inf"),
+                study.tell(unused_trial,
                            state=optuna.trial.TrialState.PRUNED)
 
         print(f"\n{'='*60}")
@@ -655,6 +656,9 @@ def run_packed_sweep(args):
                         if trial_obj.should_prune():
                             trainer.deactivate_adapter(name)
                             batch_pruned[name] = step
+                            # Tell Optuna about the pruned trial
+                            study.tell(trial_obj,
+                                       state=optuna.trial.TrialState.PRUNED)
                             pruning_log.append({
                                 "trial": trial_obj.number,
                                 "adapter": name,
@@ -694,7 +698,7 @@ def run_packed_sweep(args):
                 else:
                     # No results -- mark as failed
                     if name not in batch_pruned:
-                        study.tell(trial_obj, float("inf"),
+                        study.tell(trial_obj,
                                    state=optuna.trial.TrialState.FAIL)
                     all_results.append({
                         "trial_number": trial_obj.number,
@@ -720,7 +724,7 @@ def run_packed_sweep(args):
             # Tell all trials in this batch as failed
             for trial_obj in batch_trials:
                 try:
-                    study.tell(trial_obj, float("inf"),
+                    study.tell(trial_obj,
                                state=optuna.trial.TrialState.FAIL)
                 except Exception:
                     pass
@@ -732,7 +736,7 @@ def run_packed_sweep(args):
             traceback.print_exc()
             for trial_obj in batch_trials:
                 try:
-                    study.tell(trial_obj, float("inf"),
+                    study.tell(trial_obj,
                                state=optuna.trial.TrialState.FAIL)
                 except Exception:
                     pass

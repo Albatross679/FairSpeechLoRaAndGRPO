@@ -1,0 +1,111 @@
+{
+  "gate": "PASSED",
+  "shared_count": 2,
+  "shared_configs": [
+    [
+      4,
+      true
+    ],
+    [
+      8,
+      true
+    ]
+  ],
+  "stage1_top3": [
+    {
+      "trial_number": 17,
+      "eval_loss": 0.14947882905602455,
+      "params": {
+        "rank": 32,
+        "alpha_ratio": 1,
+        "alpha": 32,
+        "dropout": 0.05,
+        "target_mlp": true,
+        "lr": 0.00012894414393074176,
+        "weight_decay": 0.0038765111709116325
+      }
+    },
+    {
+      "trial_number": 16,
+      "eval_loss": 0.15777224744670093,
+      "params": {
+        "rank": 8,
+        "alpha_ratio": 2,
+        "alpha": 16,
+        "dropout": 0.15,
+        "target_mlp": true,
+        "lr": 0.00024092145436664767,
+        "weight_decay": 0.0018573288333114874
+      }
+    },
+    {
+      "trial_number": 18,
+      "eval_loss": 0.1676647599413991,
+      "params": {
+        "rank": 4,
+        "alpha_ratio": 1,
+        "alpha": 4,
+        "dropout": 0.0,
+        "target_mlp": true,
+        "lr": 0.0005945287330479985,
+        "weight_decay": 1.0477226564098284e-06
+      }
+    }
+  ],
+  "stage2_top3": [
+    {
+      "trial_number": 77,
+      "eval_loss": 0.1423511105007492,
+      "params": {
+        "rank": 4,
+        "alpha_ratio": 1,
+        "alpha": 4,
+        "dropout": 0.05,
+        "target_mlp": true,
+        "lr": 0.0003465297701419132,
+        "weight_decay": 0.0001742390569988426,
+        "lr_scheduler": "constant",
+        "warmup_ratio": 0.0,
+        "grad_accum_steps": 1
+      },
+      "pruned_at_step": 100,
+      "status": "completed"
+    },
+    {
+      "trial_number": 16,
+      "eval_loss": 0.14411712680011987,
+      "params": {
+        "rank": 8,
+        "alpha_ratio": 2,
+        "alpha": 16,
+        "dropout": 0.15,
+        "target_mlp": true,
+        "lr": 0.00024092145436664767,
+        "weight_decay": 0.0018573288333114874,
+        "lr_scheduler": "constant",
+        "warmup_ratio": 0.0,
+        "grad_accum_steps": 1
+      },
+      "pruned_at_step": 100,
+      "status": "completed"
+    },
+    {
+      "trial_number": 85,
+      "eval_loss": 0.14416769927367568,
+      "params": {
+        "rank": 4,
+        "alpha_ratio": 1,
+        "alpha": 4,
+        "dropout": 0.05,
+        "target_mlp": true,
+        "lr": 0.0003230197864396195,
+        "weight_decay": 0.005448520544559085,
+        "lr_scheduler": "constant",
+        "warmup_ratio": 0.0,
+        "grad_accum_steps": 1
+      },
+      "pruned_at_step": 100,
+      "status": "completed"
+    }
+  ]
+}
