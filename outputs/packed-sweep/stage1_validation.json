@@ -1,0 +1,90 @@
+{
+  "gate": "FAILED",
+  "shared_count": 1,
+  "shared_configs": [
+    [
+      4,
+      true
+    ]
+  ],
+  "phase2_top3": [
+    {
+      "trial_number": 15,
+      "eval_loss": 0.15924878418445587,
+      "params": {
+        "alpha_ratio": 2,
+        "dropout": 0.05,
+        "lr": 0.0009970682275036447,
+        "rank": 4,
+        "target_mlp": true,
+        "weight_decay": 7.86855352882485e-06
+      }
+    },
+    {
+      "trial_number": 1,
+      "eval_loss": 0.16448292136192322,
+      "params": {
+        "alpha_ratio": 2,
+        "dropout": 0.05,
+        "lr": 0.0008706020878304854,
+        "rank": 4,
+        "target_mlp": true,
+        "weight_decay": 3.6138942712165278e-06
+      }
+    },
+    {
+      "trial_number": 12,
+      "eval_loss": 0.1743127405643463,
+      "params": {
+        "alpha_ratio": 1,
+        "dropout": 0.0,
+        "lr": 0.0008185362258416165,
+        "rank": 4,
+        "target_mlp": false,
+        "weight_decay": 1.3287074278848e-05
+      }
+    }
+  ],
+  "stage1_top3": [
+    {
+      "trial_number": 17,
+      "eval_loss": 0.14947882905602455,
+      "params": {
+        "rank": 32,
+        "alpha_ratio": 1,
+        "alpha": 32,
+        "dropout": 0.05,
+        "target_mlp": true,
+        "lr": 0.00012894414393074176,
+        "weight_decay": 0.0038765111709116325
+      }
+    },
+    {
+      "trial_number": 16,
+      "eval_loss": 0.15777224744670093,
+      "params": {
+        "rank": 8,
+        "alpha_ratio": 2,
+        "alpha": 16,
+        "dropout": 0.15,
+        "target_mlp": true,
+        "lr": 0.00024092145436664767,
+        "weight_decay": 0.0018573288333114874
+      }
+    },
+    {
+      "trial_number": 18,
+      "eval_loss": 0.1676647599413991,
+      "params": {
+        "rank": 4,
+        "alpha_ratio": 1,
+        "alpha": 4,
+        "dropout": 0.0,
+        "target_mlp": true,
+        "lr": 0.0005945287330479985,
+        "weight_decay": 1.0477226564098284e-06
+      }
+    }
+  ],
+  "speedup_factor": 1.03
+}
