@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phases reset, ready for new definitions
-stopped_at: Phase 2 context gathered
-last_updated: "2026-04-06T20:35:43.388Z"
-last_activity: 2026-04-06
+status: executing
+stopped_at: Completed 02.1-02-PLAN.md
+last_updated: "2026-04-08T15:03:39.609Z"
+last_activity: 2026-04-08
 progress:
-  total_phases: 1
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 3
+  completed_phases: 2
+  total_plans: 6
+  completed_plans: 4
+  percent: 67
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-05)
 
 **Core value:** Produce a working GRPO training pipeline that traces the accuracy-fairness Pareto frontier for Qwen3-ASR-1.7B
-**Current focus:** Phases cleared — awaiting new phase definitions
+**Current focus:** Phase 02.1 — plora-packed-hp-sweep
 
 ## Current Position
 
-Phase: -
-Plan: -
-Status: Phases reset, ready for new definitions
-Last activity: 2026-04-06
+Phase: 02.1 (plora-packed-hp-sweep) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-04-08
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -53,6 +53,7 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: --
 
 *Updated after each plan completion*
+| Phase 02.1 P02 | 776 | 5 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -63,6 +64,8 @@ Recent decisions affecting current work:
 
 - Roadmap: Merged research Phase 1+2 into single phase (LoRA infra + standard baseline) for coarse granularity
 - Roadmap: Phase 2 and Phase 3 depend only on Phase 1, enabling parallel execution if needed
+- [Phase 02.1]: Stage 2 (no RsLoRA, rank=4) beat Stage 3 (RsLoRA, rank=8) on absolute loss. locked_config updated with Stage 2 winner.
+- [Phase 02.1]: RsLoRA shifts optimal rank from 4 to 8 (7/10 top-10 in Stage 3 are rank=8). Finding is genuine but does not improve absolute loss.
 
 ### Pending Todos
 
@@ -76,6 +79,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-06T20:35:43.333Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-standard-lora-baseline-evaluation-bridge/02-CONTEXT.md
+Last session: 2026-04-08T15:03:39.605Z
+Stopped at: Completed 02.1-02-PLAN.md
+Resume file: None
