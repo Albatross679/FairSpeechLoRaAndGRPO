@@ -8,8 +8,8 @@ with labels masked to -100 for all non-transcript tokens (system/user prompt).
 This ensures the training loss is computed only on the transcript portion,
 preventing the model from learning to predict the prompt template.
 
-Based on the official Qwen3-ASR SFT script data collation pattern.
-Reference: RESEARCH.md Pitfall 6 (prefix masking is critical).
+API: Qwen3ASRProcessor takes (text=..., audio=...) where text comes from
+apply_chat_template (user-only) + manually appended assistant response.
 
 Usage:
     processor = asr_wrapper.processor
@@ -37,9 +37,10 @@ class DataCollatorForQwen3ASR:
         user: [audio content]
         assistant: language English<asr_text>{transcript}
 
-    Then applies the processor to get input_ids, attention_mask, input_features,
-    and feature_attention_mask. Creates labels by copying input_ids and masking
-    prefix tokens (everything before the transcript) with -100.
+    Uses apply_chat_template for the user message, then manually appends the
+    assistant response (since the template strips assistant content). Processes
+    through the processor to get input_ids, attention_mask, input_features,
+    and feature_attention_mask. Creates labels by masking prefix tokens with -100.
 
     Args:
         processor: Qwen3ASRProcessor from qwen-asr wrapper.
@@ -48,6 +49,11 @@ class DataCollatorForQwen3ASR:
     def __init__(self, processor):
         self.processor = processor
         self.tokenizer = processor.tokenizer
+
+        # Cache the <asr_text> token ID for boundary detection
+        self._asr_tag_ids = self.tokenizer.encode(
+            ASR_TEXT_TAG, add_special_tokens=False
+        )
 
     def __call__(self, features):
         """Collate a list of dataset items into a training batch.
@@ -78,33 +84,25 @@ class DataCollatorForQwen3ASR:
 
             transcript = feature["transcript"]
 
-            # Build chat messages in Qwen3-ASR format
-            # User message contains the audio content
-            # Assistant message contains the language prefix + transcript
-            assistant_text = f"{LANGUAGE_PREFIX}{ASR_TEXT_TAG}{transcript}"
-
-            messages = [
+            # Step 1: Get user-only template with generation prompt
+            conversation = [
                 {
                     "role": "user",
                     "content": [{"type": "audio", "audio": audio_np}],
                 },
-                {
-                    "role": "assistant",
-                    "content": assistant_text,
-                },
             ]
-
-            # Apply processor with chat template (no generation prompt)
-            text = self.processor.apply_chat_template(
-                messages,
-                add_generation_prompt=False,
-                tokenize=False,
+            user_text = self.processor.apply_chat_template(
+                conversation, add_generation_prompt=True, tokenize=False,
             )
 
-            # Process text + audio through the processor
+            # Step 2: Append assistant response manually
+            assistant_text = f"{LANGUAGE_PREFIX}{ASR_TEXT_TAG}{transcript}"
+            full_text = user_text + assistant_text + "<|im_end|>\n"
+
+            # Step 3: Process through Qwen3ASR processor
             processed = self.processor(
-                text=text,
-                audios=[audio_np],
+                text=full_text,
+                audio=[audio_np],
                 return_tensors="pt",
                 padding=False,
             )
@@ -114,14 +112,9 @@ class DataCollatorForQwen3ASR:
             input_feats = processed["input_features"].squeeze(0)
             feat_attn_mask = processed["feature_attention_mask"].squeeze(0)
 
-            # Create labels with prefix masking
-            # Loss should only be computed on transcript tokens, not on
-            # system/user prompt tokens (Pitfall 6 from RESEARCH.md)
+            # Step 4: Create labels with prefix masking
             labels = input_ids.clone()
-
-            # Find where the assistant response transcript starts
-            # Tokenize the assistant prefix to find the masking boundary
-            prefix_end = self._find_transcript_start(input_ids, transcript)
+            prefix_end = self._find_transcript_start(input_ids)
             labels[:prefix_end] = IGNORE_INDEX
 
             all_input_ids.append(input_ids)
@@ -139,49 +132,28 @@ class DataCollatorForQwen3ASR:
 
         return batch
 
-    def _find_transcript_start(self, input_ids, transcript):
+    def _find_transcript_start(self, input_ids):
         """Find the token position where the actual transcript starts.
 
-        Searches for the <asr_text> tag token(s) in the input_ids and returns
-        the position right after them, so everything before (including the tag)
+        Searches for the <asr_text> tag token in input_ids and returns
+        the position right after it, so everything before (including the tag)
         is masked with -100.
 
         Args:
             input_ids: 1D tensor of token IDs.
-            transcript: The raw transcript string (for fallback heuristic).
 
         Returns:
             int: Index of the first transcript token in input_ids.
         """
-        # Tokenize the asr_text tag to find it in the sequence
-        asr_tag_ids = self.tokenizer.encode(
-            ASR_TEXT_TAG, add_special_tokens=False
-        )
-
-        # Search for the tag sequence in input_ids
         input_list = input_ids.tolist()
-        tag_len = len(asr_tag_ids)
+        tag_len = len(self._asr_tag_ids)
 
         for i in range(len(input_list) - tag_len + 1):
-            if input_list[i:i + tag_len] == asr_tag_ids:
-                # Found the tag; transcript starts right after it
+            if input_list[i:i + tag_len] == self._asr_tag_ids:
                 return i + tag_len
 
-        # Fallback: if we cannot find the exact tag, tokenize the full
-        # assistant prefix and mask up to that length.
-        # This handles cases where the tokenizer merges the tag differently.
-        prefix_text = f"{LANGUAGE_PREFIX}{ASR_TEXT_TAG}"
-        prefix_ids = self.tokenizer.encode(prefix_text, add_special_tokens=False)
-        prefix_len = len(prefix_ids)
-
-        # Search for the prefix sequence
-        for i in range(len(input_list) - prefix_len + 1):
-            if input_list[i:i + prefix_len] == prefix_ids:
-                return i + prefix_len
-
-        # Last resort: mask the first 80% of tokens (conservative estimate)
-        # This should not happen with well-formed inputs
-        print(f"  WARNING: Could not find transcript boundary, "
+        # Fallback: mask everything up to 80% (should not happen)
+        print(f"  WARNING: Could not find <asr_text> boundary, "
               f"masking first 80% of {len(input_ids)} tokens")
         return int(len(input_ids) * 0.8)
 
@@ -193,7 +165,7 @@ class DataCollatorForQwen3ASR:
         Args:
             all_input_ids: List of 1D tensors (variable length).
             all_attention_mask: List of 1D tensors (variable length).
-            all_input_features: List of 2D tensors (mel features).
+            all_input_features: List of 2D/3D tensors (mel features).
             all_feature_attention_mask: List of 1D tensors (variable length).
             all_labels: List of 1D tensors (variable length).
 
