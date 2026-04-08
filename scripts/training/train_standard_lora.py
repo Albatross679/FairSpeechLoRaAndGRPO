@@ -75,9 +75,8 @@ class DynamicBatchTrainer(Trainer):
 
         from torch.utils.data import DataLoader
 
-        self._frame_budget_sampler.set_epoch(
-            int(self.state.epoch) if hasattr(self.state, "epoch") else 0
-        )
+        epoch = getattr(self.state, "epoch", None)
+        self._frame_budget_sampler.set_epoch(int(epoch) if epoch is not None else 0)
 
         return DataLoader(
             self.train_dataset,
