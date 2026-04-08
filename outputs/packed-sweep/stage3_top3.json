@@ -1,0 +1,56 @@
+[
+  {
+    "trial_number": 66,
+    "eval_loss": 0.1450883507821709,
+    "params": {
+      "rank": 8,
+      "alpha_ratio": 1,
+      "alpha": 8,
+      "dropout": 0.05,
+      "target_mlp": true,
+      "lr": 0.00029102512368460806,
+      "weight_decay": 0.00024961410555843244,
+      "lr_scheduler": "cosine",
+      "warmup_ratio": 0.1,
+      "grad_accum_steps": 1
+    },
+    "pruned_at_step": 100,
+    "status": "completed"
+  },
+  {
+    "trial_number": 16,
+    "eval_loss": 0.14712211680831389,
+    "params": {
+      "rank": 4,
+      "alpha_ratio": 2,
+      "alpha": 8,
+      "dropout": 0.0,
+      "target_mlp": true,
+      "lr": 0.00028325831505321826,
+      "weight_decay": 0.0022076004913185194,
+      "lr_scheduler": "linear",
+      "warmup_ratio": 0.1,
+      "grad_accum_steps": 2
+    },
+    "pruned_at_step": 100,
+    "status": "completed"
+  },
+  {
+    "trial_number": 13,
+    "eval_loss": 0.14881783101707696,
+    "params": {
+      "rank": 4,
+      "alpha_ratio": 1,
+      "alpha": 4,
+      "dropout": 0.0,
+      "target_mlp": true,
+      "lr": 0.0008576491037046157,
+      "weight_decay": 0.0006083019192425828,
+      "lr_scheduler": "linear",
+      "warmup_ratio": 0.03,
+      "grad_accum_steps": 2
+    },
+    "pruned_at_step": 100,
+    "status": "completed"
+  }
+]

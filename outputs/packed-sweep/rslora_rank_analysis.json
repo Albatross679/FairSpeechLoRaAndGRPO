@@ -1,0 +1,17 @@
+{
+  "stage2_top10_rank_distribution": {
+    "4": 8,
+    "8": 2
+  },
+  "stage3_top10_rank_distribution": {
+    "8": 7,
+    "4": 2,
+    "32": 1
+  },
+  "optimal_rank_changed": true,
+  "stage2_best_rank": 4,
+  "stage3_best_rank": 8,
+  "stage2_best_eval_loss": 0.1423511105007492,
+  "stage3_best_eval_loss": 0.1450883507821709,
+  "conclusion": "RsLoRA shifts optimal rank from 4 to 8 by stabilizing gradients at higher ranks"
+}
