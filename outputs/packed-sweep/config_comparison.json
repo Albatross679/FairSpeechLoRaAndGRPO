@@ -1,0 +1,67 @@
+{
+  "phase2_locked": {
+    "rank": 4,
+    "eval_loss": 0.12684974074363708,
+    "source": "phase2-validation"
+  },
+  "phase2_sweep_best": {
+    "eval_loss": 0.159,
+    "rank": 4,
+    "source": "phase2-sweep"
+  },
+  "stage2_best": {
+    "trial_number": 77,
+    "eval_loss": 0.1423511105007492,
+    "params": {
+      "rank": 4,
+      "alpha_ratio": 1,
+      "alpha": 4,
+      "dropout": 0.05,
+      "target_mlp": true,
+      "lr": 0.0003465297701419132,
+      "weight_decay": 0.0001742390569988426,
+      "lr_scheduler": "constant",
+      "warmup_ratio": 0.0,
+      "grad_accum_steps": 1
+    }
+  },
+  "stage3_best": {
+    "trial_number": 66,
+    "eval_loss": 0.1450883507821709,
+    "params": {
+      "rank": 8,
+      "alpha_ratio": 1,
+      "alpha": 8,
+      "dropout": 0.05,
+      "target_mlp": true,
+      "lr": 0.00029102512368460806,
+      "weight_decay": 0.00024961410555843244,
+      "lr_scheduler": "cosine",
+      "warmup_ratio": 0.1,
+      "grad_accum_steps": 1
+    }
+  },
+  "winner": "phase2.1-stage2",
+  "winner_stage": 2,
+  "improvement_pct_vs_phase2_sweep": 10.5,
+  "use_rslora_in_winner": false,
+  "locked_config_updated": true,
+  "comparison_notes": "Stage 2 (no RsLoRA) found rank=4 optimal (loss=0.1424). Stage 3 (RsLoRA) shifted optimal rank to 8 (loss=0.1451). Stage 2 achieved slightly lower absolute loss. Both stages improved on Phase 2 sweep best (0.159). Locked config updated with Stage 2 winner.",
+  "rslora_impact": {
+    "stage2_top10_rank_distribution": {
+      "4": 8,
+      "8": 2
+    },
+    "stage3_top10_rank_distribution": {
+      "8": 7,
+      "4": 2,
+      "32": 1
+    },
+    "optimal_rank_changed": true,
+    "stage2_best_rank": 4,
+    "stage3_best_rank": 8,
+    "stage2_best_eval_loss": 0.1423511105007492,
+    "stage3_best_eval_loss": 0.1450883507821709,
+    "conclusion": "RsLoRA shifts optimal rank from 4 to 8 by stabilizing gradients at higher ranks"
+  }
+}

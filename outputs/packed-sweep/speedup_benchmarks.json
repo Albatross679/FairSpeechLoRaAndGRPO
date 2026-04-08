@@ -1,0 +1,29 @@
+{
+  "phase2_sequential": {
+    "n_trials": 20,
+    "wall_clock_seconds": 5520,
+    "wall_clock_min": 92.0
+  },
+  "stage1_plora": {
+    "n_trials": 20,
+    "wall_clock_seconds": 5344.6,
+    "wall_clock_min": 89.1,
+    "speedup_vs_phase2": 1.03
+  },
+  "stage2_plora_asha": {
+    "n_trials": 100,
+    "wall_clock_seconds": 21480.2,
+    "wall_clock_min": 358.0,
+    "effective_full_trials": 65.5,
+    "speedup_per_trial_vs_phase2": 1.28,
+    "total_speedup_for_100_trials": 1.28
+  },
+  "stage3_plora_asha_rslora": {
+    "n_trials": 100,
+    "wall_clock_seconds": 23195.4,
+    "wall_clock_min": 386.6,
+    "effective_full_trials": 70.5,
+    "speedup_per_trial_vs_phase2": 1.19,
+    "total_speedup_for_100_trials": 1.19
+  }
+}
