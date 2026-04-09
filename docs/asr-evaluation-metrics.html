@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ASR Evaluation Metrics Reference</title>
+<link rel="stylesheet" href="styles/palatino-burgundy.css">
+<style>
+/* === Section-level tag badges === */
+.tag {
+  display: inline-block; font-size: 0.75em; padding: 0.1em 0.5em;
+  border-radius: 3px; background: #ebe7e3; color: #7c3043;
+  font-weight: 600; vertical-align: middle; margin-left: 0.4em;
+}
+
+/* === Metric cards === */
+.metric-card {
+  background: #fff; border: 1px solid #ddd; border-radius: 6px;
+  padding: 1.2em 1.5em; margin: 1em 0;
+  border-left: 4px solid #7c3043;
+}
+.metric-card h4 { margin-top: 0; margin-bottom: 0.3em; }
+.metric-card .meta { font-size: 0.85em; color: #888; margin-bottom: 0.5em; }
+</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+</head>
+<body>
+<div class="page-wrapper">
+
+<aside class="sidebar" id="sidebar-toc">
+  <strong>Contents</strong>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#hp-search">HP Search Metrics</a></li>
+    <li><a href="#asr-quality">ASR Quality</a></li>
+    <li><a href="#fairness">Fairness Metrics</a></li>
+    <li><a href="#calibration">Probabilistic / Calibration</a></li>
+    <li><a href="#diagnostics">Training Diagnostics</a></li>
+    <li><a href="#efficiency">Efficiency / Deployment</a></li>
+    <li><a href="#robustness">Robustness</a></li>
+    <li><a href="#auc-roc">Why Not AUC-ROC?</a></li>
+    <li><a href="#decision">Decision Matrix</a></li>
+  </ul>
+</aside>
+
+<div class="main-content">
+  <h1>ASR Evaluation Metrics</h1>
+  <p class="subtitle">Comprehensive reference for LoRA fine-tuning HP search, model quality evaluation, and fairness analysis</p>
+  <hr>
+
+  <nav id="toc">
+    <strong>Table of Contents</strong>
+    <ul>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#hp-search">1. HP Search Metrics</a></li>
+      <li><a href="#asr-quality">2. ASR Quality Metrics</a></li>
+      <li><a href="#fairness">3. Fairness Metrics</a></li>
+      <li><a href="#calibration">4. Probabilistic / Calibration</a></li>
+      <li><a href="#diagnostics">5. Training Diagnostics</a></li>
+      <li><a href="#efficiency">6. Efficiency / Deployment</a></li>
+      <li><a href="#robustness">7. Robustness Metrics</a></li>
+      <li><a href="#auc-roc">8. Why Not AUC-ROC?</a></li>
+      <li><a href="#decision">9. Decision Matrix</a></li>
+    </ul>
+  </nav>
+
+  <!-- ============================================================ -->
+  <h2 id="overview">Overview</h2>
+
+  <p>This document catalogues all evaluation metrics relevant to <strong>ASR fine-tuning with LoRA</strong>, organized by when and why each metric is used. Context: Optuna HP search on a 500-sample subset, 100-step prototype runs, 50-sample eval set, targeting Whisper / wav2vec2 / Qwen3-ASR.</p>
+
+  <div class="callout">
+    <strong>How to read this document.</strong> Each metric includes its formula, what it measures, when to use it, and a verdict badge indicating relevance to our specific setup:
+    <span class="verdict best">Primary</span> = use this,
+    <span class="verdict viable">Useful</span> = secondary signal,
+    <span class="verdict partial">Niche</span> = situational,
+    <span class="verdict not-viable">Not applicable</span> = doesn't fit our context.
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="hp-search">HP Search Metrics <span class="tag">Prototype Phase</span></h2>
+
+  <p>Metrics for <strong>ranking hyperparameter configurations</strong> during short prototype runs. The goal is to identify promising configs cheaply, not to measure final model quality.</p>
+
+  <table>
+    <thead>
+      <tr><th>Metric</th><th>Formula</th><th>Measures</th><th>Verdict</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Eval Cross-Entropy Loss</strong></td>
+        <td>$-\frac{1}{N}\sum_{i=1}^{N}\log p(y_i \mid x_i)$</td>
+        <td>Log-probability of the correct token at each position, averaged</td>
+        <td><span class="verdict best">Primary</span></td>
+      </tr>
+      <tr>
+        <td><strong>Perplexity</strong></td>
+        <td>$\exp(\text{CE Loss})$</td>
+        <td>Exponentiated cross-entropy &mdash; more interpretable scale</td>
+        <td><span class="verdict partial">Niche</span></td>
+      </tr>
+      <tr>
+        <td><strong>AULC</strong></td>
+        <td>$\int_0^T \text{eval\_loss}(t)\, dt$</td>
+        <td>Area under the learning curve &mdash; captures convergence speed + final value</td>
+        <td><span class="verdict best">Primary</span></td>
+      </tr>
+      <tr>
+        <td><strong>Top-k Accuracy</strong></td>
+        <td>$\frac{1}{N}\sum \mathbb{1}[y_i \in \text{top-}k(p_i)]$</td>
+        <td>Whether the correct token is in the model's top $k$ predictions</td>
+        <td><span class="verdict partial">Niche</span></td>
+      </tr>
+      <tr>
+        <td><strong>Token-level Accuracy</strong></td>
+        <td>$\frac{1}{N}\sum \mathbb{1}[\hat{y}_i = y_i]$</td>
+        <td>Exact match at each position</td>
+        <td><span class="verdict not-viable">Not applicable</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="metric-card">
+    <h4>Area Under the Learning Curve (AULC)</h4>
+    <div class="meta">Recommended for HP search tie-breaking</div>
+    <p>Instead of comparing configs by their final eval loss at step 100 (a single noisy point), integrate the entire loss trajectory via trapezoidal approximation:</p>
+    <div class="math-block">
+      $$\text{AULC} = \sum_{i=1}^{n-1} \frac{L(t_i) + L(t_{i+1})}{2} \cdot (t_{i+1} - t_i)$$
+    </div>
+    <p><strong>Why it helps:</strong> Your top 5 trials span only 0.159&ndash;0.175 eval loss &mdash; within noise range for $n=50$. AULC aggregates across all evaluation checkpoints, effectively increasing signal. It also penalizes instability (oscillating loss curves accumulate more area) and rewards fast convergence.</p>
+  </div>
+
+  <div class="callout">
+    <strong>Bottom line:</strong> Use <strong>eval loss</strong> as the primary Optuna objective and <strong>AULC</strong> to break ties among top configs. Perplexity is a monotonic transform of loss (same ranking). Token-level accuracy is too coarse for 300 tokens.
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="asr-quality">ASR Quality Metrics <span class="tag">Full-Scale Eval</span></h2>
+
+  <p>Metrics for measuring <strong>transcription quality</strong> of the final trained model. These require running full decoding, so they're too expensive for HP search but essential for final evaluation.</p>
+
+  <h3>Primary: Edit-Distance Metrics</h3>
+
+  <table>
+    <thead>
+      <tr><th>Metric</th><th>Formula</th><th>Measures</th><th>Verdict</th></tr>
+    </thead>
+    <tbody>
+      <tr class="highlight">
+        <td><strong>WER</strong> (Word Error Rate)</td>
+        <td>$\frac{S + D + I}{N}$</td>
+        <td>Word-level edit distance between prediction and reference</td>
+        <td><span class="verdict best">Primary</span></td>
+      </tr>
+      <tr>
+        <td><strong>CER</strong> (Character Error Rate)</td>
+        <td>$\frac{S_c + D_c + I_c}{C}$</td>
+        <td>Character-level edit distance &mdash; finer-grained than WER</td>
+        <td><span class="verdict viable">Useful</span></td>
+      </tr>
+      <tr>
+        <td><strong>SER</strong> (Sentence Error Rate)</td>
+        <td>$\frac{\text{sentences with any error}}{\text{total sentences}}$</td>
+        <td>Proportion of utterances with <em>any</em> transcription error</td>
+        <td><span class="verdict viable">Useful</span></td>
+      </tr>
+      <tr>
+        <td><strong>MER</strong> (Match Error Rate)</td>
+        <td>$\frac{S + D + I}{S + D + C}$</td>
+        <td>Normalized for alignment length; $C$ = correct matches</td>
+        <td><span class="verdict partial">Niche</span></td>
+      </tr>
+      <tr>
+        <td><strong>WIL</strong> (Word Info Lost)</td>
+        <td>$1 - \frac{C^2}{N \cdot N'}$</td>
+        <td>Penalizes both substitutions and deletions; $N'$ = hypothesis length</td>
+        <td><span class="verdict partial">Niche</span></td>
+      </tr>
+      <tr>
+        <td><strong>WIP</strong> (Word Info Preserved)</td>
+        <td>$\frac{C^2}{N \cdot N'}$</td>
+        <td>$1 - \text{WIL}$; sometimes easier to interpret</td>
+        <td><span class="verdict partial">Niche</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>Where $S$ = substitutions, $D$ = deletions, $I$ = insertions, $N$ = reference word count, $C$ = correct matches.</p>
+
+  <div class="callout success">
+    <strong>WER is the gold standard for ASR.</strong> CER is a useful secondary signal, especially when WER is noisy or for languages with agglutinative morphology. The others are niche &mdash; use if your paper needs comprehensive coverage.
+  </div>
+
+  <h3>WER Decomposition: Sub / Del / Ins Rates</h3>
+
+  <p>WER decomposes into three error types, each revealing different failure modes:</p>
+
+  <table>
+    <thead>
+      <tr><th>Component</th><th>Formula</th><th>What it reveals</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Substitution Rate</strong></td>
+        <td>$S / N$</td>
+        <td>Model hears the word but predicts a different one (confusion)</td>
+      </tr>
+      <tr>
+        <td><strong>Deletion Rate</strong></td>
+        <td>$D / N$</td>
+        <td>Model misses words entirely (under-generation, silence handling)</td>
+      </tr>
+      <tr>
+        <td><strong>Insertion Rate</strong></td>
+        <td>$I / N$</td>
+        <td>Model hallucinates extra words (over-generation)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout warning">
+    <strong>Fairness insight:</strong> If one demographic group has disproportionately high <em>deletions</em>, the model is systematically dropping their words &mdash; a more pointed finding than uniform WER increase. This decomposition is worth reporting per-group.
+  </div>
+
+  <h3>How Edit Types Are Determined: DP Alignment</h3>
+
+  <p>WER uses <strong>minimum edit distance</strong> (Levenshtein distance) via dynamic programming to align the reference and hypothesis word sequences. The algorithm builds a cost matrix $d[i][j]$ representing the minimum edits needed to transform the first $i$ hypothesis words into the first $j$ reference words. Each cell is computed from three possible moves:</p>
+
+  <table>
+    <thead>
+      <tr><th>Move</th><th>Direction in Matrix</th><th>Error Type</th><th>Meaning</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Diagonal (words match)</td>
+        <td>$d[i{-}1][j{-}1] + 0$</td>
+        <td><strong>Correct</strong></td>
+        <td>Words match &mdash; no error, zero cost</td>
+      </tr>
+      <tr>
+        <td>Diagonal (words differ)</td>
+        <td>$d[i{-}1][j{-}1] + 1$</td>
+        <td><strong>Substitution</strong></td>
+        <td>Model said the wrong word</td>
+      </tr>
+      <tr>
+        <td>Move right (skip ref word)</td>
+        <td>$d[i][j{-}1] + 1$</td>
+        <td><strong>Deletion</strong></td>
+        <td>Model dropped a word that should be there</td>
+      </tr>
+      <tr>
+        <td>Move down (skip hyp word)</td>
+        <td>$d[i{-}1][j] + 1$</td>
+        <td><strong>Insertion</strong></td>
+        <td>Model hallucinated an extra word</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>After filling the matrix, a <strong>backtrace</strong> from $d[M][N]$ to $d[0][0]$ deterministically assigns each position to exactly one operation. There is no ambiguity &mdash; the minimum-cost path defines the alignment.</p>
+
+  <h4>Worked Example</h4>
+
+  <p>Reference: <strong>"the cat sat down"</strong> &nbsp; Hypothesis: <strong>"a cat sat"</strong></p>
+
+  <table>
+    <thead>
+      <tr><th></th><th></th><th>the</th><th>cat</th><th>sat</th><th>down</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td></td><td><strong>0</strong></td><td>1</td><td>2</td><td>3</td><td>4</td>
+      </tr>
+      <tr>
+        <td><strong>a</strong></td><td>1</td><td>1</td><td>2</td><td>3</td><td>4</td>
+      </tr>
+      <tr>
+        <td><strong>cat</strong></td><td>2</td><td>2</td><td>1</td><td>2</td><td>3</td>
+      </tr>
+      <tr>
+        <td><strong>sat</strong></td><td>3</td><td>3</td><td>2</td><td>1</td><td><strong>2</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>Backtrace from bottom-right (cost = 2):</p>
+
+  <table>
+    <thead>
+      <tr><th>Reference</th><th>the</th><th>cat</th><th>sat</th><th>down</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Hypothesis</strong></td><td>a</td><td>cat</td><td>sat</td><td>&mdash;</td>
+      </tr>
+      <tr>
+        <td><strong>Operation</strong></td>
+        <td><span class="verdict not-viable">Sub</span></td>
+        <td><span class="verdict viable">Correct</span></td>
+        <td><span class="verdict viable">Correct</span></td>
+        <td><span class="verdict not-viable">Del</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>Result: $S = 1,\; D = 1,\; I = 0,\; C = 2$ &ensp;&rarr;&ensp; $\text{WER} = \frac{1 + 1 + 0}{4} = 50\%$</p>
+
+  <div class="callout">
+    <strong>Key point:</strong> The DP alignment is deterministic. Given a reference and hypothesis, the error type assignment is unique (assuming standard tie-breaking). Libraries like <code>jiwer</code> perform this alignment automatically and return the per-type counts.
+  </div>
+
+  <h3>Secondary: N-gram and Semantic Metrics</h3>
+
+  <table>
+    <thead>
+      <tr><th>Metric</th><th>What it measures</th><th>Verdict</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Entity WER</strong></td>
+        <td>WER computed only on named entities (names, numbers, places)</td>
+        <td><span class="verdict viable">Useful</span></td>
+      </tr>
+      <tr>
+        <td><strong>BERTScore</strong></td>
+        <td>Semantic similarity via contextual embeddings &mdash; captures "close enough" transcriptions that WER penalizes</td>
+        <td><span class="verdict partial">Niche</span></td>
+      </tr>
+      <tr>
+        <td><strong>BLEU</strong></td>
+        <td>N-gram precision with brevity penalty &mdash; borrowed from MT</td>
+        <td><span class="verdict partial">Niche</span></td>
+      </tr>
+      <tr>
+        <td><strong>METEOR</strong></td>
+        <td>N-gram matching with stemming and synonyms &mdash; more recall-oriented</td>
+        <td><span class="verdict partial">Niche</span></td>
+      </tr>
+      <tr>
+        <td><strong>TER</strong> (Translation Edit Rate)</td>
+        <td>Like WER but allows phrase shifts as single edits</td>
+        <td><span class="verdict partial">Niche</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <strong>Entity WER is the one addition worth considering</strong> for your fairness paper. If the model fails on names from certain demographics, that's a concrete, citable finding. BLEU/METEOR/TER are from machine translation and rarely used in ASR evaluation.
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="fairness">Fairness Metrics <span class="tag">Analysis Phase</span></h2>
+
+  <p>Metrics for quantifying and testing <strong>performance gaps across demographic subgroups</strong>.</p>
+
+  <table>
+    <thead>
+      <tr><th>Metric</th><th>Formula</th><th>Measures</th><th>Verdict</th></tr>
+    </thead>
+    <tbody>
+      <tr class="highlight">
+        <td><strong>WER Gap</strong></td>
+        <td>$\max_{g \in G} \text{WER}_g - \min_{g \in G} \text{WER}_g$</td>
+        <td>Absolute spread between best- and worst-performing groups</td>
+        <td><span class="verdict best">Primary</span></td>
+      </tr>
+      <tr class="highlight">
+        <td><strong>WER Ratio (MMR)</strong></td>
+        <td>$\frac{\max_{g \in G} \text{WER}_g}{\min_{g \in G} \text{WER}_g}$</td>
+        <td>Multiplicative disparity &mdash; scale-invariant</td>
+        <td><span class="verdict best">Primary</span></td>
+      </tr>
+      <tr>
+        <td><strong>Per-group WER</strong></td>
+        <td>$\text{WER}_g$ for each $g \in G$</td>
+        <td>Breakdown by demographic subgroup</td>
+        <td><span class="verdict best">Primary</span></td>
+      </tr>
+      <tr>
+        <td><strong>Statistical Significance</strong></td>
+        <td>Wilcoxon / bootstrap CI</td>
+        <td>Whether observed group differences are real or noise</td>
+        <td><span class="verdict best">Primary</span></td>
+      </tr>
+      <tr>
+        <td><strong>Per-group Sub/Del/Ins</strong></td>
+        <td>Error type breakdown per group</td>
+        <td>Whether disparities are driven by specific error types</td>
+        <td><span class="verdict viable">Useful</span></td>
+      </tr>
+      <tr>
+        <td><strong>Entity WER by Group</strong></td>
+        <td>Entity-only WER per group</td>
+        <td>Name/number recognition bias</td>
+        <td><span class="verdict viable">Useful</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="math-block">
+    $$\text{MMR} = \frac{\max_{g \in G}\, \text{WER}_g}{\min_{g \in G}\, \text{WER}_g}$$
+  </div>
+
+  <p>An MMR of 1.0 means perfect parity. Higher values indicate greater disparity. For example, MMR = 1.5 means the worst-performing group has 50% higher WER than the best.</p>
+
+  <div class="callout success">
+    <strong>Recommended reporting:</strong> WER gap + WER ratio + per-group WER table + statistical significance. Add Sub/Del/Ins breakdown if you find non-uniform error type distributions across groups &mdash; this strengthens the fairness narrative.
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="calibration">Probabilistic / Calibration Metrics <span class="tag">Model Analysis</span></h2>
+
+  <p>Metrics for assessing the <strong>quality of the model's probability estimates</strong>, not just its predictions.</p>
+
+  <table>
+    <thead>
+      <tr><th>Metric</th><th>Formula</th><th>Measures</th><th>Verdict</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>NLL per Token</strong></td>
+        <td>$-\frac{1}{N}\sum \log p(y_i \mid x_i)$</td>
+        <td>Same as cross-entropy loss; standard training objective</td>
+        <td><span class="verdict best">Primary</span></td>
+      </tr>
+      <tr>
+        <td><strong>Predictive Entropy</strong></td>
+        <td>$H = -\sum_v p(v) \log p(v)$</td>
+        <td>Model uncertainty &mdash; high entropy = model is unsure about output</td>
+        <td><span class="verdict viable">Useful</span></td>
+      </tr>
+      <tr>
+        <td><strong>ECE</strong> (Expected Calibration Error)</td>
+        <td>$\sum_{b=1}^{B} \frac{n_b}{N} |\text{acc}_b - \text{conf}_b|$</td>
+        <td>Gap between confidence and actual accuracy, binned</td>
+        <td><span class="verdict partial">Niche</span></td>
+      </tr>
+      <tr>
+        <td><strong>Brier Score</strong></td>
+        <td>$\frac{1}{N}\sum (p_i - y_i)^2$</td>
+        <td>Mean squared error of probability estimates</td>
+        <td><span class="verdict partial">Niche</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <strong>Predictive entropy</strong> is the one calibration metric worth checking. If the model has systematically higher entropy on one demographic group's speech, it's less certain about that group &mdash; an additional fairness signal beyond WER. ECE and Brier score are informative but rarely reported in ASR papers.
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="diagnostics">Training Diagnostics <span class="tag">Debugging</span></h2>
+
+  <p>Metrics for <strong>diagnosing training stability and config quality</strong>. These are not ranking metrics &mdash; they help you understand <em>why</em> a config is good or bad.</p>
+
+  <table>
+    <thead>
+      <tr><th>Metric</th><th>What it signals</th><th>When to worry</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Loss Curve Shape</strong></td>
+        <td>Convergence quality</td>
+        <td>Still oscillating at step 100 &rarr; unstable config</td>
+      </tr>
+      <tr>
+        <td><strong>Convergence Speed</strong></td>
+        <td>How quickly loss drops in first 25 steps</td>
+        <td>Slow start often predicts poor final result</td>
+      </tr>
+      <tr>
+        <td><strong>Gradient Norms</strong></td>
+        <td>Training stability</td>
+        <td>Spikes early on predict poor final performance</td>
+      </tr>
+      <tr>
+        <td><strong>Adapter Weight Norms</strong></td>
+        <td>Solution quality for LoRA specifically</td>
+        <td>High rank + large magnitude &rarr; spurious local minima</td>
+      </tr>
+      <tr>
+        <td><strong>Effective Rank</strong></td>
+        <td>Utilization of adapter capacity</td>
+        <td>Effective rank $\ll$ nominal rank &rarr; capacity is wasted</td>
+      </tr>
+      <tr>
+        <td><strong>Train-Eval Gap</strong></td>
+        <td>Overfitting signal</td>
+        <td>Large gap on 500 samples &rarr; will worsen at scale</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>Effective Rank</h4>
+
+  <p>The effective rank of a LoRA adapter matrix $\Delta W = BA$ measures how much of the allocated rank is actually being used:</p>
+
+  <div class="math-block">
+    $$\text{erank}(\Delta W) = \exp\!\left(-\sum_{i=1}^{r} \bar{\sigma}_i \log \bar{\sigma}_i\right), \quad \bar{\sigma}_i = \frac{\sigma_i}{\sum_j \sigma_j}$$
+  </div>
+
+  <p>Where $\sigma_i$ are the singular values of $\Delta W$. If $\text{erank} \approx r$, the adapter is using full capacity. If $\text{erank} \ll r$, the adapter has collapsed to a lower-dimensional solution and the extra rank is wasted.</p>
+
+  <div class="callout">
+    <strong>For your HP search:</strong> Your finding that rank=4 dominated the top trials is consistent with small datasets needing low rank. Checking effective rank on a rank=8 or rank=16 trial would likely show $\text{erank} \approx 3\text{-}5$, confirming rank=4 is the right choice.
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="efficiency">Efficiency / Deployment Metrics <span class="tag">Inference</span></h2>
+
+  <table>
+    <thead>
+      <tr><th>Metric</th><th>Formula</th><th>Measures</th><th>Verdict</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>RTF</strong> (Real-Time Factor)</td>
+        <td>$\frac{\text{inference time}}{\text{audio duration}}$</td>
+        <td>Speed relative to audio &mdash; RTF &lt; 1 means faster than real-time</td>
+        <td><span class="verdict viable">Useful</span></td>
+      </tr>
+      <tr>
+        <td><strong>Latency</strong></td>
+        <td>Wall-clock time per utterance</td>
+        <td>End-to-end processing time</td>
+        <td><span class="verdict viable">Useful</span></td>
+      </tr>
+      <tr>
+        <td><strong>VRAM Footprint</strong></td>
+        <td>Peak GPU memory at inference</td>
+        <td>Deployment feasibility</td>
+        <td><span class="verdict viable">Useful</span></td>
+      </tr>
+      <tr>
+        <td><strong>Trainable Params</strong></td>
+        <td>LoRA params / total params</td>
+        <td>Adapter efficiency &mdash; lower is more parameter-efficient</td>
+        <td><span class="verdict viable">Useful</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <strong>Worth reporting</strong> in your paper as a table comparing base model vs. LoRA-adapted model. The LoRA trainable param % (typically 0.1&ndash;1%) and similar inference RTF demonstrate that fairness improvements come at negligible cost.
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="robustness">Robustness Metrics <span class="tag">Perturbation Analysis</span></h2>
+
+  <p>Metrics for measuring <strong>performance degradation under acoustic perturbations</strong>. Your project already includes noise, reverb, and silence perturbations.</p>
+
+  <table>
+    <thead>
+      <tr><th>Metric</th><th>Formula</th><th>Measures</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>WER Under Perturbation</strong></td>
+        <td>$\text{WER}_{\text{perturbed}}$</td>
+        <td>Absolute performance on degraded audio</td>
+      </tr>
+      <tr>
+        <td><strong>Relative WER Increase</strong></td>
+        <td>$\frac{\text{WER}_{\text{perturbed}} - \text{WER}_{\text{clean}}}{\text{WER}_{\text{clean}}}$</td>
+        <td>Proportional degradation &mdash; normalizes for baseline performance</td>
+      </tr>
+      <tr>
+        <td><strong>Robustness Gap by Group</strong></td>
+        <td>Relative WER increase per demographic group</td>
+        <td>Whether perturbations disproportionately affect certain groups</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout warning">
+    <strong>Intersection with fairness:</strong> A model may have equal WER across groups on clean audio but unequal <em>degradation rates</em> under noise. Reporting the robustness gap by group captures this &mdash; it's one of the strongest findings you can make.
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="auc-roc">Why Not AUC-ROC? <span class="tag">Classification Discussion</span></h2>
+
+  <p>ASR models perform <strong>token-level classification</strong> at each output position &mdash; predicting a probability distribution over a vocabulary of ~50k tokens. The cross-entropy training loss is literally a classification loss. So why doesn't AUC-ROC apply?</p>
+
+  <h3>What AUC-ROC Needs vs. What ASR Provides</h3>
+
+  <table>
+    <thead>
+      <tr><th>Requirement</th><th>AUC-ROC</th><th>ASR Fine-Tuning</th><th>Match?</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Label space</td>
+        <td>Binary or small multi-class</td>
+        <td>~50,000 token vocabulary</td>
+        <td><span class="verdict not-viable">No</span></td>
+      </tr>
+      <tr>
+        <td>Independent predictions</td>
+        <td>Required &mdash; each sample scored independently</td>
+        <td>Autoregressive: token $t$ depends on tokens $1 \ldots t{-}1$</td>
+        <td><span class="verdict not-viable">No</span></td>
+      </tr>
+      <tr>
+        <td>Threshold sweep</td>
+        <td>Core mechanism &mdash; varies decision threshold</td>
+        <td>Decoding uses argmax/beam search, no threshold</td>
+        <td><span class="verdict not-viable">No</span></td>
+      </tr>
+      <tr>
+        <td>Positive examples per class</td>
+        <td>Many per class for stable estimate</td>
+        <td>50 eval samples &rarr; ~300 tokens &rarr; most of 50k classes have 0 positives</td>
+        <td><span class="verdict not-viable">No</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Cross-Entropy Already Subsumes AUC's Signal</h3>
+
+  <table>
+    <thead>
+      <tr><th>Property</th><th>Cross-Entropy</th><th>AUC-ROC</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Measures ranking of correct class</td>
+        <td>Yes</td>
+        <td>Yes</td>
+      </tr>
+      <tr>
+        <td>Measures calibration</td>
+        <td>Yes</td>
+        <td><strong>No</strong></td>
+      </tr>
+      <tr>
+        <td>Works with 50k classes</td>
+        <td>Yes</td>
+        <td>Degrades badly</td>
+      </tr>
+      <tr>
+        <td>Handles sequential dependence</td>
+        <td>Teacher-forced; valid per-step</td>
+        <td>Assumes independence</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>Cross-entropy captures everything AUC would tell you (discrimination ability) <em>plus</em> calibration quality (how confident the model is). Switching to AUC would discard information, not add it.</p>
+
+  <h3>The Sequence-Level Problem</h3>
+
+  <p>Even with excellent per-token discrimination (hypothetically high AUC per class), transcriptions can fail because:</p>
+
+  <ul>
+    <li>A single high-confidence error at one position cascades into alignment mismatches</li>
+    <li>Beam search amplifies small probability differences</li>
+    <li>Word boundaries and language model context matter more than isolated token ranking</li>
+  </ul>
+
+  <p>WER captures this. Per-token AUC cannot.</p>
+
+  <div class="callout danger">
+    <strong>Verdict:</strong> AUC-ROC is <span class="verdict not-viable">not applicable</span> here &mdash; not because there's no classification happening, but because cross-entropy is already the correct (and strictly superior) classification metric for large-vocabulary token prediction. AUC would be redundant and lossy.
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="decision">Decision Matrix <span class="tag">Summary</span></h2>
+
+  <p>Which metrics to use at each stage of the project:</p>
+
+  <table>
+    <thead>
+      <tr><th>Stage</th><th>Primary Metrics</th><th>Secondary / Optional</th><th>Not Recommended</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>HP Search</strong><br>(prototype)</td>
+        <td>Eval loss, AULC</td>
+        <td>Gradient norms, convergence speed</td>
+        <td>WER (too expensive), AUC-ROC, token accuracy</td>
+      </tr>
+      <tr>
+        <td><strong>Model Quality</strong><br>(full scale)</td>
+        <td>WER, CER</td>
+        <td>SER, Entity WER, Sub/Del/Ins breakdown</td>
+        <td>BLEU, METEOR, TER (MT metrics)</td>
+      </tr>
+      <tr>
+        <td><strong>Fairness Analysis</strong></td>
+        <td>Per-group WER, WER gap, WER ratio, significance tests</td>
+        <td>Per-group Sub/Del/Ins, Entity WER by group, predictive entropy by group</td>
+        <td>BERTScore, global averages only</td>
+      </tr>
+      <tr>
+        <td><strong>Robustness</strong></td>
+        <td>WER under perturbation, relative WER increase</td>
+        <td>Robustness gap by group</td>
+        <td>&mdash;</td>
+      </tr>
+      <tr>
+        <td><strong>Paper Reporting</strong></td>
+        <td>All primary metrics above</td>
+        <td>RTF, trainable params %, VRAM footprint</td>
+        <td>Perplexity (just exp of loss), Brier, ECE</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout success">
+    <strong>The minimum viable metric set for your paper:</strong> Eval loss + AULC (HP search) &rarr; WER + CER (quality) &rarr; Per-group WER + gap + ratio + significance (fairness) &rarr; WER under perturbation + robustness gap by group (robustness). Everything else is bonus.
+  </div>
+
+  <footer>
+    <p><small>Last updated: 2026-04-07 &bull; Context: NLP class project &mdash; ASR fairness evaluation with LoRA fine-tuning</small></p>
+  </footer>
+</div><!-- /.main-content -->
+
+</div><!-- /.page-wrapper -->
+
+<script>
+// === Scroll-spy ===
+(function() {
+  var sidebarLinks = document.querySelectorAll('#sidebar-toc a');
+  var sections = [];
+  sidebarLinks.forEach(function(link) {
+    var id = link.getAttribute('href').slice(1);
+    var el = document.getElementById(id);
+    if (el) sections.push({ id: id, el: el, link: link });
+  });
+
+  function onScroll() {
+    var scrollY = window.scrollY + 80;
+    var current = null;
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].el.offsetTop <= scrollY) {
+        current = sections[i];
+      }
+    }
+    sidebarLinks.forEach(function(l) { l.classList.remove('active'); });
+    if (current) current.link.classList.add('active');
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+</script>
+</body>
+</html>

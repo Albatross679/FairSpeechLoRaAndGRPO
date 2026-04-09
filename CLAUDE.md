@@ -71,4 +71,6 @@ Before launching any GPU-intensive task:
 2. Do NOT launch if GPU memory usage > 80% (another job may be running)
 3. Use `CUDA_VISIBLE_DEVICES` to target specific GPUs when multiple are available
 
+## HTML Style
 
+When editing or creating HTML files, use concise and structured design (tables, lists, cards, grids) rather than wordy paragraph layouts. Prefer scannable content over prose.

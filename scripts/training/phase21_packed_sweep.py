@@ -796,6 +796,7 @@ def main():
         args.n_trials = 20 if args.stage == 1 else 100
 
     torch.manual_seed(SEED)
+    torch.cuda.manual_seed_all(SEED)
     np.random.seed(SEED)
 
     print(f"\n{'='*60}")

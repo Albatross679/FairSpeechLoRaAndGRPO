@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Table Design Showcase</title>
+<style>
+  /* ── Global Reset & Layout ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #f0f2f5;
+    color: #1a1a2e;
+    padding: 2rem;
+    line-height: 1.6;
+  }
+  h1 {
+    text-align: center;
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    color: #1a1a2e;
+  }
+  .subtitle {
+    text-align: center;
+    color: #666;
+    margin-bottom: 3rem;
+    font-size: 0.95rem;
+  }
+  .table-section {
+    max-width: 900px;
+    margin: 0 auto 3.5rem auto;
+  }
+  .table-section h2 {
+    font-size: 1.25rem;
+    margin-bottom: 0.3rem;
+    color: #333;
+  }
+  .table-section p.desc {
+    font-size: 0.85rem;
+    color: #777;
+    margin-bottom: 1rem;
+  }
+
+  /* ── Shared table base ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  th, td { padding: 12px 16px; text-align: left; }
+
+  /* ════════════════════════════════════════
+     1. MINIMAL / CLEAN
+  ════════════════════════════════════════ */
+  .t-minimal th {
+    font-weight: 600;
+    color: #555;
+    border-bottom: 2px solid #ddd;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+  }
+  .t-minimal td { border-bottom: 1px solid #eee; color: #444; }
+  .t-minimal tr:last-child td { border-bottom: none; }
+
+  /* ════════════════════════════════════════
+     2. ZEBRA STRIPED
+  ════════════════════════════════════════ */
+  .t-zebra { background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .t-zebra th { background: #4a6cf7; color: #fff; font-weight: 600; }
+  .t-zebra tbody tr:nth-child(even) { background: #f4f6ff; }
+  .t-zebra tbody tr:hover { background: #e8ecff; }
+
+  /* ════════════════════════════════════════
+     3. BORDERED CLASSIC
+  ════════════════════════════════════════ */
+  .t-bordered { border: 2px solid #333; }
+  .t-bordered th, .t-bordered td { border: 1px solid #ccc; }
+  .t-bordered th { background: #333; color: #fff; font-weight: 600; }
+  .t-bordered td { color: #444; }
+
+  /* ════════════════════════════════════════
+     4. ROUNDED CARD
+  ════════════════════════════════════════ */
+  .card-wrap {
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  }
+  .t-card th {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .t-card td { border-bottom: 1px solid #f0f0f0; }
+  .t-card tbody tr:hover { background: #faf8ff; }
+
+  /* ════════════════════════════════════════
+     5. DARK THEME
+  ════════════════════════════════════════ */
+  .dark-wrap {
+    background: #1e1e2f;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+  }
+  .t-dark th {
+    background: #16163a;
+    color: #a78bfa;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+  }
+  .t-dark td { color: #ccc; border-bottom: 1px solid #2a2a4a; }
+  .t-dark tbody tr:hover { background: #2a2a4a; }
+
+  /* ════════════════════════════════════════
+     6. COLORFUL HEADER GRADIENT
+  ════════════════════════════════════════ */
+  .t-gradient { border-radius: 10px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.1); background: #fff; }
+  .t-gradient th {
+    background: linear-gradient(90deg, #ff6b6b, #ffa502, #ffd93d, #6bcb77, #4d96ff);
+    background-size: 200%;
+    color: #fff;
+    font-weight: 700;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  }
+  .t-gradient td { border-bottom: 1px solid #f0f0f0; }
+  .t-gradient tbody tr:hover { background: #fff8f0; }
+
+  /* ════════════════════════════════════════
+     7. HORIZONTAL LINES ONLY
+  ════════════════════════════════════════ */
+  .t-hlines th {
+    border-bottom: 3px solid #2d3436;
+    font-weight: 700;
+    color: #2d3436;
+  }
+  .t-hlines td { border-bottom: 1px solid #e0e0e0; color: #555; }
+  .t-hlines tbody tr:hover { background: #f9f9f9; }
+
+  /* ════════════════════════════════════════
+     8. NEON GLOW (Dark)
+  ════════════════════════════════════════ */
+  .neon-wrap {
+    background: #0a0a1a;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #0ff3;
+    box-shadow: 0 0 20px rgba(0,255,255,0.08);
+  }
+  .t-neon th {
+    color: #0ff;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    border-bottom: 1px solid #0ff4;
+    background: transparent;
+  }
+  .t-neon td { color: #aaa; border-bottom: 1px solid #1a1a3a; }
+  .t-neon tbody tr:hover { background: #0ff1; color: #fff; }
+  .t-neon tbody tr:hover td { color: #eee; }
+
+  /* ════════════════════════════════════════
+     9. PASTEL SOFT
+  ════════════════════════════════════════ */
+  .t-pastel { background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.06); }
+  .t-pastel th { background: #e8f5e9; color: #2e7d32; font-weight: 600; }
+  .t-pastel tbody tr:nth-child(odd) { background: #fff3e0; }
+  .t-pastel tbody tr:nth-child(even) { background: #e3f2fd; }
+  .t-pastel tbody tr:hover { background: #f3e5f5; }
+  .t-pastel td { color: #555; }
+
+  /* ════════════════════════════════════════
+     10. COMPACT / DENSE
+  ════════════════════════════════════════ */
+  .t-compact th, .t-compact td { padding: 6px 10px; font-size: 0.8rem; }
+  .t-compact { background: #fff; border: 1px solid #ddd; }
+  .t-compact th { background: #f5f5f5; font-weight: 600; border-bottom: 2px solid #bbb; color: #333; }
+  .t-compact td { border-bottom: 1px solid #eee; color: #555; }
+  .t-compact tbody tr:hover { background: #fffde7; }
+
+  /* ════════════════════════════════════════
+     11. GLASSMORPHISM
+  ════════════════════════════════════════ */
+  .glass-wrap {
+    background: linear-gradient(135deg, #667eea33, #764ba233);
+    border-radius: 16px;
+    padding: 2px;
+  }
+  .glass-inner {
+    background: rgba(255,255,255,0.65);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.4);
+  }
+  .t-glass th {
+    background: rgba(255,255,255,0.3);
+    font-weight: 600;
+    color: #4a4a6a;
+    border-bottom: 1px solid rgba(255,255,255,0.5);
+  }
+  .t-glass td { border-bottom: 1px solid rgba(0,0,0,0.05); color: #555; }
+  .t-glass tbody tr:hover { background: rgba(255,255,255,0.4); }
+
+  /* ════════════════════════════════════════
+     12. NEWSPAPER / EDITORIAL
+  ════════════════════════════════════════ */
+  .t-editorial { font-family: 'Georgia', 'Times New Roman', serif; }
+  .t-editorial th {
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: #222;
+    border-bottom: 3px double #222;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-variant: small-caps;
+  }
+  .t-editorial td { border-bottom: 1px solid #ddd; color: #444; font-size: 0.88rem; }
+  .t-editorial tbody tr:hover { background: #fdf6e3; }
+
+  /* ════════════════════════════════════════
+     13. STATUS BADGES / DATA TABLE
+  ════════════════════════════════════════ */
+  .t-status { background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 6px rgba(0,0,0,0.08); }
+  .t-status th { background: #f8f9fa; font-weight: 600; color: #555; border-bottom: 2px solid #e9ecef; font-size: 0.8rem; text-transform: uppercase; }
+  .t-status td { border-bottom: 1px solid #f0f0f0; }
+  .t-status tbody tr:hover { background: #f8f9fa; }
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .badge-green { background: #d4edda; color: #155724; }
+  .badge-yellow { background: #fff3cd; color: #856404; }
+  .badge-red { background: #f8d7da; color: #721c24; }
+  .badge-blue { background: #d1ecf1; color: #0c5460; }
+  .bar-cell { position: relative; }
+  .bar-bg { display: block; height: 6px; background: #e9ecef; border-radius: 3px; overflow: hidden; }
+  .bar-fill { display: block; height: 100%; border-radius: 3px; }
+
+  /* ════════════════════════════════════════
+     14. NEUMORPHISM / SOFT UI
+  ════════════════════════════════════════ */
+  .neu-wrap {
+    background: #e0e5ec;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 8px 8px 16px #b8bec7, -8px -8px 16px #fff;
+  }
+  .t-neu { border-spacing: 0 8px; border-collapse: separate; }
+  .t-neu th { color: #666; font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 16px; }
+  .t-neu td {
+    background: #e0e5ec;
+    padding: 12px 16px;
+    color: #444;
+    box-shadow: 3px 3px 6px #b8bec7, -3px -3px 6px #fff;
+  }
+  .t-neu td:first-child { border-radius: 8px 0 0 8px; }
+  .t-neu td:last-child { border-radius: 0 8px 8px 0; }
+  .t-neu tbody tr:hover td { background: #d8dde4; }
+
+  /* ════════════════════════════════════════
+     15. MONOSPACE / TERMINAL
+  ════════════════════════════════════════ */
+  .terminal-wrap {
+    background: #1e1e1e;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+  .terminal-bar {
+    background: #333;
+    padding: 8px 14px;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .terminal-bar span { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+  .terminal-bar .r { background: #ff5f56; }
+  .terminal-bar .y { background: #ffbd2e; }
+  .terminal-bar .g { background: #27c93f; }
+  .t-terminal { font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace; font-size: 0.82rem; }
+  .t-terminal th { color: #569cd6; font-weight: 600; border-bottom: 1px solid #333; background: transparent; }
+  .t-terminal td { color: #d4d4d4; border-bottom: 1px solid #2a2a2a; }
+  .t-terminal tbody tr:hover { background: #264f78; }
+
+  /* ════════════════════════════════════════
+     16. LEFT ACCENT / COLOR BAR
+  ════════════════════════════════════════ */
+  .t-accent { background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.07); border-left: 5px solid #6c5ce7; }
+  .t-accent th { background: #f8f7ff; color: #6c5ce7; font-weight: 600; text-transform: uppercase; font-size: 0.78rem; letter-spacing: 0.05em; }
+  .t-accent td { border-bottom: 1px solid #f0f0f0; color: #555; }
+  .t-accent tbody tr:hover { background: #f8f7ff; }
+
+  /* ════════════════════════════════════════
+     17. WARM EARTH TONES
+  ════════════════════════════════════════ */
+  .t-earth { background: #faf5f0; border-radius: 8px; overflow: hidden; border: 1px solid #e0d5c5; }
+  .t-earth th { background: #8b6f47; color: #fff; font-weight: 600; }
+  .t-earth tbody tr:nth-child(even) { background: #f5ebe0; }
+  .t-earth tbody tr:hover { background: #eddfcc; }
+  .t-earth td { color: #5c4033; border-bottom: 1px solid #e8ddd0; }
+
+  /* ════════════════════════════════════════
+     18. STICKY HEADER
+  ════════════════════════════════════════ */
+  .sticky-wrap {
+    max-height: 220px;
+    overflow-y: auto;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+  }
+  .t-sticky { background: #fff; }
+  .t-sticky th {
+    position: sticky;
+    top: 0;
+    background: #2d3436;
+    color: #dfe6e9;
+    font-weight: 600;
+    z-index: 1;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  .t-sticky td { border-bottom: 1px solid #eee; color: #555; }
+  .t-sticky tbody tr:hover { background: #f0f7ff; }
+
+  /* Number labels */
+  .style-num {
+    display: inline-block;
+    background: #4a6cf7;
+    color: #fff;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 28px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+</style>
+</head>
+<body>
+
+<h1>Table Design Showcase</h1>
+<p class="subtitle">18 different table styles — hover over rows to see interaction effects</p>
+
+<!-- ─── 1. MINIMAL ─── -->
+<div class="table-section">
+  <h2><span class="style-num">1</span>Minimal / Clean</h2>
+  <p class="desc">No background colors, thin lines, uppercase headers. Best for: dashboards, reports.</p>
+  <table class="t-minimal">
+    <thead><tr><th>Model</th><th>Dataset</th><th>WER (%)</th><th>Fairness Gap</th></tr></thead>
+    <tbody>
+      <tr><td>wav2vec2-base</td><td>LibriSpeech</td><td>5.2</td><td>0.031</td></tr>
+      <tr><td>Whisper-small</td><td>CommonVoice</td><td>8.7</td><td>0.045</td></tr>
+      <tr><td>Qwen3-ASR</td><td>FairSpeech</td><td>3.1</td><td>0.018</td></tr>
+      <tr><td>Whisper-large-v3</td><td>LibriSpeech</td><td>2.8</td><td>0.012</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ─── 2. ZEBRA STRIPED ─── -->
+<div class="table-section">
+  <h2><span class="style-num">2</span>Zebra Striped</h2>
+  <p class="desc">Alternating row colors for easy scanning. Best for: long data tables.</p>
+  <table class="t-zebra">
+    <thead><tr><th>Model</th><th>Dataset</th><th>WER (%)</th><th>Fairness Gap</th></tr></thead>
+    <tbody>
+      <tr><td>wav2vec2-base</td><td>LibriSpeech</td><td>5.2</td><td>0.031</td></tr>
+      <tr><td>Whisper-small</td><td>CommonVoice</td><td>8.7</td><td>0.045</td></tr>
+      <tr><td>Qwen3-ASR</td><td>FairSpeech</td><td>3.1</td><td>0.018</td></tr>
+      <tr><td>Whisper-large-v3</td><td>LibriSpeech</td><td>2.8</td><td>0.012</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ─── 3. BORDERED CLASSIC ─── -->
+<div class="table-section">
+  <h2><span class="style-num">3</span>Bordered Classic</h2>
+  <p class="desc">Full borders on all cells, bold header. Best for: print-ready documents, formal reports.</p>
+  <table class="t-bordered">
+    <thead><tr><th>Model</th><th>Dataset</th><th>WER (%)</th><th>Fairness Gap</th></tr></thead>
+    <tbody>
+      <tr><td>wav2vec2-base</td><td>LibriSpeech</td><td>5.2</td><td>0.031</td></tr>
+      <tr><td>Whisper-small</td><td>CommonVoice</td><td>8.7</td><td>0.045</td></tr>
+      <tr><td>Qwen3-ASR</td><td>FairSpeech</td><td>3.1</td><td>0.018</td></tr>
+      <tr><td>Whisper-large-v3</td><td>LibriSpeech</td><td>2.8</td><td>0.012</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ─── 4. ROUNDED CARD ─── -->
+<div class="table-section">
+  <h2><span class="style-num">4</span>Rounded Card / Gradient Header</h2>
+  <p class="desc">Elevated card with gradient purple header. Best for: SaaS dashboards, modern UIs.</p>
+  <div class="card-wrap">
+    <table class="t-card">
+      <thead><tr><th>Model</th><th>Dataset</th><th>WER (%)</th><th>Fairness Gap</th></tr></thead>
+      <tbody>
+        <tr><td>wav2vec2-base</td><td>LibriSpeech</td><td>5.2</td><td>0.031</td></tr>
+        <tr><td>Whisper-small</td><td>CommonVoice</td><td>8.7</td><td>0.045</td></tr>
+        <tr><td>Qwen3-ASR</td><td>FairSpeech</td><td>3.1</td><td>0.018</td></tr>
+        <tr><td>Whisper-large-v3</td><td>LibriSpeech</td><td>2.8</td><td>0.012</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ─── 5. DARK THEME ─── -->
+<div class="table-section">
+  <h2><span class="style-num">5</span>Dark Theme</h2>
+  <p class="desc">Dark background with purple accent. Best for: dark-mode apps, developer tools.</p>
+  <div class="dark-wrap">
+    <table class="t-dark">
+      <thead><tr><th>Model</th><th>Dataset</th><th>WER (%)</th><th>Fairness Gap</th></tr></thead>
+      <tbody>
+        <tr><td>wav2vec2-base</td><td>LibriSpeech</td><td>5.2</td><td>0.031</td></tr>
+        <tr><td>Whisper-small</td><td>CommonVoice</td><td>8.7</td><td>0.045</td></tr>
+        <tr><td>Qwen3-ASR</td><td>FairSpeech</td><td>3.1</td><td>0.018</td></tr>
+        <tr><td>Whisper-large-v3</td><td>LibriSpeech</td><td>2.8</td><td>0.012</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ─── 6. COLORFUL GRADIENT ─── -->
+<div class="table-section">
+  <h2><span class="style-num">6</span>Rainbow Gradient Header</h2>
+  <p class="desc">Multi-color gradient header band. Best for: creative / marketing pages.</p>
+  <table class="t-gradient">
+    <thead><tr><th>Model</th><th>Dataset</th><th>WER (%)</th><th>Fairness Gap</th></tr></thead>
+    <tbody>
+      <tr><td>wav2vec2-base</td><td>LibriSpeech</td><td>5.2</td><td>0.031</td></tr>
+      <tr><td>Whisper-small</td><td>CommonVoice</td><td>8.7</td><td>0.045</td></tr>
+      <tr><td>Qwen3-ASR</td><td>FairSpeech</td><td>3.1</td><td>0.018</td></tr>
+      <tr><td>Whisper-large-v3</td><td>LibriSpeech</td><td>2.8</td><td>0.012</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ─── 7. HORIZONTAL LINES ONLY ─── -->
+<div class="table-section">
+  <h2><span class="style-num">7</span>Horizontal Lines Only</h2>
+  <p class="desc">No vertical dividers, thick header rule. Best for: academic papers, clean presentations.</p>
+  <table class="t-hlines">
+    <thead><tr><th>Model</th><th>Dataset</th><th>WER (%)</th><th>Fairness Gap</th></tr></thead>
+    <tbody>
+      <tr><td>wav2vec2-base</td><td>LibriSpeech</td><td>5.2</td><td>0.031</td></tr>
+      <tr><td>Whisper-small</td><td>CommonVoice</td><td>8.7</td><td>0.045</td></tr>
+      <tr><td>Qwen3-ASR</td><td>FairSpeech</td><td>3.1</td><td>0.018</td></tr>
+      <tr><td>Whisper-large-v3</td><td>LibriSpeech</td><td>2.8</td><td>0.012</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ─── 8. NEON GLOW ─── -->
+<div class="table-section">
+  <h2><span class="style-num">8</span>Neon Glow</h2>
+  <p class="desc">Cyan neon accents on black. Best for: gaming, cyberpunk, sci-fi aesthetics.</p>
+  <div class="neon-wrap">
+    <table class="t-neon">
+      <thead><tr><th>Model</th><th>Dataset</th><th>WER (%)</th><th>Fairness Gap</th></tr></thead>
+      <tbody>
+        <tr><td>wav2vec2-base</td><td>LibriSpeech</td><td>5.2</td><td>0.031</td></tr>
+        <tr><td>Whisper-small</td><td>CommonVoice</td><td>8.7</td><td>0.045</td></tr>
+        <tr><td>Qwen3-ASR</td><td>FairSpeech</td><td>3.1</td><td>0.018</td></tr>
+        <tr><td>Whisper-large-v3</td><td>LibriSpeech</td><td>2.8</td><td>0.012</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ─── 9. PASTEL SOFT ─── -->
+<div class="table-section">
+  <h2><span class="style-num">9</span>Pastel Soft</h2>
+  <p class="desc">Alternating pastel row colors (green, orange, blue). Best for: educational, friendly UIs.</p>
+  <table class="t-pastel">
+    <thead><tr><th>Model</th><th>Dataset</th><th>WER (%)</th><th>Fairness Gap</th></tr></thead>
+    <tbody>
+      <tr><td>wav2vec2-base</td><td>LibriSpeech</td><td>5.2</td><td>0.031</td></tr>
+      <tr><td>Whisper-small</td><td>CommonVoice</td><td>8.7</td><td>0.045</td></tr>
+      <tr><td>Qwen3-ASR</td><td>FairSpeech</td><td>3.1</td><td>0.018</td></tr>
+      <tr><td>Whisper-large-v3</td><td>LibriSpeech</td><td>2.8</td><td>0.012</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ─── 10. COMPACT / DENSE ─── -->
+<div class="table-section">
+  <h2><span class="style-num">10</span>Compact / Dense</h2>
+  <p class="desc">Tight padding, smaller text. Best for: data-heavy screens, admin panels.</p>
+  <table class="t-compact">
+    <thead><tr><th>Model</th><th>Dataset</th><th>WER (%)</th><th>Fairness Gap</th></tr></thead>
+    <tbody>
+      <tr><td>wav2vec2-base</td><td>LibriSpeech</td><td>5.2</td><td>0.031</td></tr>
+      <tr><td>Whisper-small</td><td>CommonVoice</td><td>8.7</td><td>0.045</td></tr>
+      <tr><td>Qwen3-ASR</td><td>FairSpeech</td><td>3.1</td><td>0.018</td></tr>
+      <tr><td>Whisper-large-v3</td><td>LibriSpeech</td><td>2.8</td><td>0.012</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ─── 11. GLASSMORPHISM ─── -->
+<div class="table-section">
+  <h2><span class="style-num">11</span>Glassmorphism</h2>
+  <p class="desc">Frosted glass effect with translucent background. Best for: modern landing pages.</p>
+  <div class="glass-wrap">
+    <div class="glass-inner">
+      <table class="t-glass">
+        <thead><tr><th>Model</th><th>Dataset</th><th>WER (%)</th><th>Fairness Gap</th></tr></thead>
+        <tbody>
+          <tr><td>wav2vec2-base</td><td>LibriSpeech</td><td>5.2</td><td>0.031</td></tr>
+          <tr><td>Whisper-small</td><td>CommonVoice</td><td>8.7</td><td>0.045</td></tr>
+          <tr><td>Qwen3-ASR</td><td>FairSpeech</td><td>3.1</td><td>0.018</td></tr>
+          <tr><td>Whisper-large-v3</td><td>LibriSpeech</td><td>2.8</td><td>0.012</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ─── 12. NEWSPAPER / EDITORIAL ─── -->
+<div class="table-section">
+  <h2><span class="style-num">12</span>Newspaper / Editorial</h2>
+  <p class="desc">Serif font, double-rule header, small caps. Best for: publications, academic writing.</p>
+  <table class="t-editorial">
+    <thead><tr><th>Model</th><th>Dataset</th><th>WER (%)</th><th>Fairness Gap</th></tr></thead>
+    <tbody>
+      <tr><td>wav2vec2-base</td><td>LibriSpeech</td><td>5.2</td><td>0.031</td></tr>
+      <tr><td>Whisper-small</td><td>CommonVoice</td><td>8.7</td><td>0.045</td></tr>
+      <tr><td>Qwen3-ASR</td><td>FairSpeech</td><td>3.1</td><td>0.018</td></tr>
+      <tr><td>Whisper-large-v3</td><td>LibriSpeech</td><td>2.8</td><td>0.012</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ─── 13. STATUS BADGES / DATA TABLE ─── -->
+<div class="table-section">
+  <h2><span class="style-num">13</span>Status Badges / Data Table</h2>
+  <p class="desc">Colored badges and inline progress bars. Best for: project management, dashboards.</p>
+  <table class="t-status">
+    <thead><tr><th>Model</th><th>Status</th><th>WER (%)</th><th>Progress</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>wav2vec2-base</td>
+        <td><span class="badge badge-green">Complete</span></td>
+        <td>5.2</td>
+        <td class="bar-cell"><span class="bar-bg"><span class="bar-fill" style="width:85%; background:#27ae60;"></span></span></td>
+      </tr>
+      <tr>
+        <td>Whisper-small</td>
+        <td><span class="badge badge-yellow">Running</span></td>
+        <td>8.7</td>
+        <td class="bar-cell"><span class="bar-bg"><span class="bar-fill" style="width:60%; background:#f39c12;"></span></span></td>
+      </tr>
+      <tr>
+        <td>Qwen3-ASR</td>
+        <td><span class="badge badge-blue">Queued</span></td>
+        <td>3.1</td>
+        <td class="bar-cell"><span class="bar-bg"><span class="bar-fill" style="width:30%; background:#2980b9;"></span></span></td>
+      </tr>
+      <tr>
+        <td>Whisper-large-v3</td>
+        <td><span class="badge badge-red">Failed</span></td>
+        <td>2.8</td>
+        <td class="bar-cell"><span class="bar-bg"><span class="bar-fill" style="width:10%; background:#e74c3c;"></span></span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ─── 14. NEUMORPHISM ─── -->
+<div class="table-section">
+  <h2><span class="style-num">14</span>Neumorphism / Soft UI</h2>
+  <p class="desc">Embossed rows with soft shadows. Best for: trendy UIs, skeuomorphic design.</p>
+  <div class="neu-wrap">
+    <table class="t-neu">
+      <thead><tr><th>Model</th><th>Dataset</th><th>WER (%)</th><th>Fairness Gap</th></tr></thead>
+      <tbody>
+        <tr><td>wav2vec2-base</td><td>LibriSpeech</td><td>5.2</td><td>0.031</td></tr>
+        <tr><td>Whisper-small</td><td>CommonVoice</td><td>8.7</td><td>0.045</td></tr>
+        <tr><td>Qwen3-ASR</td><td>FairSpeech</td><td>3.1</td><td>0.018</td></tr>
+        <tr><td>Whisper-large-v3</td><td>LibriSpeech</td><td>2.8</td><td>0.012</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ─── 15. TERMINAL ─── -->
+<div class="table-section">
+  <h2><span class="style-num">15</span>Terminal / Monospace</h2>
+  <p class="desc">Code editor look with traffic-light title bar. Best for: dev tools, CLI output display.</p>
+  <div class="terminal-wrap">
+    <div class="terminal-bar">
+      <span class="r"></span><span class="y"></span><span class="g"></span>
+    </div>
+    <table class="t-terminal">
+      <thead><tr><th>Model</th><th>Dataset</th><th>WER (%)</th><th>Fairness Gap</th></tr></thead>
+      <tbody>
+        <tr><td>wav2vec2-base</td><td>LibriSpeech</td><td>5.2</td><td>0.031</td></tr>
+        <tr><td>Whisper-small</td><td>CommonVoice</td><td>8.7</td><td>0.045</td></tr>
+        <tr><td>Qwen3-ASR</td><td>FairSpeech</td><td>3.1</td><td>0.018</td></tr>
+        <tr><td>Whisper-large-v3</td><td>LibriSpeech</td><td>2.8</td><td>0.012</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ─── 16. LEFT ACCENT ─── -->
+<div class="table-section">
+  <h2><span class="style-num">16</span>Left Accent / Color Bar</h2>
+  <p class="desc">Thick colored left border as accent. Best for: notifications, sidebar data.</p>
+  <table class="t-accent">
+    <thead><tr><th>Model</th><th>Dataset</th><th>WER (%)</th><th>Fairness Gap</th></tr></thead>
+    <tbody>
+      <tr><td>wav2vec2-base</td><td>LibriSpeech</td><td>5.2</td><td>0.031</td></tr>
+      <tr><td>Whisper-small</td><td>CommonVoice</td><td>8.7</td><td>0.045</td></tr>
+      <tr><td>Qwen3-ASR</td><td>FairSpeech</td><td>3.1</td><td>0.018</td></tr>
+      <tr><td>Whisper-large-v3</td><td>LibriSpeech</td><td>2.8</td><td>0.012</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ─── 17. WARM EARTH TONES ─── -->
+<div class="table-section">
+  <h2><span class="style-num">17</span>Warm Earth Tones</h2>
+  <p class="desc">Brown/tan palette with subtle stripes. Best for: organic brands, cozy aesthetics.</p>
+  <table class="t-earth">
+    <thead><tr><th>Model</th><th>Dataset</th><th>WER (%)</th><th>Fairness Gap</th></tr></thead>
+    <tbody>
+      <tr><td>wav2vec2-base</td><td>LibriSpeech</td><td>5.2</td><td>0.031</td></tr>
+      <tr><td>Whisper-small</td><td>CommonVoice</td><td>8.7</td><td>0.045</td></tr>
+      <tr><td>Qwen3-ASR</td><td>FairSpeech</td><td>3.1</td><td>0.018</td></tr>
+      <tr><td>Whisper-large-v3</td><td>LibriSpeech</td><td>2.8</td><td>0.012</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ─── 18. STICKY HEADER ─── -->
+<div class="table-section">
+  <h2><span class="style-num">18</span>Sticky Header (Scrollable)</h2>
+  <p class="desc">Header stays visible while scrolling. Best for: long data tables with many rows.</p>
+  <div class="sticky-wrap">
+    <table class="t-sticky">
+      <thead><tr><th>Model</th><th>Dataset</th><th>WER (%)</th><th>Fairness Gap</th></tr></thead>
+      <tbody>
+        <tr><td>wav2vec2-base</td><td>LibriSpeech</td><td>5.2</td><td>0.031</td></tr>
+        <tr><td>Whisper-small</td><td>CommonVoice</td><td>8.7</td><td>0.045</td></tr>
+        <tr><td>Qwen3-ASR</td><td>FairSpeech</td><td>3.1</td><td>0.018</td></tr>
+        <tr><td>Whisper-large-v3</td><td>LibriSpeech</td><td>2.8</td><td>0.012</td></tr>
+        <tr><td>HuBERT-large</td><td>CommonVoice</td><td>4.5</td><td>0.028</td></tr>
+        <tr><td>Conformer-CTC</td><td>FairSpeech</td><td>3.9</td><td>0.022</td></tr>
+        <tr><td>Whisper-medium</td><td>LibriSpeech</td><td>4.1</td><td>0.025</td></tr>
+        <tr><td>wav2vec2-large</td><td>FairSpeech</td><td>3.7</td><td>0.020</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+</body>
+</html>

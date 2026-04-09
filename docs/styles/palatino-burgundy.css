@@ -1,0 +1,149 @@
+/* =============================================================
+   Palatino Burgundy — Shared base for sidebar reference docs
+   Warm serif + burgundy accents, sticky sidebar + scroll-spy
+   ============================================================= */
+
+/* === Reset & Typography === */
+html { font-size: 62.5%; scroll-behavior: smooth; }
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  font-family: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  font-size: 1.7rem;
+  line-height: 1.618;
+  color: #4a4a4a;
+  background: #f5f4f0;
+  margin: 0; padding: 0;
+}
+h1, h2, h3, h4, h5, h6 { color: #3a3a3a; margin-top: 1.5em; margin-bottom: 0.5em; }
+h1 { font-size: 2em; margin-top: 0; }
+h2 { font-size: 1.7em; border-bottom: 2px solid #7c3043; padding-bottom: 0.25em; }
+h3 { font-size: 1.45em; }
+h4 { font-size: 1.25em; }
+h5 { font-size: 1.1em; }
+h6 { font-size: 1em; }
+p { margin: 0.8em 0; }
+a { color: #7c3043; text-decoration: none; }
+a:visited { color: #5c2233; }
+a:hover { color: #a3415a; text-decoration: underline; }
+hr { border: none; border-top: 1px solid #ddd; margin: 1.5em 0; }
+strong { color: #3a3a3a; }
+ul, ol { padding-left: 1.5em; }
+li { margin-bottom: 0.3em; }
+code {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.88em;
+  background: #faf9f7;
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+  border: 1px solid #e0ddd8;
+}
+blockquote {
+  border-left: 3px solid #7c3043;
+  margin: 1.2em 0;
+  padding: 0.5em 1.2em;
+  background: #faf9f7;
+  color: #555;
+}
+
+/* === Layout: Two-Column with Sticky Sidebar === */
+.page-wrapper { display: flex; max-width: 80em; margin: 0 auto; }
+.sidebar {
+  width: 240px; min-width: 240px;
+  position: sticky; top: 0; height: 100vh;
+  overflow-y: auto; padding: 1.5em 1em;
+  background: #f0efeb; border-right: 1px solid #ddd;
+  font-size: 1em;
+}
+.sidebar strong { font-size: 1.15em; display: block; margin-bottom: 0.8em; color: #3a3a3a; }
+.sidebar ul { list-style: none; padding: 0; margin: 0; }
+.sidebar li { margin-bottom: 0.2em; }
+.sidebar a {
+  display: block; padding: 0.35em 0.7em; border-radius: 4px;
+  color: #4a4a4a; font-size: 0.95em; transition: background 0.15s;
+}
+.sidebar a:hover { background: #ebe7e3; color: #7c3043; text-decoration: none; }
+.sidebar a.active { background: #ebe7e3; color: #7c3043; font-weight: 600; }
+.main-content { flex: 1; max-width: 56em; padding: 13px 2em 2em 2.5em; }
+
+/* === Subtitle === */
+p.subtitle { font-size: 1.15em; color: #666; margin-top: -0.3em; }
+
+/* === Tables === */
+table {
+  width: 100%; border-collapse: collapse; font-size: 0.92em;
+  margin: 1.2em 0;
+  border-top: 2px solid #7c3043; border-bottom: 2px solid #7c3043;
+}
+thead th {
+  padding: 0.6em 0.8em; text-align: left; font-weight: 700;
+  color: #3a3a3a; border-bottom: 3px solid #7c3043;
+}
+tbody td { padding: 0.55em 0.8em; border-bottom: 1px solid #ddd; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: #f5eaed; }
+tr.highlight { background: #fdf0ef; }
+
+/* === Callouts === */
+.callout {
+  border-left: 4px solid #7c3043; background: #f1f1f1;
+  padding: 1em 1.2em; margin: 1.2em 0; border-radius: 0 6px 6px 0;
+}
+.callout.warning { border-left-color: #d4a017; background: #fdf8e8; }
+.callout.danger  { border-left-color: #c0392b; background: #fdf0ef; }
+.callout.success { border-left-color: #27ae60; background: #edf9f1; }
+
+/* === Math Blocks === */
+.math-block {
+  background: #fff; border: 1px solid #ddd; border-radius: 6px;
+  padding: 1.2em 1.5em; margin: 1.2em 0; text-align: center; overflow-x: auto;
+}
+
+/* === Code / File-Tree Blocks === */
+pre.code-block {
+  background: #faf9f7; border: 1px solid #ddd; border-left: 3px solid #7c3043;
+  border-radius: 4px; padding: 1.2em 1.5em; margin: 1.2em 0; overflow-x: auto;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.85em; line-height: 1.65; color: #3a3a3a;
+}
+pre.code-block code { display: block; background: none; border: none; padding: 0; }
+pre.code-block .comment { color: #998; font-style: italic; }
+
+/* === Verdict Badges === */
+span.verdict {
+  display: inline-block; padding: 0.15em 0.6em; border-radius: 3px;
+  font-size: 0.85em; font-weight: 600; vertical-align: middle;
+}
+span.verdict.best       { background: #7c3043; color: #fff; }
+span.verdict.viable     { background: #27ae60; color: #fff; }
+span.verdict.partial    { background: #d4a017; color: #fff; }
+span.verdict.not-viable { background: #c0392b; color: #fff; }
+
+/* === Inline TOC (mobile only) === */
+nav#toc { display: none; margin: 1em 0; }
+nav#toc strong { color: #7c3043; display: block; margin-bottom: 0.5em; }
+nav#toc ul { padding-left: 1.2em; }
+nav#toc li { margin-bottom: 0.3em; }
+
+/* === Footer === */
+footer { margin-top: 3em; padding-top: 1em; border-top: 1px solid #ddd; }
+footer p { font-size: 0.85em; color: #888; }
+
+/* === Responsive === */
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  nav#toc { display: block; background: #f0efeb; padding: 1em; border-radius: 6px; }
+  .main-content { padding: 1em; max-width: 100%; }
+}
+@media (max-width: 684px) { body { font-size: 1.35rem; } }
+@media (max-width: 382px) { body { font-size: 1.2rem; } }
+
+/* === Print === */
+@media print {
+  .sidebar { display: none; }
+  nav#toc { display: block; }
+  .main-content { max-width: 100%; padding: 0; }
+  body { background: #fff; font-size: 11pt; }
+  h2 { break-after: avoid; }
+  table, .callout { break-inside: avoid; }
+  a { color: #333; }
+}

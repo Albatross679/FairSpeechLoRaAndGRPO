@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Caveman Skill — Evaluation Report</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px;scroll-behavior:smooth}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111;background:#fafafa;line-height:1.6;-webkit-font-smoothing:antialiased}
+
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;height:56px;background:rgba(250,250,250,0.88);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid #e0e0e0;z-index:100;display:flex;align-items:center;justify-content:center}
+.nav-inner{max-width:1120px;width:100%;padding:0 2rem;display:flex;align-items:center;justify-content:space-between}
+.nav-logo{font-family:'SF Mono','Fira Mono','Roboto Mono','Menlo',monospace;font-size:0.95rem;font-weight:700;color:#111;text-decoration:none}
+.nav-logo span{color:#0066ff}
+.nav-links{display:flex;gap:1.8rem;align-items:center}
+.nav-links a{font-size:0.82rem;font-weight:500;color:#555;text-decoration:none;transition:color 0.2s}
+.nav-links a:hover{color:#0066ff}
+.nav-links .nav-cta{background:#0066ff;color:#fff;padding:0.4rem 1rem;border-radius:6px;font-weight:600}
+.nav-links .nav-cta:hover{background:#0052cc;color:#fff}
+.mobile-toggle{display:none;background:none;border:none;cursor:pointer;padding:4px}
+.mobile-toggle span{display:block;width:20px;height:2px;background:#111;margin:4px 0;transition:0.3s}
+
+/* TOP BADGE */
+.top-badge{margin-top:56px;background:#e8f0ff;text-align:center;padding:0.55rem 1rem;font-size:0.78rem;font-weight:600;color:#0066ff;letter-spacing:0.04em}
+
+/* HERO */
+.hero-scroll-zone{height:220vh;position:relative}
+.hero-sticky{position:sticky;top:0;height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.hero{text-align:center;padding:0 2rem;max-width:800px}
+.hero h1{font-family:'SF Mono','Fira Mono','Roboto Mono','Menlo',monospace;font-size:clamp(2.2rem,5vw,3.8rem);font-weight:700;letter-spacing:-0.02em;line-height:1.1;margin-bottom:1rem;will-change:transform,opacity}
+.hero .subtitle{font-size:1.05rem;color:#555;max-width:560px;margin:0 auto 2rem;will-change:transform,opacity}
+.hero-cta{display:inline-block;background:#0066ff;color:#fff;padding:0.75rem 2rem;border-radius:8px;font-size:0.88rem;font-weight:600;text-decoration:none;letter-spacing:0.03em;transition:background 0.2s;will-change:transform,opacity}
+.hero-cta:hover{background:#0052cc}
+
+/* HERO DEVICE */
+.device-wrap{margin:2.5rem auto 0;max-width:320px;will-change:transform}
+.device{background:#e8e6e1;border-radius:28px;padding:1.2rem 1rem 0.8rem;position:relative}
+.dot-matrix-area{width:100%;aspect-ratio:1/1;border-radius:50%;overflow:hidden;margin:0 auto;position:relative;background:#e8e6e1}
+.dot-matrix-area canvas{width:100%;height:100%;display:block}
+.device-brand{text-align:center;font-family:'SF Mono','Fira Mono',monospace;font-size:0.65rem;color:#aaa;letter-spacing:0.15em;margin:0.6rem 0 0.4rem;text-transform:uppercase}
+.rec-bar{background:#1a1a1a;border-radius:10px;padding:0.35rem 0.7rem;display:flex;align-items:center;justify-content:space-between;margin-bottom:0.3rem}
+.rec-left{display:flex;align-items:center;gap:0.4rem}
+.rec-dot{width:7px;height:7px;border-radius:50%;background:#ff3b30;animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+.rec-timer{font-family:'SF Mono','Fira Mono',monospace;font-size:0.68rem;color:#ccc}
+.rec-wave{display:flex;align-items:center;gap:1.5px;height:16px}
+.rec-wave-bar{width:2px;background:#555;border-radius:1px;animation:waveBar 1.2s ease-in-out infinite alternate}
+@keyframes waveBar{0%{height:3px}100%{height:14px}}
+.device-home{width:36px;height:36px;border:2px solid #ccc;border-radius:50%;margin:0.5rem auto}
+
+/* HERO STATS */
+.hero-stats{display:flex;gap:2.5rem;justify-content:center;margin-top:2rem;will-change:transform,opacity}
+.hero-stat .num{font-family:'SF Mono','Fira Mono',monospace;font-size:2rem;font-weight:700;color:#111}
+.hero-stat .label{font-size:0.78rem;color:#888;margin-top:0.15rem}
+
+/* SECTIONS */
+section{padding:5rem 2rem}
+section:nth-child(even){background:#f0f0f0}
+.section-inner{max-width:1120px;margin:0 auto}
+.section-label{font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:#0066ff;margin-bottom:0.5rem}
+.section-title{font-family:'SF Mono','Fira Mono','Roboto Mono','Menlo',monospace;font-size:clamp(1.6rem,3vw,2.2rem);font-weight:700;color:#111;margin-bottom:0.6rem}
+.section-desc{font-size:0.95rem;color:#555;max-width:560px;margin-bottom:2.5rem}
+
+/* FEATURE GRID */
+.feature-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem}
+.feature-card{background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:2rem;transition:box-shadow 0.2s}
+.feature-card:hover{box-shadow:0 4px 20px rgba(0,0,0,0.06)}
+.feature-icon{font-size:1.6rem;margin-bottom:0.8rem}
+.feature-card h3{font-size:1.05rem;font-weight:650;margin-bottom:0.4rem}
+.feature-card p{font-size:0.88rem;color:#555;line-height:1.55}
+
+/* STATS ROW */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1.2rem;margin-bottom:2rem}
+.stat-card{background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:1.5rem;text-align:center}
+.stat-card .num{font-family:'SF Mono','Fira Mono',monospace;font-size:1.8rem;font-weight:700;color:#111}
+.stat-card .unit{font-size:0.78rem;font-weight:600;color:#0066ff;text-transform:uppercase;letter-spacing:0.08em;margin-top:0.1rem}
+.stat-card .label{font-size:0.8rem;color:#888;margin-top:0.25rem}
+
+/* COMPARE TABLE */
+.compare-table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e0e0e0;font-size:0.88rem}
+.compare-table thead{background:#111;color:#fff}
+.compare-table th{padding:0.9rem 1.2rem;text-align:left;font-weight:600;font-size:0.82rem;letter-spacing:0.03em}
+.compare-table td{padding:0.75rem 1.2rem;border-bottom:1px solid #e0e0e0}
+.compare-table tr:last-child td{border-bottom:none}
+.compare-table .check{color:#0066ff;font-weight:600}
+.compare-table .dash{color:#bbb}
+.compare-table .highlight{background:#e8f0ff}
+.compare-table .mono{font-family:'SF Mono','Fira Mono',monospace;font-weight:600}
+
+/* TIMELINE */
+.timeline{position:relative;padding-left:2rem;margin-top:1.5rem}
+.timeline::before{content:'';position:absolute;left:7px;top:8px;bottom:8px;width:2px;background:#e0e0e0}
+.tl-item{position:relative;padding-bottom:2rem;padding-left:1.5rem}
+.tl-item::before{content:'';position:absolute;left:-2rem;top:6px;width:16px;height:16px;border-radius:50%;background:#e0e0e0;border:3px solid #fafafa;z-index:1}
+.tl-item.active::before{background:#0066ff}
+.tl-item.done::before{background:#22c55e}
+.tl-phase{font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:#0066ff;margin-bottom:0.2rem}
+.tl-title{font-size:1rem;font-weight:650;margin-bottom:0.2rem}
+.tl-desc{font-size:0.85rem;color:#555;line-height:1.5}
+
+/* INSIGHT CARDS */
+.insight-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1.5rem}
+.insight-card{background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:2rem;border-left:4px solid #0066ff}
+.insight-card.warn{border-left-color:#f59e0b}
+.insight-card.success{border-left-color:#22c55e}
+.insight-card h3{font-size:1rem;font-weight:650;margin-bottom:0.4rem}
+.insight-card p{font-size:0.88rem;color:#555;line-height:1.55}
+.insight-card .tag{display:inline-block;font-size:0.72rem;font-weight:600;background:#e8f0ff;color:#0066ff;padding:0.15rem 0.5rem;border-radius:4px;margin-top:0.6rem}
+.insight-card.warn .tag{background:#fef3c7;color:#92400e}
+.insight-card.success .tag{background:#dcfce7;color:#166534}
+
+/* VERDICT */
+.verdict-box{background:#fff;border:2px solid #0066ff;border-radius:16px;padding:2.5rem;text-align:center;max-width:700px;margin:0 auto}
+.verdict-box h3{font-family:'SF Mono','Fira Mono',monospace;font-size:1.4rem;font-weight:700;margin-bottom:0.5rem}
+.verdict-box p{font-size:0.95rem;color:#555}
+.verdict-grade{font-family:'SF Mono','Fira Mono',monospace;font-size:3rem;font-weight:700;color:#0066ff;margin-bottom:0.5rem}
+
+/* FOOTER */
+footer{background:#111;color:#aaa;padding:3rem 2rem}
+.footer-inner{max-width:1120px;margin:0 auto;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:2rem}
+.footer-brand .logo{font-family:'SF Mono','Fira Mono',monospace;font-size:1rem;font-weight:700;color:#fff}
+.footer-brand .tagline{font-size:0.78rem;color:#888;margin-top:0.4rem}
+.footer-col h4{font-size:0.78rem;font-weight:600;color:#fff;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.6rem}
+.footer-col a{display:block;font-size:0.82rem;color:#888;text-decoration:none;margin-bottom:0.35rem}
+.footer-col a:hover{color:#0066ff}
+.footer-bottom{max-width:1120px;margin:2rem auto 0;padding-top:1.5rem;border-top:1px solid #333;display:flex;justify-content:space-between;font-size:0.75rem;color:#666}
+
+/* PRINT */
+@media print{nav,.top-badge,.hero-scroll-zone,.cta-banner,footer{display:none}section{padding:2rem 0;page-break-inside:avoid}}
+
+/* MOBILE */
+@media(max-width:768px){
+  .nav-links{display:none;position:absolute;top:56px;left:0;right:0;background:#fafafa;flex-direction:column;padding:1rem 2rem;border-bottom:1px solid #e0e0e0;gap:0.8rem}
+  .nav-links.open{display:flex}
+  .mobile-toggle{display:block}
+  .hero-stats{flex-direction:column;gap:1rem}
+  .footer-inner{grid-template-columns:1fr}
+  .stats-row{grid-template-columns:1fr 1fr}
+}
+@media(max-width:480px){
+  .feature-grid,.insight-grid{grid-template-columns:1fr}
+  .stats-row{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">CAVEMAN <span>EVAL</span></a>
+    <div class="nav-links" id="navLinks">
+      <a href="#process">Process</a>
+      <a href="#results">Results</a>
+      <a href="#performance">Performance</a>
+      <a href="#insights">Insights</a>
+      <a href="#verdict">Verdict</a>
+    </div>
+    <button class="mobile-toggle" onclick="document.getElementById('navLinks').classList.toggle('open')" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<div class="top-badge">SKILL EVALUATION REPORT &mdash; APRIL 2026</div>
+
+<!-- HERO -->
+<div class="hero-scroll-zone" id="heroZone">
+  <div class="hero-sticky">
+    <div class="hero" id="heroContent">
+      <h1 id="heroTitle">Caveman Skill<br>Evaluation Report</h1>
+      <p class="subtitle" id="heroSubtitle">Testing JuliusBrussee/caveman &mdash; a Claude Code skill that compresses output by speaking like a caveman while preserving full technical accuracy.</p>
+      <a href="#process" class="hero-cta" id="heroCta">SEE FINDINGS &darr;</a>
+      <div class="device-wrap" id="heroDevice">
+        <div class="device">
+          <div class="dot-matrix-area"><canvas id="dotCanvas"></canvas></div>
+          <div class="device-brand">caveman mode</div>
+          <div class="rec-bar">
+            <div class="rec-left">
+              <div class="rec-dot"></div>
+              <div class="rec-timer" id="met-clock">00:00:00</div>
+            </div>
+            <div class="rec-wave" id="recWave"></div>
+          </div>
+          <div class="device-home"></div>
+        </div>
+      </div>
+      <div class="hero-stats" id="heroStats">
+        <div class="hero-stat"><div class="num">15/15</div><div class="label">Assertions Passed</div></div>
+        <div class="hero-stat"><div class="num">53%</div><div class="label">Word Reduction</div></div>
+        <div class="hero-stat"><div class="num">~0%</div><div class="label">Token Savings</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PROCESS -->
+<section id="process">
+  <div class="section-inner">
+    <div class="section-label">METHODOLOGY</div>
+    <div class="section-title">Testing Process</div>
+    <div class="section-desc">Three test prompts, each run with and without the caveman skill by independent subagents. Graded programmatically against 15 assertions.</div>
+
+    <div class="timeline">
+      <div class="tl-item done">
+        <div class="tl-phase">Step 1</div>
+        <div class="tl-title">Design Test Prompts</div>
+        <div class="tl-desc">Selected 3 diverse prompts: CUDA OOM debugging (technical troubleshooting), Python GC explanation (conceptual), and a Python function request (code generation). Each stresses different aspects of the skill.</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-phase">Step 2</div>
+        <div class="tl-title">Parallel Execution</div>
+        <div class="tl-desc">Spawned 6 subagents simultaneously &mdash; 3 with the caveman skill loaded, 3 baselines with no skill. All ran on the same model (Claude Opus 4.6) to ensure fair comparison.</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-phase">Step 3</div>
+        <div class="tl-title">Draft Assertions</div>
+        <div class="tl-desc">While runs were in flight, drafted 15 quantitative assertions across 5 categories: token reduction, filler elimination, article dropping, technical accuracy, and code boundary respect.</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-phase">Step 4</div>
+        <div class="tl-title">Programmatic Grading</div>
+        <div class="tl-desc">Wrote a Python grading script that counts words (excluding code blocks), detects filler phrases, checks for technical terms, and validates code quality. No subjective human grading in this pass.</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-phase">Step 5</div>
+        <div class="tl-title">Benchmark &amp; Review</div>
+        <div class="tl-desc">Aggregated timing, token usage, and word counts. Generated an interactive eval viewer for side-by-side output comparison.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- RESULTS -->
+<section id="results">
+  <div class="section-inner">
+    <div class="section-label">EVAL RESULTS</div>
+    <div class="section-title">Per-Test Findings</div>
+    <div class="section-desc">All 3 evals passed all assertions. The skill reliably produces terse, technically accurate responses.</div>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon">&#x1F4A5;</div>
+        <h3>Eval 1: CUDA OOM Debugging</h3>
+        <p><strong>5/5 passed.</strong> 50% word reduction (320 vs 638 words). Articles dropped from 20 to 0. Mentioned 7 of 8 tracked technical fixes including gradient checkpointing, flash attention, QLoRA, optimizer states. All technical terms preserved exactly.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#x1F9F9;</div>
+        <h3>Eval 2: Python GC Explanation</h3>
+        <p><strong>5/5 passed.</strong> 56% word reduction (365 vs 839 words). Covered reference counting, generational collector, circular references. Included 6 debugging tools (objgraph, tracemalloc, weakref, gc.collect, gc.garbage, gc.set_debug). Zero filler.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#x1F40D;</div>
+        <h3>Eval 3: Python Function</h3>
+        <p><strong>5/5 passed.</strong> 44% explanation word reduction (69 vs 123 words). Code stayed in clean, normal English with proper variable names and docstrings. Type hints included. Correct 5-minute bucketing and mean computation logic.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PERFORMANCE -->
+<section id="performance">
+  <div class="section-inner">
+    <div class="section-label">THE REAL QUESTION</div>
+    <div class="section-title">Does It Actually Save Tokens?</div>
+    <div class="section-desc">Word count drops dramatically. But total API token cost? Barely moves.</div>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="num">53%</div>
+        <div class="unit">FEWER</div>
+        <div class="label">Output words (avg)</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">~3%</div>
+        <div class="unit">FEWER</div>
+        <div class="label">Total API tokens</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">+2%</div>
+        <div class="unit">SLOWER</div>
+        <div class="label">Avg duration</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">~1K</div>
+        <div class="unit">ADDED</div>
+        <div class="label">Input tokens (skill prompt)</div>
+      </div>
+    </div>
+
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th>Eval</th>
+          <th>Config</th>
+          <th>Words</th>
+          <th>Total Tokens</th>
+          <th>Duration</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="highlight">
+          <td rowspan="2"><strong>CUDA OOM</strong></td>
+          <td>Caveman</td>
+          <td class="mono">320</td>
+          <td class="mono">23,040</td>
+          <td class="mono">105.7s</td>
+        </tr>
+        <tr>
+          <td>Baseline</td>
+          <td class="mono">638</td>
+          <td class="mono">20,275</td>
+          <td class="mono">90.4s</td>
+        </tr>
+        <tr class="highlight">
+          <td rowspan="2"><strong>Python GC</strong></td>
+          <td>Caveman</td>
+          <td class="mono">365</td>
+          <td class="mono">20,943</td>
+          <td class="mono">77.4s</td>
+        </tr>
+        <tr>
+          <td>Baseline</td>
+          <td class="mono">839</td>
+          <td class="mono">22,606</td>
+          <td class="mono">73.8s</td>
+        </tr>
+        <tr class="highlight">
+          <td rowspan="2"><strong>Python Fn</strong></td>
+          <td>Caveman</td>
+          <td class="mono">69</td>
+          <td class="mono">19,515</td>
+          <td class="mono">32.4s</td>
+        </tr>
+        <tr>
+          <td>Baseline</td>
+          <td class="mono">123</td>
+          <td class="mono">22,606</td>
+          <td class="mono">47.6s</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- INSIGHTS -->
+<section id="insights">
+  <div class="section-inner">
+    <div class="section-label">ANALYSIS</div>
+    <div class="section-title">Key Insights</div>
+    <div class="section-desc">What the numbers tell us, and what the repo's marketing doesn't.</div>
+
+    <div class="insight-grid">
+      <div class="insight-card success">
+        <h3>Readability Win, Not a Cost Win</h3>
+        <p>The skill excels at information density. You get the same technical substance in half the words. For developers scanning output in a terminal, this is genuinely valuable &mdash; less scrolling, faster comprehension.</p>
+        <span class="tag">CONFIRMED</span>
+      </div>
+      <div class="insight-card warn">
+        <h3>"Cuts 65% of Tokens" Is Misleading</h3>
+        <p>The repo claims ~65% token reduction. This is true for <em>output word count</em>, but total API tokens (input + output) barely change. The skill prompt itself adds ~1K input tokens per call, partially offsetting any output savings.</p>
+        <span class="tag">CAVEAT</span>
+      </div>
+      <div class="insight-card success">
+        <h3>Code Boundaries Fully Respected</h3>
+        <p>Across all evals, code blocks stayed in clean, idiomatic Python. Caveman grammar was applied only to surrounding explanation text. Variable names, docstrings, and comments remained untouched. The boundary rule works perfectly.</p>
+        <span class="tag">CONFIRMED</span>
+      </div>
+      <div class="insight-card success">
+        <h3>Technical Accuracy Preserved</h3>
+        <p>No technical terms were simplified or rephrased. "Gradient checkpointing" stayed "gradient checkpointing," not "save less stuff." All expected diagnostic methods and fixes appeared in the caveman responses.</p>
+        <span class="tag">CONFIRMED</span>
+      </div>
+      <div class="insight-card warn">
+        <h3>Duration Is a Wash</h3>
+        <p>Caveman responses weren't consistently faster. In one eval the caveman agent was slower (CUDA OOM: 106s vs 90s), in another faster (Python fn: 32s vs 48s). The differences are noise, not signal &mdash; confounded by subagent permission-retry overhead.</p>
+        <span class="tag">INCONCLUSIVE</span>
+      </div>
+      <div class="insight-card">
+        <h3>Filler Elimination Is 100%</h3>
+        <p>Zero instances of "Sure!", "I'd be happy to", "basically", "certainly", or other filler phrases in any caveman response. The skill does exactly what it promises on the verbosity front &mdash; no pleasantries, no hedging, no preamble.</p>
+        <span class="tag">OBSERVATION</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- VERDICT -->
+<section id="verdict">
+  <div class="section-inner">
+    <div class="section-label">CONCLUSION</div>
+    <div class="section-title">Final Verdict</div>
+    <div class="section-desc"></div>
+
+    <div class="verdict-box">
+      <div class="verdict-grade">B+</div>
+      <h3>Good Skill, Overpromised Savings</h3>
+      <p>Caveman mode delivers on readability: 53% fewer words, zero filler, full technical accuracy, and clean code boundaries. But the "saves tokens" marketing is misleading &mdash; total API cost is essentially unchanged. Use this skill when you want denser, more scannable output. Don't use it expecting cost savings.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <div class="logo">CAVEMAN EVAL</div>
+      <div class="tagline">Why use many token when few token do trick</div>
+    </div>
+    <div class="footer-col">
+      <h4>Skill</h4>
+      <a href="https://github.com/JuliusBrussee/caveman">GitHub Repo</a>
+      <a href="#">SKILL.md</a>
+      <a href="#">v.a3b255</a>
+    </div>
+    <div class="footer-col">
+      <h4>Test Config</h4>
+      <a href="#">Model: Opus 4.6</a>
+      <a href="#">3 Evals</a>
+      <a href="#">15 Assertions</a>
+    </div>
+    <div class="footer-col">
+      <h4>Output</h4>
+      <a href="#">benchmark.json</a>
+      <a href="#">grading.json</a>
+      <a href="#">review.html</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>Generated 2026-04-08</span>
+    <span>Skill Creator &times; Claude Opus 4.6</span>
+  </div>
+</footer>
+
+<script>
+/* Scroll-Driven Parallax */
+(function(){
+  var zone=document.getElementById('heroZone');
+  var title=document.getElementById('heroTitle');
+  var subtitle=document.getElementById('heroSubtitle');
+  var cta=document.getElementById('heroCta');
+  var device=document.getElementById('heroDevice');
+  var stats=document.getElementById('heroStats');
+  if(!zone||!title||!device)return;
+  function lerp(a,b,t){return a+(b-a)*t}
+  function clamp(v,min,max){return Math.min(max,Math.max(min,v))}
+  function onScroll(){
+    var rect=zone.getBoundingClientRect();
+    var zoneH=zone.offsetHeight;
+    var viewH=window.innerHeight;
+    var scrolled=-rect.top;
+    var progress=clamp(scrolled/(zoneH-viewH),0,1);
+    var textP=clamp(progress/0.4,0,1);
+    var textOpacity=1-textP;
+    var textY=textP*-60;
+    title.style.transform='translate3d(0,'+textY+'px,0)';
+    title.style.opacity=textOpacity;
+    subtitle.style.transform='translate3d(0,'+(textY*0.8)+'px,0)';
+    subtitle.style.opacity=textOpacity;
+    cta.style.transform='translate3d(0,'+(textY*0.6)+'px,0)';
+    cta.style.opacity=textOpacity;
+    var devScale=lerp(1.0,0.72,progress);
+    var devY=lerp(0,-80,progress);
+    device.style.transform='translate3d(0,'+devY+'px,0) scale('+devScale.toFixed(3)+')';
+    device.style.transformOrigin='top center';
+    var statsIn=clamp((progress-0.25)/0.25,0,1);
+    var statsOut=clamp((progress-0.65)/0.25,0,1);
+    var statsOpacity=statsIn*(1-statsOut);
+    var statsY=lerp(30,0,statsIn)+lerp(0,-40,statsOut);
+    stats.style.transform='translate3d(0,'+statsY+'px,0)';
+    stats.style.opacity=statsOpacity;
+  }
+  window.addEventListener('scroll',onScroll,{passive:true});
+  onScroll();
+})();
+
+/* Dot Matrix Canvas -- caveman club shape */
+(function(){
+  var canvas=document.getElementById('dotCanvas');
+  if(!canvas)return;
+  var ctx=canvas.getContext('2d');
+  var dpr=window.devicePixelRatio||1;
+  var dots=[];var time=0;
+  function resize(){
+    var rect=canvas.parentElement.getBoundingClientRect();
+    canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;
+    canvas.style.width=rect.width+'px';canvas.style.height=rect.height+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);buildDots(rect.width,rect.height);
+  }
+  function buildDots(w,h){
+    dots=[];
+    var spacing=Math.max(16,Math.min(22,w/22));
+    var cx=w/2;var cy=h/2;
+    var maxR=Math.min(cx,cy)*0.88;
+    for(var y=spacing;y<h-spacing/2;y+=spacing){
+      for(var x=spacing;x<w-spacing/2;x+=spacing){
+        var dx=x-cx;var dy=y-cy;
+        var dist=Math.sqrt(dx*dx+dy*dy);
+        if(dist>maxR)continue;
+        var carveCx=cx+maxR*0.38;var carveCy=cy-maxR*0.28;
+        var carveR=maxR*0.72;
+        var carveDist=Math.sqrt((x-carveCx)*(x-carveCx)+(y-carveCy)*(y-carveCy));
+        if(carveDist<carveR)continue;
+        dots.push({x:x,y:y,dist:dist,baseSize:2.2+(1-dist/maxR)*1.8});
+      }
+    }
+  }
+  function draw(){
+    time+=0.015;
+    var w=canvas.width/dpr;var h=canvas.height/dpr;
+    ctx.clearRect(0,0,w,h);
+    for(var i=0;i<dots.length;i++){
+      var d=dots[i];
+      var wave=Math.sin(d.dist*0.04-time*2.5);
+      var scale=0.7+wave*0.35;
+      var r=d.baseSize*scale;
+      var alpha=0.55+wave*0.3;
+      ctx.beginPath();
+      ctx.arc(d.x,d.y,Math.max(0.5,r),0,Math.PI*2);
+      ctx.fillStyle='rgba(30,30,30,'+Math.max(0.15,Math.min(0.95,alpha))+')';
+      ctx.fill();
+    }
+    requestAnimationFrame(draw);
+  }
+  resize();draw();
+  window.addEventListener('resize',resize);
+})();
+
+/* Recording bar waveform */
+(function(){
+  var container=document.getElementById('recWave');
+  if(!container)return;
+  for(var i=0;i<40;i++){
+    var bar=document.createElement('div');
+    bar.className='rec-wave-bar';
+    bar.style.animationDelay=(i*0.06)+'s';
+    container.appendChild(bar);
+  }
+})();
+
+/* Timer */
+(function(){
+  var el=document.getElementById('met-clock');
+  if(!el)return;
+  var start=Date.now();
+  setInterval(function(){
+    var s=Math.floor((Date.now()-start)/1000);
+    var h=Math.floor(s/3600);var m=Math.floor((s%3600)/60);var sec=s%60;
+    el.textContent=(h<10?'0':'')+h+':'+(m<10?'0':'')+m+':'+(sec<10?'0':'')+sec;
+  },1000);
+})();
+</script>
+</body>
+</html>

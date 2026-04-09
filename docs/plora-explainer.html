@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PLoRA — Packed LoRA Fine-Tuning Explained</title>
+<link rel="stylesheet" href="styles/palatino-burgundy.css">
+<style>
+/* File-specific styles */
+.diagram-box {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 2em;
+  margin: 1.5em 0;
+  text-align: center;
+  overflow-x: auto;
+}
+.diagram-box svg { max-width: 100%; height: auto; }
+pre.code-block .keyword { color: #7c3043; font-weight: 600; }
+pre.code-block .str { color: #5a7d5a; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+</head>
+<body>
+<div class="page-wrapper">
+
+  <aside class="sidebar" id="sidebar-toc">
+    <strong>Contents</strong>
+    <ul>
+      <li><a href="#problem">1. The Problem</a></li>
+      <li><a href="#insight">2. Key Insight</a></li>
+      <li><a href="#how">3. How It Works</a></li>
+      <li><a href="#math">4. The Math</a></li>
+      <li><a href="#system">5. System Design</a></li>
+      <li><a href="#results">6. Results</a></li>
+      <li><a href="#relevance">7. Relevance to Us</a></li>
+    </ul>
+  </aside>
+
+  <div class="main-content">
+    <h1>PLoRA: Packed LoRA Fine-Tuning</h1>
+    <p class="subtitle">How to run many LoRA HP configs simultaneously on one GPU &mdash; up to 7.5&times; faster sweeps</p>
+    <hr>
+
+    <nav id="toc">
+      <strong>Table of Contents</strong>
+      <ul>
+        <li><a href="#problem">1. The Problem</a></li>
+        <li><a href="#insight">2. Key Insight</a></li>
+        <li><a href="#how">3. How It Works</a></li>
+        <li><a href="#math">4. The Math</a></li>
+        <li><a href="#system">5. System Design</a></li>
+        <li><a href="#results">6. Results</a></li>
+        <li><a href="#relevance">7. Relevance to Us</a></li>
+      </ul>
+    </nav>
+
+    <!-- 1. Problem -->
+    <h2 id="problem">1. The Problem</h2>
+    <p>
+      When tuning LoRA hyperparameters (rank, alpha, learning rate, etc.), the standard approach is
+      <strong>sequential</strong>: load the frozen base model, attach one adapter, train it, tear it down,
+      repeat for the next config. This is wasteful because:
+    </p>
+    <ul>
+      <li>The <strong>frozen base model</strong> (often 7&ndash;70B parameters) must be loaded every time,
+          but it never changes between configs</li>
+      <li>Each LoRA adapter is <strong>tiny</strong> &mdash; a rank-64 adapter on a 7B model is only ~3.4% of total parameters</li>
+      <li>The GPU sits with <strong>vast unused memory</strong> that could host additional adapters</li>
+      <li>HP sweeps of 20&ndash;120 configs take hours or days running one-at-a-time</li>
+    </ul>
+
+    <div class="diagram-box">
+      <svg viewBox="0 0 760 200" xmlns="http://www.w3.org/2000/svg" style="font-family: 'Palatino Linotype', Palatino, Georgia, serif;">
+        <!-- Sequential approach -->
+        <text x="10" y="25" font-size="14" font-weight="700" fill="#3a3a3a">Sequential (standard):</text>
+        <rect x="10" y="35" width="170" height="55" rx="6" fill="#f5eaed" stroke="#7c3043" stroke-width="1.5"/>
+        <text x="95" y="55" font-size="11" text-anchor="middle" fill="#4a4a4a">Load 7B base model</text>
+        <text x="95" y="72" font-size="11" text-anchor="middle" fill="#7c3043" font-weight="600">+ Adapter #1</text>
+        <text x="190" y="65" font-size="16" fill="#4a4a4a">&rarr;</text>
+        <rect x="205" y="35" width="170" height="55" rx="6" fill="#f5eaed" stroke="#7c3043" stroke-width="1.5"/>
+        <text x="290" y="55" font-size="11" text-anchor="middle" fill="#4a4a4a">Load 7B base model</text>
+        <text x="290" y="72" font-size="11" text-anchor="middle" fill="#b85c3a" font-weight="600">+ Adapter #2</text>
+        <text x="385" y="65" font-size="16" fill="#4a4a4a">&rarr;</text>
+        <rect x="400" y="35" width="170" height="55" rx="6" fill="#f5eaed" stroke="#7c3043" stroke-width="1.5"/>
+        <text x="485" y="55" font-size="11" text-anchor="middle" fill="#4a4a4a">Load 7B base model</text>
+        <text x="485" y="72" font-size="11" text-anchor="middle" fill="#c9944a" font-weight="600">+ Adapter #3</text>
+        <text x="585" y="65" font-size="14" fill="#999">... &times;120</text>
+
+        <!-- PLoRA approach -->
+        <text x="10" y="125" font-size="14" font-weight="700" fill="#3a3a3a">Packed (PLoRA):</text>
+        <rect x="10" y="135" width="560" height="55" rx="6" fill="#edf9f1" stroke="#27ae60" stroke-width="1.5"/>
+        <text x="290" y="155" font-size="11" text-anchor="middle" fill="#4a4a4a">Load 7B base model <tspan font-weight="700">once</tspan></text>
+        <rect x="30" y="162" width="100" height="22" rx="4" fill="#7c3043" opacity="0.15" stroke="#7c3043" stroke-width="1"/>
+        <text x="80" y="177" font-size="10" text-anchor="middle" fill="#7c3043" font-weight="600">Adapter #1</text>
+        <rect x="145" y="162" width="100" height="22" rx="4" fill="#b85c3a" opacity="0.15" stroke="#b85c3a" stroke-width="1"/>
+        <text x="195" y="177" font-size="10" text-anchor="middle" fill="#b85c3a" font-weight="600">Adapter #2</text>
+        <rect x="260" y="162" width="100" height="22" rx="4" fill="#c9944a" opacity="0.15" stroke="#c9944a" stroke-width="1"/>
+        <text x="310" y="177" font-size="10" text-anchor="middle" fill="#c9944a" font-weight="600">Adapter #3</text>
+        <rect x="375" y="162" width="100" height="22" rx="4" fill="#5a7d5a" opacity="0.15" stroke="#5a7d5a" stroke-width="1"/>
+        <text x="425" y="177" font-size="10" text-anchor="middle" fill="#5a7d5a" font-weight="600">Adapter #4</text>
+        <text x="495" y="177" font-size="11" fill="#999">...</text>
+        <text x="600" y="168" font-size="13" fill="#27ae60" font-weight="700">7.5&times; faster</text>
+      </svg>
+    </div>
+
+    <!-- 2. Key Insight -->
+    <h2 id="insight">2. Key Insight</h2>
+    <p>
+      In LoRA fine-tuning, the base model weights $W$ are <strong>frozen</strong>. Only the small adapter
+      matrices $A$ and $B$ are trained. Since the base model is identical across all HP configs,
+      PLoRA <strong>loads it once</strong> and attaches multiple adapters simultaneously. Each adapter gets
+      its own data stream, its own gradients, and its own optimizer &mdash; but they all share the
+      expensive base-model forward pass.
+    </p>
+
+    <div class="callout">
+      <strong>Core idea:</strong> A rank-64 LoRA adapter on Qwen-2.5-7B uses only 3.4% of GPU memory
+      relative to the base model. That means you can fit <strong>up to 10 concurrent adapters</strong>
+      on a single A100-40GB without running out of memory.
+    </div>
+
+    <h3>Why this works for HP sweeps</h3>
+    <p>
+      An HP sweep explores configs that differ only in adapter parameters (rank, alpha, LR, dropout).
+      The base model never changes. PLoRA exploits this by amortizing the cost of the
+      largest memory and compute consumer &mdash; the frozen base &mdash; across all configs.
+    </p>
+
+    <!-- 3. How It Works -->
+    <h2 id="how">3. How It Works</h2>
+
+    <h3>Standard LoRA forward pass</h3>
+    <p>
+      In standard LoRA, a single input $x$ passes through the frozen base weights $W$ and one adapter:
+    </p>
+    <div class="math-block">
+      $$y = x \cdot W + \alpha \cdot x \cdot B \cdot A$$
+    </div>
+    <p>
+      Where $B \in \mathbb{R}^{d \times r}$ and $A \in \mathbb{R}^{r \times d}$ are the low-rank adapter matrices,
+      $r$ is the rank, and $\alpha$ is the scaling factor.
+    </p>
+
+    <h3>Packed LoRA forward pass</h3>
+    <p>
+      PLoRA batches inputs from <em>different</em> adapter configs into a single forward pass.
+      Given $N$ packed adapters with inputs $X = [x_1, x_2, \ldots, x_N]$:
+    </p>
+    <div class="math-block">
+      $$y_i = x_i \cdot W + \alpha_i \cdot x_i \cdot B_i \cdot A_i \qquad \text{for } i = 1, \ldots, N$$
+    </div>
+    <p>
+      The critical structure: <strong>all inputs share the same $W$ multiplication</strong>, but each
+      gets routed to its own adapter $(B_i, A_i)$ with its own scaling $\alpha_i$.
+    </p>
+
+    <div class="diagram-box">
+      <svg viewBox="0 0 700 280" xmlns="http://www.w3.org/2000/svg" style="font-family: 'Palatino Linotype', Palatino, Georgia, serif;">
+        <!-- Input batch -->
+        <rect x="20" y="30" width="100" height="30" rx="4" fill="#7c3043" opacity="0.15" stroke="#7c3043" stroke-width="1.2"/>
+        <text x="70" y="50" font-size="11" text-anchor="middle" fill="#7c3043">$x_1$ (config 1)</text>
+        <rect x="20" y="65" width="100" height="30" rx="4" fill="#b85c3a" opacity="0.15" stroke="#b85c3a" stroke-width="1.2"/>
+        <text x="70" y="85" font-size="11" text-anchor="middle" fill="#b85c3a">$x_2$ (config 2)</text>
+        <rect x="20" y="100" width="100" height="30" rx="4" fill="#c9944a" opacity="0.15" stroke="#c9944a" stroke-width="1.2"/>
+        <text x="70" y="120" font-size="11" text-anchor="middle" fill="#c9944a">$x_3$ (config 3)</text>
+        <text x="70" y="15" font-size="12" text-anchor="middle" font-weight="700" fill="#3a3a3a">Packed Batch</text>
+
+        <!-- Arrow to base model -->
+        <line x1="125" y1="75" x2="195" y2="75" stroke="#4a4a4a" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+        <!-- Base model (shared) -->
+        <rect x="200" y="25" width="140" height="110" rx="8" fill="#f5eaed" stroke="#7c3043" stroke-width="2"/>
+        <text x="270" y="55" font-size="13" text-anchor="middle" font-weight="700" fill="#3a3a3a">Frozen Base W</text>
+        <text x="270" y="75" font-size="11" text-anchor="middle" fill="#7c3043">(shared &mdash; loaded once)</text>
+        <text x="270" y="95" font-size="11" text-anchor="middle" fill="#4a4a4a">All $x_i \cdot W$ computed</text>
+        <text x="270" y="115" font-size="11" text-anchor="middle" fill="#4a4a4a">in one batched matmul</text>
+
+        <!-- Fork arrow -->
+        <line x1="345" y1="50" x2="420" y2="30" stroke="#7c3043" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+        <line x1="345" y1="75" x2="420" y2="75" stroke="#b85c3a" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+        <line x1="345" y1="100" x2="420" y2="120" stroke="#c9944a" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+
+        <!-- Individual adapters -->
+        <rect x="425" y="10" width="120" height="40" rx="5" fill="#7c3043" opacity="0.12" stroke="#7c3043" stroke-width="1.2"/>
+        <text x="485" y="27" font-size="10" text-anchor="middle" fill="#7c3043" font-weight="600">Adapter 1</text>
+        <text x="485" y="42" font-size="9" text-anchor="middle" fill="#4a4a4a">r=4, &alpha;=8, lr=1e-3</text>
+
+        <rect x="425" y="57" width="120" height="40" rx="5" fill="#b85c3a" opacity="0.12" stroke="#b85c3a" stroke-width="1.2"/>
+        <text x="485" y="74" font-size="10" text-anchor="middle" fill="#b85c3a" font-weight="600">Adapter 2</text>
+        <text x="485" y="89" font-size="9" text-anchor="middle" fill="#4a4a4a">r=16, &alpha;=32, lr=5e-5</text>
+
+        <rect x="425" y="104" width="120" height="40" rx="5" fill="#c9944a" opacity="0.12" stroke="#c9944a" stroke-width="1.2"/>
+        <text x="485" y="121" font-size="10" text-anchor="middle" fill="#c9944a" font-weight="600">Adapter 3</text>
+        <text x="485" y="136" font-size="9" text-anchor="middle" fill="#4a4a4a">r=32, &alpha;=64, lr=2e-4</text>
+
+        <!-- Merge arrows -->
+        <line x1="550" y1="30" x2="610" y2="30" stroke="#7c3043" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+        <line x1="550" y1="77" x2="610" y2="77" stroke="#b85c3a" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+        <line x1="550" y1="124" x2="610" y2="124" stroke="#c9944a" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+
+        <!-- Outputs -->
+        <text x="650" y="34" font-size="11" text-anchor="middle" fill="#7c3043" font-weight="600">$y_1$</text>
+        <text x="650" y="81" font-size="11" text-anchor="middle" fill="#b85c3a" font-weight="600">$y_2$</text>
+        <text x="650" y="128" font-size="11" text-anchor="middle" fill="#c9944a" font-weight="600">$y_3$</text>
+
+        <!-- Gradient isolation note -->
+        <rect x="130" y="175" width="440" height="85" rx="6" fill="#edf9f1" stroke="#27ae60" stroke-width="1.2"/>
+        <text x="350" y="198" font-size="12" text-anchor="middle" font-weight="700" fill="#3a3a3a">Gradient Isolation</text>
+        <text x="350" y="218" font-size="11" text-anchor="middle" fill="#4a4a4a">Each adapter has distinct (A, B) matrices and distinct inputs.</text>
+        <text x="350" y="236" font-size="11" text-anchor="middle" fill="#4a4a4a">Gradients are naturally separated &mdash; no cross-contamination.</text>
+        <text x="350" y="252" font-size="11" text-anchor="middle" fill="#4a4a4a">Custom CUDA kernels partition along output dim for correctness.</text>
+
+        <!-- Arrowhead marker -->
+        <defs>
+          <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#4a4a4a"/>
+          </marker>
+        </defs>
+      </svg>
+    </div>
+
+    <h3>Gradient handling</h3>
+    <p>
+      Gradients remain <strong>naturally isolated</strong> because each adapter has its own $(A_i, B_i)$
+      weight matrices and its own input stream. The base model $W$ is frozen (no gradients flow to it),
+      so there is no gradient interference between adapters. PLoRA implements custom CUDA kernels that:
+    </p>
+    <ol>
+      <li>Partition the gradient computation along the output dimension $k$ to correctly associate
+          each adapter's slice with its corresponding input/output</li>
+      <li>Reduce gradients over the appropriate dimensions per-adapter</li>
+      <li>Maintain separate optimizer states (momentum, variance) for each config</li>
+    </ol>
+
+    <!-- 4. Math -->
+    <h2 id="math">4. The Math</h2>
+
+    <h3>Memory budget</h3>
+    <p>
+      The key constraint is fitting everything on the GPU. For a job $j$ packing $K$ adapters:
+    </p>
+    <div class="math-block">
+      $$M_\text{base} + \sum_{k=1}^{K} M_{\text{lora},k} \;\leq\; C \cdot M_\text{gpu} \cdot d_j$$
+    </div>
+    <p>
+      Where $M_\text{base}$ is the base model memory, $M_{\text{lora},k}$ is adapter $k$'s memory
+      (weights + optimizer + activations), $C$ is a safety margin, $M_\text{gpu}$ is GPU capacity,
+      and $d_j$ is the number of GPUs allocated.
+    </p>
+
+    <h3>Why so many adapters fit</h3>
+    <p>Consider the memory breakdown for a rank-64 adapter on Qwen-2.5-7B:</p>
+    <table>
+      <thead><tr><th>Component</th><th>Memory</th><th>% of Base</th></tr></thead>
+      <tbody>
+        <tr><td>Frozen base model (bf16)</td><td>~14 GB</td><td>100%</td></tr>
+        <tr><td>One rank-64 LoRA adapter (weights)</td><td>~0.48 GB</td><td>3.4%</td></tr>
+        <tr><td>Adapter optimizer states (AdamW)</td><td>~0.96 GB</td><td>6.9%</td></tr>
+        <tr><td>Adapter gradients</td><td>~0.48 GB</td><td>3.4%</td></tr>
+        <tr class="highlight"><td><strong>Total per adapter</strong></td><td><strong>~1.9 GB</strong></td><td><strong>13.7%</strong></td></tr>
+      </tbody>
+    </table>
+    <p>
+      On an A100-40GB: $40 - 14 = 26$ GB free for adapters. At ~1.9 GB each, you can pack
+      <strong>up to 10&ndash;13 concurrent adapters</strong> (depending on activation memory sharing).
+      Lower ranks use even less &mdash; a rank-4 adapter (like our best config) would be ~30&times; smaller.
+    </p>
+
+    <h3>Optimization objective</h3>
+    <p>
+      PLoRA minimizes <strong>makespan</strong> (total wall-clock time to finish all configs):
+    </p>
+    <div class="math-block">
+      $$\min \; T_\text{makespan} = \max_j \; t_{\text{end},j}$$
+    </div>
+    <p>
+      Subject to memory constraints (above), GPU allocation limits ($\sum_j d_j \leq G$),
+      and job non-overlap constraints on shared devices. This is NP-complete, so PLoRA uses
+      a heuristic called <strong>Decomposed Throughput Maximization (DTM)</strong> that greedily
+      maximizes instantaneous job throughput.
+    </p>
+
+    <!-- 5. System Design -->
+    <h2 id="system">5. System Design</h2>
+    <p>PLoRA operates in two phases:</p>
+
+    <h3>Phase 1: Offline &mdash; Packing Planner</h3>
+    <ol>
+      <li>Takes the full HP search space as input (e.g., 120 configs)</li>
+      <li>Profiles each config's memory footprint (rank determines adapter size, batch size determines activation memory)</li>
+      <li>Uses the DTM algorithm to <strong>group compatible configs into packed jobs</strong> &mdash;
+          configs that fit together within the GPU memory budget</li>
+      <li>Outputs a job schedule: which configs go in which job, how many GPUs per job</li>
+    </ol>
+
+    <h3>Phase 2: Online &mdash; Execution Engine</h3>
+    <ol>
+      <li>Loads the base model <strong>once</strong> per GPU</li>
+      <li>Attaches all packed adapters for the current job</li>
+      <li>Routes each data sample to its corresponding adapter via custom CUDA kernels</li>
+      <li>Computes gradients and updates each adapter independently</li>
+      <li>When a job finishes, swaps in the next batch of packed adapters (base model stays loaded)</li>
+    </ol>
+
+    <h3>Custom CUDA kernels</h3>
+    <p>
+      The performance gains come from <strong>fused kernels</strong> that handle the packed forward and
+      backward passes natively on the GPU, avoiding the overhead of Python-level loops or
+      separate CUDA streams per adapter. The kernels use tiling strategies to:
+    </p>
+    <ul>
+      <li>Batch the $x \cdot W$ computation across all adapters in one matmul</li>
+      <li>Use block-level parallelism to compute each $x_i \cdot B_i \cdot A_i$ concurrently</li>
+      <li>Partition gradient accumulation to prevent cross-adapter contamination</li>
+    </ul>
+
+    <!-- 6. Results -->
+    <h2 id="results">6. Results</h2>
+
+    <h3>Models and setup</h3>
+    <table>
+      <thead><tr><th>Model</th><th>Params</th><th>Hardware</th><th>Max Packed Adapters</th></tr></thead>
+      <tbody>
+        <tr><td>LLaMA-3.2-3B</td><td>3B</td><td>8&times; A100-40GB</td><td>~20</td></tr>
+        <tr class="highlight"><td>Qwen-2.5-7B</td><td>7B</td><td>8&times; A100-40GB</td><td>10</td></tr>
+        <tr><td>Qwen-2.5-14B</td><td>14B</td><td>8&times; A100-40GB</td><td>~5</td></tr>
+        <tr><td>Qwen-2.5-32B</td><td>32B</td><td>8&times; A100-40GB</td><td>~2&ndash;3</td></tr>
+        <tr><td>LLaMA-3.1-8B</td><td>8B</td><td>8&times; A10-24GB</td><td>~6</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Each sweep explored <strong>120 configurations</strong> varying learning rate (2e-5 to 4e-4),
+      batch size (1&ndash;32), LoRA rank (8&ndash;128), and alpha (r/4 to 4r).
+      Tasks: GSM8K, MRPC, CoLA, WNLI.
+    </p>
+
+    <h3>Makespan speedup</h3>
+    <div style="margin:1.5em 0;">
+      <canvas id="makespanChart"></canvas>
+    </div>
+
+    <h3>Throughput improvement</h3>
+    <div style="margin:1.5em 0;">
+      <canvas id="throughputChart"></canvas>
+    </div>
+
+    <h3>Where does the speedup come from?</h3>
+    <table>
+      <thead><tr><th>Component</th><th>Speedup</th><th>Mechanism</th></tr></thead>
+      <tbody>
+        <tr><td>Sequential scheduling (without custom kernels)</td><td>~1.8&times;</td><td>Avoids redundant base model loading</td></tr>
+        <tr><td>Custom packed CUDA kernels</td><td>~3.9&times;</td><td>Fused matmuls, reduced kernel launch overhead</td></tr>
+        <tr class="highlight"><td><strong>Combined (PLoRA)</strong></td><td><strong>up to 7.5&times;</strong></td><td>Both effects multiply</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Model quality preserved</h3>
+    <p>
+      PLoRA produces <strong>bit-identical results</strong> to sequential training &mdash; it changes
+      <em>how</em> configs are scheduled and computed, not the training dynamics. The best configs
+      found via PLoRA sweeps outperformed default HPs by up to 23.4% accuracy (CoLA on Qwen-2.5-3B),
+      demonstrating the value of exploring more configs in the same wall-clock budget.
+    </p>
+
+    <!-- 7. Relevance -->
+    <h2 id="relevance">7. Relevance to Our Project</h2>
+
+    <h3>What we did</h3>
+    <p>
+      Our Phase 2 HP sweep ran <strong>20 Optuna trials sequentially</strong> on Qwen3-ASR-1.7B,
+      taking 1h 32min (~4.5 min per trial). Each trial trained for 1 epoch on a 500-sample subset.
+    </p>
+
+    <h3>What PLoRA could offer</h3>
+    <table>
+      <thead><tr><th>Aspect</th><th>Our Approach</th><th>With PLoRA</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Configs explored</td>
+          <td>20 (sequential)</td>
+          <td>Could explore 60&ndash;120 in the same time</td>
+        </tr>
+        <tr>
+          <td>Wall-clock time</td>
+          <td>1h 32min</td>
+          <td>~12&ndash;20 min for same 20 configs</td>
+        </tr>
+        <tr>
+          <td>GPU memory efficiency</td>
+          <td>~10 GB used / 16 GB available</td>
+          <td>Would pack 3&ndash;5 rank-4 adapters</td>
+        </tr>
+        <tr>
+          <td>Base model loading</td>
+          <td>20 times</td>
+          <td>4&ndash;7 times (once per packed batch)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout success">
+      <strong>Practical note:</strong> PLoRA requires custom CUDA kernels and is currently a research prototype
+      (not yet available as a pip-installable library). For our class project's scale (20 trials, ~1.5 hours),
+      the overhead of setting up PLoRA would likely exceed the time saved. PLoRA becomes compelling at
+      100+ configs or when sweeping larger models (7B+) where each trial takes 30+ minutes.
+      Our Optuna TPE approach is appropriate for our scale &mdash; but PLoRA shows where the field is heading.
+    </div>
+
+    <footer>
+      <p><small>
+        Based on: Chen et al., <em>"PLoRA: Efficient LoRA Hyperparameter Optimization via Packed Training"</em>,
+        arXiv:2508.02932, 2025.
+        <br>Last updated: April 7, 2026
+      </small></p>
+    </footer>
+  </div>
+
+</div>
+
+<script>
+(function() {
+  var sidebarLinks = document.querySelectorAll('#sidebar-toc a');
+  var sections = [];
+  sidebarLinks.forEach(function(link) {
+    var id = link.getAttribute('href').slice(1);
+    var el = document.getElementById(id);
+    if (el) sections.push({ id: id, el: el, link: link });
+  });
+  function onScroll() {
+    var scrollY = window.scrollY + 80;
+    var current = null;
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].el.offsetTop <= scrollY) current = sections[i];
+    }
+    sidebarLinks.forEach(function(l) { l.classList.remove('active'); });
+    if (current) current.link.classList.add('active');
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+</script>
+
+<!-- Makespan Chart -->
+<script>
+(function() {
+  var models = ['LLaMA-3.2-3B', 'Qwen-2.5-7B', 'Qwen-2.5-14B', 'Qwen-2.5-32B', 'LLaMA-3.1-8B'];
+  var speedups = [7.52, 6.52, 6.51, 4.2, 5.8];
+  var colors = ['#7c3043', '#b85c3a', '#c9944a', '#5a7d5a', '#2a6496'];
+
+  new Chart(document.getElementById('makespanChart'), {
+    type: 'bar',
+    data: {
+      labels: models,
+      datasets: [{
+        label: 'Makespan Speedup vs Sequential',
+        data: speedups,
+        backgroundColor: colors,
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      aspectRatio: 2.2,
+      indexAxis: 'y',
+      plugins: {
+        title: {
+          display: true,
+          text: 'PLoRA Makespan Reduction (120 configs, 8\u00d7 A100-40GB)',
+          font: { size: 15, family: 'Palatino Linotype, Palatino, Georgia, serif' }
+        },
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) { return ctx.parsed.x.toFixed(2) + '\u00d7 faster'; }
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'Speedup over Sequential Baseline' },
+          beginAtZero: true,
+          max: 9,
+          ticks: { callback: function(v) { return v + '\u00d7'; } }
+        },
+        y: { title: { display: false } }
+      }
+    }
+  });
+})();
+</script>
+
+<!-- Throughput Chart -->
+<script>
+(function() {
+  var packedCount = [1, 2, 4, 8, 16, 32];
+  var throughput = [1.0, 1.95, 3.8, 7.2, 10.5, 12.8];
+
+  new Chart(document.getElementById('throughputChart'), {
+    type: 'line',
+    data: {
+      labels: packedCount,
+      datasets: [
+        {
+          label: 'Measured Throughput',
+          data: throughput,
+          borderColor: '#7c3043',
+          backgroundColor: 'rgba(124,48,67,0.08)',
+          pointRadius: 5,
+          borderWidth: 2.5,
+          fill: true,
+          tension: 0.25
+        },
+        {
+          label: 'Perfect Linear Scaling',
+          data: packedCount.map(function(x) { return x; }),
+          borderColor: '#ccc',
+          borderDash: [6, 4],
+          pointRadius: 0,
+          borderWidth: 1.5,
+          fill: false
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      aspectRatio: 2.2,
+      plugins: {
+        title: {
+          display: true,
+          text: 'Throughput Scaling with Number of Packed Adapters (batch size 1)',
+          font: { size: 15, family: 'Palatino Linotype, Palatino, Georgia, serif' }
+        },
+        legend: { position: 'top' }
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          title: { display: true, text: 'Number of Packed Adapters' },
+          min: 0, max: 35,
+          ticks: { stepSize: 4 }
+        },
+        y: {
+          title: { display: true, text: 'Throughput Multiplier' },
+          beginAtZero: true, max: 35,
+          ticks: { callback: function(v) { return v + '\u00d7'; } }
+        }
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>

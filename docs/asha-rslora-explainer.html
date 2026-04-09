@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ASHA Pruner & RsLoRA — Two Ideas for Faster, Stabler LoRA Sweeps</title>
+<link rel="stylesheet" href="styles/palatino-burgundy.css">
+<style>
+/* === File-specific: Comparison Cards === */
+.concept-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5em; margin: 1.5em 0; }
+.concept-card {
+  background: #fff; border: 1px solid #e0ddd8; border-radius: 8px;
+  padding: 1.3em 1.5em; border-top: 3px solid #7c3043;
+}
+.concept-card h3 { margin-top: 0; font-size: 1.3em; color: #7c3043; }
+.concept-card .tag {
+  display: inline-block; font-size: 0.78em; padding: 0.2em 0.6em;
+  border-radius: 3px; font-weight: 600; margin-bottom: 0.5em;
+}
+.tag-pruning { background: #fdf8e8; color: #8a6d00; border: 1px solid #d4a017; }
+.tag-scaling { background: #edf9f1; color: #1a7a42; border: 1px solid #27ae60; }
+@media (max-width: 900px) {
+  .concept-grid { grid-template-columns: 1fr; }
+}
+</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="page-wrapper">
+
+<aside class="sidebar" id="sidebar-toc">
+  <strong>Contents</strong>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#asha">ASHA Pruner</a></li>
+    <li><a href="#asha-how">How ASHA Works</a></li>
+    <li><a href="#asha-optuna">ASHA in Optuna</a></li>
+    <li><a href="#alpha">Alpha Normalization</a></li>
+    <li><a href="#alpha-why">Why Normalize?</a></li>
+    <li><a href="#alpha-role">Role of Alpha</a></li>
+    <li><a href="#rslora">RsLoRA</a></li>
+    <li><a href="#rslora-math">The Math</a></li>
+    <li><a href="#rslora-impact">Practical Impact</a></li>
+    <li><a href="#comparison">Side-by-Side</a></li>
+    <li><a href="#project">Project Relevance</a></li>
+  </ul>
+</aside>
+
+<div class="main-content">
+
+<h1>ASHA Pruner & RsLoRA</h1>
+<p class="subtitle">Two techniques for faster, stabler LoRA hyperparameter sweeps</p>
+<hr>
+
+<nav id="toc">
+  <strong>Table of Contents</strong>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#asha">ASHA Pruner</a></li>
+    <li><a href="#alpha">How Alpha Normalizes the LoRA Update</a></li>
+    <li><a href="#rslora">RsLoRA</a></li>
+    <li><a href="#comparison">Side-by-Side Comparison</a></li>
+    <li><a href="#project">Project Relevance</a></li>
+  </ul>
+</nav>
+
+<!-- ======== Overview ======== -->
+<h2 id="overview">Overview</h2>
+
+<div class="concept-grid">
+  <div class="concept-card">
+    <span class="tag tag-pruning">Pruning / Scheduling</span>
+    <h3>ASHA Pruner</h3>
+    <p><strong>Problem:</strong> HP sweeps waste compute on bad configs that are obviously losing early.</p>
+    <p><strong>Solution:</strong> Kill unpromising trials early based on intermediate results. Only promote survivors to longer training.</p>
+  </div>
+  <div class="concept-card">
+    <span class="tag tag-scaling">Scaling / Stability</span>
+    <h3>RsLoRA</h3>
+    <p><strong>Problem:</strong> Standard LoRA scaling ($\alpha/r$) crushes gradients at higher ranks.</p>
+    <p><strong>Solution:</strong> Use $\alpha/\sqrt{r}$ scaling so gradient magnitude stays stable across all rank values.</p>
+  </div>
+</div>
+
+<!-- ======== ASHA ======== -->
+<h2 id="asha">ASHA Pruner</h2>
+
+<p><strong>ASHA</strong> (Asynchronous Successive Halving Algorithm) is an early-stopping strategy for hyperparameter sweeps. It monitors each trial's intermediate metric (e.g., validation loss at step 25, 50, 75) and terminates the bottom-performing fraction at each checkpoint — so compute goes to promising configs instead of being wasted on dead ends.</p>
+
+<h3 id="asha-how">How It Works</h3>
+
+<table>
+  <thead>
+    <tr><th>Step</th><th>What Happens</th><th>Survivors</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Rung 1 (e.g., step 25)</td><td>All trials report loss. Bottom 2/3 pruned.</td><td>~33%</td></tr>
+    <tr><td>Rung 2 (e.g., step 50)</td><td>Survivors report again. Bottom 2/3 of survivors pruned.</td><td>~11%</td></tr>
+    <tr><td>Rung 3 (e.g., step 100)</td><td>Final survivors complete full training.</td><td>~4%</td></tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <strong>Key parameter:</strong> The <em>reduction factor</em> (default 3) controls how aggressively trials are pruned. Factor 3 keeps top 1/3 at each rung. Factor 2 (Hyperband style) is gentler, keeping top 1/2.
+</div>
+
+<p>The "asynchronous" part means trials don't wait for each other — as soon as a trial hits a rung and its metric is worse than the current threshold, it's killed immediately. This avoids synchronization bottlenecks that plagued the original Successive Halving.</p>
+
+<h3 id="asha-optuna">ASHA in Optuna</h3>
+
+<p>Integration requires two things: (1) create the study with <code>HyperbandPruner</code> specifying the earliest rung, full budget, and reduction factor; (2) inside the training loop, call <code>trial.report(loss, step)</code> at each rung and check <code>trial.should_prune()</code> to raise <code>TrialPruned</code> when the pruner decides to kill the trial.</p>
+
+<div class="callout success">
+  <strong>Estimated speedup:</strong> With 20 trials and reduction factor 3, roughly 60-70% of total training steps are saved. A 1h 32min sweep could shrink to ~30-45 minutes.
+</div>
+
+<!-- ======== Alpha Normalization ======== -->
+<h2 id="alpha">How Alpha Normalizes the LoRA Update</h2>
+
+<p>In standard LoRA, a low-rank adapter $\Delta W = BA$ is added to each frozen weight matrix. The forward pass becomes:</p>
+
+<div class="math-block">
+  $$h = Wx + \frac{\alpha}{r} \cdot BAx$$
+</div>
+
+<p>$W$ is frozen (pretrained weights). $B \in \mathbb{R}^{d \times r}$ and $A \in \mathbb{R}^{r \times d}$ are the trainable adapter matrices. $B$ is zero-initialized, $A$ is random &mdash; so $BA = 0$ at the start, and the adapter grows from zero during training. The scaling factor $\alpha/r$ controls <strong>how much that growth affects the output</strong>.</p>
+
+<h3 id="alpha-why">Why Normalize at All?</h3>
+
+<p>The adapter $\Delta W = BA$ is a sum of $r$ rank-1 outer products. Writing out the columns of $B$ and rows of $A$:</p>
+
+<div class="math-block">
+  $$BA = \underbrace{b_1 a_1^T}_{\text{component 1}} + \underbrace{b_2 a_2^T}_{\text{component 2}} + \cdots + \underbrace{b_r a_r^T}_{\text{component }r}$$
+</div>
+
+<p>Each $b_i a_i^T$ is a rank-1 matrix with some magnitude. When you increase rank from 4 to 32, you're <strong>adding 28 more terms</strong> to this sum. More terms = larger total = larger $\|BAx\|$.</p>
+
+<h4>Concrete example</h4>
+
+<p>Suppose each rank-1 component contributes roughly the same magnitude $c$ to the output. Then:</p>
+
+<table>
+  <thead>
+    <tr><th>Rank</th><th>Components Summed</th><th>Raw $\|BAx\|$</th><th>Relative to rank-4</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>4</td><td>4 terms</td><td>$\sim 4c$</td><td>1&times;</td></tr>
+    <tr><td>8</td><td>8 terms</td><td>$\sim 8c$</td><td>2&times;</td></tr>
+    <tr><td>16</td><td>16 terms</td><td>$\sim 16c$</td><td>4&times;</td></tr>
+    <tr><td>32</td><td>32 terms</td><td>$\sim 32c$</td><td>8&times;</td></tr>
+  </tbody>
+</table>
+
+<div class="callout danger">
+  <strong>The entanglement problem:</strong> Without normalization, a rank-32 adapter pushes 8&times; harder on the output than rank-4 &mdash; <em>even with the same learning rate</em>. This means rank doesn't just control capacity (how expressive the adapter is), it also controls <strong>effective step size</strong>. A sweep that finds "rank-4 beats rank-32" might really be finding "rank-32's effective LR is way too high and it's overshooting."
+</div>
+
+<p>This is what makes rank and LR <strong>entangled</strong> without normalization:</p>
+
+<table>
+  <thead>
+    <tr><th>Problem</th><th>Consequence</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Adapter output magnitude scales with rank</td><td>Changing rank silently changes the effective learning rate</td></tr>
+    <tr><td>LR must be re-tuned for every rank value</td><td>Sweep needs a 2D grid (rank &times; LR) instead of sweeping each independently</td></tr>
+    <tr><td>Results at different ranks are not comparable</td><td>Sweep may favor a rank for wrong reasons (step size, not capacity)</td></tr>
+  </tbody>
+</table>
+
+<h4>What $1/r$ does</h4>
+
+<p>The $1/r$ divisor cancels out the rank dependence by averaging over the $r$ components instead of summing them:</p>
+
+<div class="math-block">
+  $$\frac{1}{r} \cdot BAx = \frac{1}{r}\sum_{i=1}^{r} b_i a_i^T x \quad \approx \quad \text{average contribution per component}$$
+</div>
+
+<p>Now the adapter's output magnitude stays roughly constant regardless of rank &mdash; you can change rank without accidentally changing step size. The idea: rank should control <strong>capacity only</strong> (how many independent directions the adapter can modify), not how aggressively it updates.</p>
+
+<div style="margin:1.5em 0;">
+  <canvas id="entanglementChart"></canvas>
+</div>
+
+<div class="callout">
+  <strong>Reading this chart &mdash; "Relative Output Magnitude":</strong> This is the raw size of $\|BAx\|$ <em>before any normalization</em>, measured relative to rank-4 (baseline = 1.0). It answers: <em>"if I change rank but keep everything else the same, how much bigger does the adapter's output get?"</em> The three lines represent three different answers to this question:
+</div>
+
+<h4>Why the three lines diverge</h4>
+
+<p><strong>Setup.</strong> Let $B \in \mathbb{R}^{d \times r}$ and $A \in \mathbb{R}^{r \times d}$. Write $B = [b_1 \mid b_2 \mid \cdots \mid b_r]$ (columns) and $A = [a_1 \mid a_2 \mid \cdots \mid a_r]^T$ (rows). Each $b_i \in \mathbb{R}^d$ and $a_i \in \mathbb{R}^d$ are initialized independently. Define each rank-1 contribution as $v_i = b_i a_i^T x \in \mathbb{R}^d$. Then:</p>
+
+<div class="math-block">
+  $$BAx = \sum_{i=1}^{r} v_i \qquad \text{where } v_i = b_i (a_i^T x)$$
+</div>
+
+<p>The question is: how does $\left\|\sum_{i=1}^{r} v_i\right\|$ grow with $r$?</p>
+
+<h4>Case 1: Red dashed &mdash; Linear growth (the naive assumption)</h4>
+
+<p>If all $v_i$ were <strong>parallel</strong> (pointing in the same direction $\hat{u}$), then $v_i = c_i \hat{u}$ and:</p>
+
+<div class="math-block">
+  $$\left\|\sum_{i=1}^{r} v_i\right\| = \left\|\hat{u} \sum_{i=1}^{r} c_i\right\| = \sum_{i=1}^{r} |c_i|$$
+</div>
+
+<p>If each $|c_i| \approx c$ (same magnitude), the sum is $rc$. This is why LoRA's original authors chose $1/r$ normalization &mdash; they assumed the contributions would add <strong>constructively</strong> like aligned vectors. Dividing by $r$ would then perfectly flatten the output:</p>
+
+<div class="math-block">
+  $$\frac{1}{r} \cdot rc = c \quad \text{(constant, independent of } r\text{)}$$
+</div>
+
+<p>But in $d$-dimensional space (where $d$ is typically $\gg r$), random vectors are almost never parallel.</p>
+
+<h4>Case 2: Orange &mdash; $\sqrt{r}$ growth (the actual behavior)</h4>
+
+<p>Since $b_i$ and $a_i$ are initialized independently, the $v_i$ are independent random vectors. We compute $\mathbb{E}\left[\left\|\sum_i v_i\right\|^2\right]$ by expanding the squared norm:</p>
+
+<div class="math-block">
+  $$\left\|\sum_{i=1}^{r} v_i\right\|^2 = \left\langle \sum_{i} v_i,\; \sum_{j} v_j \right\rangle = \sum_{i=1}^{r} \|v_i\|^2 + \sum_{i \neq j} \langle v_i, v_j \rangle$$
+</div>
+
+<p>Taking expectations of both sides:</p>
+
+<div class="math-block">
+  $$\mathbb{E}\!\left[\left\|\sum_{i=1}^{r} v_i\right\|^2\right] = \underbrace{\sum_{i=1}^{r} \mathbb{E}\!\left[\|v_i\|^2\right]}_{r \text{ terms, each } = \sigma^2} + \underbrace{\sum_{i \neq j} \mathbb{E}\!\left[\langle v_i, v_j \rangle\right]}_{\text{cross terms}}$$
+</div>
+
+<p>For the cross terms: since $v_i = b_i(a_i^T x)$ and $v_j = b_j(a_j^T x)$ are functions of <strong>independent</strong> random variables ($b_i, a_i$ are independent of $b_j, a_j$):</p>
+
+<div class="math-block">
+  $$\mathbb{E}\!\left[\langle v_i, v_j \rangle\right] = \mathbb{E}\!\left[b_i^T b_j \cdot (a_i^T x)(a_j^T x)\right] = \mathbb{E}\!\left[b_i^T b_j\right] \cdot \mathbb{E}\!\left[(a_i^T x)(a_j^T x)\right] = 0$$
+</div>
+
+<p>The factorization holds by independence, and each factor is zero because $\mathbb{E}[b_i] = 0$ (zero-mean initialization). Therefore:</p>
+
+<div class="math-block">
+  $$\mathbb{E}\!\left[\left\|\sum_{i=1}^{r} v_i\right\|^2\right] = r\sigma^2 \quad \Longrightarrow \quad \mathbb{E}\!\left[\left\|\sum_{i=1}^{r} v_i\right\|\right] \propto \sqrt{r}$$
+</div>
+
+<p>The squared norm grows linearly with $r$, so the <strong>norm itself grows with</strong> $\sqrt{r}$.</p>
+
+<h4>Case 3: Burgundy &mdash; Flat (the normalization target)</h4>
+
+<p>The goal of normalization is to make the <strong>effective contribution</strong> $\|\text{scaling} \cdot BAx\|$ constant across $r$. Given the actual growth is $\sqrt{r}$:</p>
+
+<div class="math-block">
+  $$\text{Effective} = \text{scaling} \times \underbrace{\|BAx\|}_{\propto \sqrt{r}} \stackrel{!}{=} \text{constant}$$
+</div>
+
+<table>
+  <thead>
+    <tr><th>Method</th><th>Scaling</th><th>Effective $\propto$</th><th>Constant?</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Standard LoRA</td><td>$1/r$</td><td>$\frac{\sqrt{r}}{r} = \frac{1}{\sqrt{r}}$</td><td>No &mdash; <strong>shrinks</strong> with $r$</td></tr>
+    <tr class="highlight"><td>RsLoRA</td><td>$1/\sqrt{r}$</td><td>$\frac{\sqrt{r}}{\sqrt{r}} = 1$</td><td>Yes</td></tr>
+    <tr><td>No normalization</td><td>$1$</td><td>$\sqrt{r}$</td><td>No &mdash; <strong>grows</strong> with $r$</td></tr>
+  </tbody>
+</table>
+
+<p>Concretely at rank-32 vs rank-4 ($\alpha = 8$):</p>
+
+<div class="math-block">
+  $$\text{Standard: } \frac{\alpha/32}{\alpha/4} = \frac{4}{32} = 0.125 \quad \text{but actual growth ratio is } \frac{\sqrt{32}}{\sqrt{4}} = 2.83$$
+</div>
+
+<div class="math-block">
+  $$\text{Over-correction factor: } \frac{2.83}{0.125 \times 2.83} = \frac{1}{0.125} = 8\times \text{ too small at rank-32}$$
+</div>
+
+<div class="callout warning">
+  <strong>The over-correction in one equation:</strong> Standard scaling gives effective contribution $\propto 1/\sqrt{r}$, which means <strong>every doubling of rank halves the effective adapter strength by $\sqrt{2} \approx 1.41\times$</strong>. RsLoRA's $1/\sqrt{r}$ scaling cancels the $\sqrt{r}$ growth exactly, keeping effective contribution constant: $\sqrt{r}/\sqrt{r} = 1$.
+</div>
+
+<h3 id="alpha-role">The Role of Alpha</h3>
+
+<p>After $1/r$ normalizes away the rank dependence, $\alpha$ is a free scalar that lets you dial the adapter strength <strong>independently of rank</strong>:</p>
+
+<table>
+  <thead>
+    <tr><th>Alpha Setting</th><th>Ratio ($\alpha/r$)</th><th>Scaling</th><th>Effect</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>$\alpha = r$</td><td>1</td><td>1.0</td><td>Adapter contributes at "natural" magnitude</td></tr>
+    <tr class="highlight"><td>$\alpha = 2r$ (our winner)</td><td>2</td><td>2.0</td><td>Adapter contributes 2&times; stronger</td></tr>
+    <tr><td>$\alpha < r$</td><td>&lt; 1</td><td>&lt; 1.0</td><td>Damped, conservative updates</td></tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <strong>Our Phase 2 config:</strong> rank = 4, $\alpha$ = 8 (ratio 2). The adapter's output is multiplied by $8/4 = 2.0$ before adding to the frozen model's output. This means the adapter learns aggressively &mdash; each update has twice the "natural" impact.
+</div>
+
+<p>In practice, $\alpha$ acts like a <strong>learning rate multiplier specific to the adapter</strong>. A high ratio pushes the model further from pretrained behavior per step; a low ratio keeps it closer. The key insight: $\alpha$ and LR are partially redundant &mdash; doubling $\alpha$ has a similar effect to doubling LR for the adapter parameters. The convention of expressing $\alpha$ as a ratio of rank (rather than an absolute value) ensures this knob stays meaningful when you change rank.</p>
+
+<div class="callout warning">
+  <strong>The flaw in $1/r$:</strong> The normalization assumes $\|BA\|$ scales linearly with $r$. But from random matrix theory, the expected norm actually scales with $\sqrt{r}$. This means $1/r$ <strong>over-corrects</strong> &mdash; it makes high-rank adapters weaker than intended. This is exactly what RsLoRA fixes.
+</div>
+
+<!-- ======== RsLoRA ======== -->
+<h2 id="rslora">RsLoRA (Rank-Stabilized LoRA)</h2>
+
+<p>RsLoRA fixes the over-correction in standard LoRA's scaling by replacing $\alpha/r$ with $\alpha/\sqrt{r}$:</p>
+
+<div class="math-block">
+  $$h = Wx + \frac{\alpha}{\sqrt{r}} \cdot BAx$$
+</div>
+
+<p>Since $\|BA\|$ scales with $\sqrt{r}$ (not $r$), dividing by $\sqrt{r}$ is the <strong>correct normalization</strong> to keep the adapter's contribution constant across ranks.</p>
+
+<h3 id="rslora-math">Scaling Comparison by Rank</h3>
+
+<table>
+  <thead>
+    <tr><th>Rank</th><th>Standard ($\alpha/r$)</th><th>RsLoRA ($\alpha/\sqrt{r}$)</th><th>Gradient Ratio</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>4</td><td>$\alpha/4 = 2.0$</td><td>$\alpha/2 = 4.0$</td><td>2.0&times;</td></tr>
+    <tr><td>8</td><td>$\alpha/8 = 1.0$</td><td>$\alpha/2.83 = 2.83$</td><td>2.83&times;</td></tr>
+    <tr><td>16</td><td>$\alpha/16 = 0.5$</td><td>$\alpha/4 = 2.0$</td><td>4.0&times;</td></tr>
+    <tr class="highlight"><td><strong>32</strong></td><td>$\alpha/32 = 0.25$</td><td>$\alpha/5.66 = 1.41$</td><td><strong>5.66&times;</strong></td></tr>
+  </tbody>
+</table>
+<p><em>Values shown with $\alpha = 8$ (our sweep winner's alpha).</em></p>
+
+<div style="margin:1.5em 0;">
+  <canvas id="scalingChart"></canvas>
+</div>
+
+<div class="callout">
+  <strong>Reading this chart &mdash; "Scaling Factor":</strong> This is the multiplier ($\alpha/r$ or $\alpha/\sqrt{r}$) applied <em>after</em> the raw adapter output. It answers: <em>"how much does the normalization dampen the adapter at each rank?"</em> The effective adapter contribution is <strong>raw output magnitude &times; scaling factor</strong> &mdash; ideally this product is constant across ranks (so rank controls capacity, not step size). Notice how standard scaling (burgundy) collapses toward zero at high ranks, while RsLoRA (blue) stays much flatter &mdash; that's the correct behavior.
+</div>
+
+<h3 id="rslora-impact">Practical Impact</h3>
+
+<div class="callout warning">
+  <strong>The gradient collapse problem:</strong> With standard scaling, a rank-32 adapter receives <strong>8&times; smaller</strong> effective gradients than rank-4. This means higher-rank experiments need proportionally higher learning rates to compensate — making rank and LR deeply entangled in HP sweeps.
+</div>
+
+<p>RsLoRA decouples rank from effective learning rate, giving two benefits:</p>
+
+<table>
+  <thead>
+    <tr><th>Benefit</th><th>Explanation</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Fairer rank comparison</td><td>Sweeps over rank become apples-to-apples — you no longer need to co-tune LR for each rank value</td></tr>
+    <tr><td>Better high-rank training</td><td>Rank-16 and rank-32 adapters can actually leverage their capacity instead of being gradient-starved</td></tr>
+  </tbody>
+</table>
+
+<p>In PEFT, it's a one-flag change: set <code>use_rslora=True</code> in <code>LoraConfig</code>. No other code changes required.</p>
+
+<h3>Pros and Cons of RsLoRA</h3>
+
+<table>
+  <thead>
+    <tr><th colspan="2">Advantages</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Decouples rank from LR</strong></td><td>Gradient magnitude stays stable across ranks, so a single learning rate works for rank-4 through rank-64. Eliminates the need for a 2D grid sweep (rank &times; LR).</td></tr>
+    <tr><td><strong>Unlocks high-rank adapters</strong></td><td>Rank-16 and rank-32 can actually leverage their capacity instead of being gradient-starved. Standard scaling suppresses rank-32 gradients by $5.66\times$ relative to RsLoRA.</td></tr>
+    <tr><td><strong>Fairer HP comparisons</strong></td><td>When the sweep converges on rank-4, you can trust it's because rank-4 has the right capacity &mdash; not because higher ranks were artificially crippled by scaling.</td></tr>
+    <tr><td><strong>Zero-cost adoption</strong></td><td>One boolean flag in PEFT. No architectural changes, no additional compute, no new hyperparameters.</td></tr>
+    <tr><td><strong>Theoretically grounded</strong></td><td>Derived from random matrix theory ($\|BA\| \propto \sqrt{r}$), not an empirical heuristic.</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead>
+    <tr><th colspan="2">Risks and Limitations</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>LR re-tuning needed</strong></td><td>Existing LR values were tuned under standard $\alpha/r$ scaling. Switching to $\alpha/\sqrt{r}$ effectively multiplies the adapter's contribution by $\sqrt{r}$, so the old LR may be too aggressive. Our Phase 2 winner (LR $\approx 10^{-3}$, rank-4) would see a $2\times$ stronger adapter under RsLoRA &mdash; may need to halve LR or reduce $\alpha$.</td></tr>
+    <tr><td><strong>Not always beneficial at low rank</strong></td><td>At rank-4, the difference between $\alpha/r$ and $\alpha/\sqrt{r}$ is only $2\times$. The benefit grows with rank. If your sweep converges on low rank anyway, RsLoRA adds little.</td></tr>
+    <tr><td><strong>Breaks comparability with prior runs</strong></td><td>Results under RsLoRA are not directly comparable to results under standard scaling at the same $\alpha$ value, because the effective scaling differs. Requires re-running baselines or carefully adjusting $\alpha$.</td></tr>
+    <tr><td><strong>Assumption: random initialization</strong></td><td>The $\sqrt{r}$ norm argument assumes $B$ and $A$ have random independent entries. If adapters are initialized from a pretrained checkpoint or structured init, the actual norm growth may differ from $\sqrt{r}$.</td></tr>
+    <tr><td><strong>Less community validation</strong></td><td>Standard $\alpha/r$ has been the default since the original LoRA paper (2021). RsLoRA is newer and less battle-tested across diverse tasks and architectures.</td></tr>
+  </tbody>
+</table>
+
+<!-- ======== Comparison ======== -->
+<h2 id="comparison">Side-by-Side Comparison</h2>
+
+<table>
+  <thead>
+    <tr><th>Dimension</th><th>ASHA Pruner</th><th>RsLoRA</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>What it fixes</strong></td><td>Wasted compute on bad trials</td><td>Gradient collapse at high ranks</td></tr>
+    <tr><td><strong>Category</strong></td><td>Sweep scheduling</td><td>Adapter scaling</td></tr>
+    <tr><td><strong>Speedup</strong></td><td>2-3&times; wall-clock for HP sweeps</td><td>No direct speedup; enables higher ranks to train properly</td></tr>
+    <tr><td><strong>Code change</strong></td><td>Add <code>pruner=</code> to Optuna study + <code>trial.report()</code> in loop</td><td>Add <code>use_rslora=True</code> to LoraConfig</td></tr>
+    <tr><td><strong>Composable?</strong></td><td colspan="2" style="text-align:center;">Yes &mdash; they are orthogonal and can be used together</td></tr>
+    <tr><td><strong>When it matters</strong></td><td>Many trials, long training per trial</td><td>Sweeping rank &gt; 4, or comparing across rank values</td></tr>
+    <tr><td><strong>Risk</strong></td><td>Aggressive pruning may kill slow starters (use gentle reduction_factor)</td><td>Existing LR tuned for standard scaling may be too high with RsLoRA</td></tr>
+  </tbody>
+</table>
+
+<!-- ======== Project Relevance ======== -->
+<h2 id="project">Relevance to Our Project</h2>
+
+<table>
+  <thead>
+    <tr><th colspan="3">Phase 2 Sweep Results (Baseline)</th></tr>
+    <tr><th>Metric</th><th>Value</th><th>With Improvement</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Trials</td><td>20 (sequential)</td><td>20 in ~30 min (ASHA) or 60-120 configs (PLoRA+ASHA)</td></tr>
+    <tr><td>Wall-clock</td><td>1h 32min</td><td>~30-45 min with ASHA alone</td></tr>
+    <tr><td>Winning rank</td><td>4</td><td>Higher ranks viable with RsLoRA</td></tr>
+    <tr><td>Alpha</td><td>8 (ratio 2&times;)</td><td>Same ratio works; scaling auto-adjusted</td></tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <strong>Bottom line:</strong> ASHA is immediately useful &mdash; it cuts sweep time by killing losers early, complementing the PLoRA parallelization in Phase 2.1. RsLoRA is a future consideration &mdash; our sweep converged on rank 4 where scaling differences are minimal, but it becomes essential if we explore rank 16+ in later phases.
+</div>
+
+<footer>
+  <p><small>Last updated: 2026-04-07 | NLP Class Project &mdash; ASR Fairness</small></p>
+</footer>
+
+</div><!-- /.main-content -->
+</div><!-- /.page-wrapper -->
+
+<script>
+(function() {
+  var sidebarLinks = document.querySelectorAll('#sidebar-toc a');
+  var sections = [];
+  sidebarLinks.forEach(function(link) {
+    var id = link.getAttribute('href').slice(1);
+    var el = document.getElementById(id);
+    if (el) sections.push({ id: id, el: el, link: link });
+  });
+  function onScroll() {
+    var scrollY = window.scrollY + 80;
+    var current = null;
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].el.offsetTop <= scrollY) current = sections[i];
+    }
+    sidebarLinks.forEach(function(l) { l.classList.remove('active'); });
+    if (current) current.link.classList.add('active');
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+
+// Shared font configs for all charts
+var palatino = 'Palatino Linotype, Palatino, Book Antiqua, Georgia, serif';
+var axisTitleFont = { size: 15, family: palatino, weight: '600' };
+var axisTickFont = { size: 13, family: palatino };
+var legendFont = { size: 13, family: palatino };
+var chartTitleFont = { size: 17, family: palatino };
+
+// --- Entanglement Chart: Raw vs Normalized ---
+(function() {
+  var ranks = [2, 4, 8, 16, 32, 64];
+  var raw = ranks.map(function(r) { return r / 4; });
+  var normalized1r = ranks.map(function() { return 1; });
+  var normalizedSqrt = ranks.map(function(r) { return Math.sqrt(r) / 2; });
+
+  new Chart(document.getElementById('entanglementChart'), {
+    type: 'line',
+    data: {
+      labels: ranks,
+      datasets: [
+        {
+          label: 'Raw ‖BAx‖ (no normalization)',
+          data: raw,
+          borderColor: '#c0392b',
+          backgroundColor: 'rgba(192,57,43,0.08)',
+          pointRadius: 6,
+          borderWidth: 2.5,
+          borderDash: [6, 3],
+          fill: true,
+          tension: 0.3
+        },
+        {
+          label: 'Actual ‖BAx‖ (scales with √r)',
+          data: normalizedSqrt,
+          borderColor: '#b85c3a',
+          backgroundColor: 'rgba(184,92,58,0.08)',
+          pointRadius: 6,
+          pointStyle: 'triangle',
+          borderWidth: 2.5,
+          fill: true,
+          tension: 0.3
+        },
+        {
+          label: 'After 1/r normalization (target: flat)',
+          data: normalized1r,
+          borderColor: '#7c3043',
+          backgroundColor: 'rgba(124,48,67,0.06)',
+          pointRadius: 6,
+          borderWidth: 2.5,
+          fill: false,
+          tension: 0
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      aspectRatio: 2.2,
+      plugins: {
+        title: {
+          display: true,
+          text: 'Why Rank and LR Become Entangled Without Normalization',
+          font: chartTitleFont,
+          padding: { bottom: 14 }
+        },
+        legend: { position: 'top', labels: { font: legendFont, padding: 16 } }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'Rank (r)', font: axisTitleFont, padding: { top: 8 } },
+          ticks: { font: axisTickFont }
+        },
+        y: {
+          title: { display: true, text: 'Relative Output Magnitude (vs rank-4)', font: axisTitleFont, padding: { bottom: 8 } },
+          ticks: { font: axisTickFont },
+          beginAtZero: true
+        }
+      }
+    }
+  });
+})();
+
+// --- Scaling Factor Comparison Chart ---
+(function() {
+  var ranks = [2, 4, 8, 16, 32, 64];
+  var alpha = 8;
+  var standard = ranks.map(function(r) { return alpha / r; });
+  var rslora = ranks.map(function(r) { return alpha / Math.sqrt(r); });
+
+  new Chart(document.getElementById('scalingChart'), {
+    type: 'line',
+    data: {
+      labels: ranks,
+      datasets: [
+        {
+          label: 'Standard LoRA (α/r)',
+          data: standard,
+          borderColor: '#7c3043',
+          backgroundColor: 'rgba(124,48,67,0.08)',
+          pointRadius: 6,
+          borderWidth: 2.5,
+          fill: true,
+          tension: 0.3
+        },
+        {
+          label: 'RsLoRA (α/√r)',
+          data: rslora,
+          borderColor: '#2a6496',
+          backgroundColor: 'rgba(42,100,150,0.08)',
+          pointRadius: 6,
+          pointStyle: 'rectRot',
+          borderWidth: 2.5,
+          fill: true,
+          tension: 0.3
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      aspectRatio: 2.2,
+      plugins: {
+        title: {
+          display: true,
+          text: 'Effective Scaling Factor vs Rank (α = 8)',
+          font: chartTitleFont,
+          padding: { bottom: 14 }
+        },
+        legend: { position: 'top', labels: { font: legendFont, padding: 16 } }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'Rank (r)', font: axisTitleFont, padding: { top: 8 } },
+          ticks: { font: axisTickFont }
+        },
+        y: {
+          title: { display: true, text: 'Scaling Factor', font: axisTitleFont, padding: { bottom: 8 } },
+          ticks: { font: axisTickFont },
+          beginAtZero: true
+        }
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>

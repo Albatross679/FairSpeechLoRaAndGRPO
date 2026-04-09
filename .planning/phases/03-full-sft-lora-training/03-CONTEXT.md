@@ -6,7 +6,7 @@
 <domain>
 ## Phase Boundary
 
-Scale up SFT LoRA training from Phase 2's 2K-sample prototype to the full dataset (~45.3K samples: 26,471 Fair-Speech + 18,876 Common Voice). Uses the validated locked config from Phase 2.1 (rank=4, alpha=4, lr=3.47e-4, target_mlp=true, dropout=0.05). Trains until convergence with early stopping. Produces the production-quality baseline adapter with enough evaluation samples per demographic group for meaningful fairness metrics.
+Scale up SFT LoRA training from Phase 2's 2K-sample prototype to the full dataset (~1.16M samples: 26,471 Fair-Speech + 1,133,318 Common Voice including unlabeled accent samples). Uses the validated locked config from Phase 2.1 with adjusted batch size and learning rate for the larger dataset. Trains until convergence with early stopping. Produces the production-quality baseline adapter. Evaluates fairness only on the accented subset (FS + accented CV). LibriSpeech test-clean kept as eval-only benchmark.
 
 </domain>
 
@@ -14,24 +14,27 @@ Scale up SFT LoRA training from Phase 2's 2K-sample prototype to the full datase
 ## Implementation Decisions
 
 ### Dataset scope
-- **D-01:** Use ALL available training data — all 26,471 Fair-Speech + all 18,876 Common Voice utterances (~45.3K total). No subsetting.
-- **D-02:** Drop the equal FS/CV split constraint from Phase 2 (D-02 was for prototyping only). Full-scale training uses all data from both sources.
-- **D-03:** Speaker-disjoint train/eval split (90/10). Note: manifests lack speaker_id columns, so this falls back to random stratified split (same limitation as Phase 2).
+- **D-01:** Use ALL available training data — all 26,471 Fair-Speech + all 1,133,318 Common Voice utterances (~1.16M total). Includes CV samples without accent labels (they improve general ASR quality even though they can't be evaluated for accent fairness).
+- **D-02:** Drop the equal FS/CV split constraint from Phase 2 (D-02 was for prototyping only). Full-scale training uses all data from both sources. CV:FS ratio is ~43:1.
+- **D-03:** Speaker-disjoint train/eval split (90/10). CV has speaker_id (client_id); FS lacks it (assigned pseudo-IDs).
+- **D-15:** LibriSpeech test-clean (2,620 samples) kept as eval-only benchmark — not included in training.
 
 ### Training configuration (updated from Phase 2.1)
-- **D-04:** Use locked config from Phase 2.1 Stage 2: rank=4, alpha_ratio=1 (alpha=4), dropout=0.05, lr=3.465e-4, target_mlp=true, weight_decay=1.742e-4, lr_scheduler=constant, warmup_ratio=0.0, grad_accum_steps=1, use_rslora=false
-- **D-05:** Train until convergence with early stopping (patience=3, metric=eval_loss). Max epochs set to 3 as a safety cap. No fixed epoch target.
-- **D-06:** Effective batch size = 2 (batch_size=2, gradient_accumulation=1). Matches sweep-validated config exactly.
-- **D-07:** Checkpoint every 4000 steps, keep last 3 checkpoints (save_total_limit=3)
-- **D-08:** Evaluate every 2000 steps
+- **D-04:** Use locked config from Phase 2.1 Stage 2 as base: rank=4, alpha_ratio=1 (alpha=4), dropout=0.05, target_mlp=true, weight_decay=1.742e-4, use_rslora=false. LR and batch size adjusted for 25x larger dataset (see D-06, D-16).
+- **D-05:** Train until convergence with early stopping (patience=3, metric=eval_loss). Max epochs set to 2 as a safety cap (1 epoch expected to suffice with 1.16M samples).
+- **D-06:** Effective batch size = 16 (batch_size=4, gradient_accumulation=4). Increased from sweep config (eff=2) because 1.16M samples at eff=2 would take 290h/epoch. At eff=16: ~36h/epoch on RTX 3090.
+- **D-07:** Checkpoint every eval step (save_steps=eval_steps), keep last 3 checkpoints (save_total_limit=3). Required for load_best_model_at_end with EarlyStoppingCallback.
+- **D-08:** Evaluate every 5000 steps (~13 evals per epoch at 65K steps/epoch)
 - **D-09:** Support resume from checkpoint (--resume_from_checkpoint) for interruption recovery
-- **D-10:** Run explicit VRAM profiling step before launching full training to confirm peak VRAM estimate (~10-10.5 GB) is within T4 15 GB budget
+- **D-10:** Run explicit VRAM profiling step before launching full training to confirm peak VRAM within RTX 3090 24 GB budget
 - **D-11:** Keep LR scheduler as constant (no warmup, no decay) — matching what the sweep optimized
+- **D-16:** LR scaled from 3.465e-4 to ~9.8e-4 using sqrt rule (sqrt(16/2) = 2.83x) to account for 8x larger effective batch. Dry-run validates this doesn't cause instability.
 
 ### Evaluation strategy
-- **D-12:** Evaluate on training eval split (~4.5K samples) for per-group fairness metrics
-- **D-13:** Also evaluate on cv_dev.csv (1,854 samples) as independent held-out set
-- **D-14:** With ~4.5K eval samples, most groups should exceed MIN_GROUP_SIZE=50 for meaningful fairness metrics
+- **D-12:** Evaluate on training eval split (~116K samples) for overall WER. For fairness metrics, filter to accented subset only (FS ethnicity + CV accented).
+- **D-13:** Also evaluate on cv_dev.csv as independent held-out set (filter to accented samples for fairness)
+- **D-14:** With ~116K eval samples, all demographic groups will exceed MIN_GROUP_SIZE=50
+- **D-17:** LibriSpeech test-clean (2,620 samples) as third eval benchmark — overall WER only (no demographic axis)
 
 ### Claude's Discretion
 - Max epoch cap (2 vs 3) based on expected convergence time
@@ -80,28 +83,29 @@ Scale up SFT LoRA training from Phase 2's 2K-sample prototype to the full datase
 - Phase 2.1 Stage 2 peak VRAM: 12,153 MB (packed multi-adapter — single adapter will be much lower)
 - VRAM profile rank=4+target_mlp=true: ~328 MB adapter overhead
 
-### Scale-Up Estimates (updated for new config)
-- Full dataset: ~45,347 samples -> 90/10 split -> ~40,812 train + ~4,535 eval
-- Steps per epoch: 40,812 / 2 (effective batch=2) = ~20,406
-- At ~3.5 sec/step: ~19.8 hours per epoch
-- Early stopping (patience=3, eval every 2000 steps) will terminate after 6000 steps of no improvement
-- Estimated peak VRAM: ~10-10.5 GB (rank=4, target_mlp=true, single adapter)
+### Scale-Up Estimates (updated for 1.16M dataset on RTX 3090)
+- Full dataset: ~1,159,789 samples -> 90/10 split -> ~1,043,810 train + ~115,979 eval
+- Steps per epoch: 1,043,810 / 16 (effective batch=16) = ~65,238
+- At ~2 sec/step on RTX 3090: ~36 hours per epoch
+- Early stopping (patience=3, eval every 5000 steps) will terminate after 15000 steps of no improvement
+- Estimated peak VRAM: ~12-14 GB (rank=4, target_mlp=true, batch=4, RTX 3090 has 24 GB)
+- Hardware: 2x RTX 3090 (24 GB each), using 1 GPU for training
 
 ### Script Modifications Needed
-- `train_standard_lora.py`: `create_stratified_subset()` needs `--full_dataset` mode to skip subsetting and use all data
-- `train_standard_lora.py`: Update HP values to match new locked_config (target_mlp=true, lr, dropout, wd, etc.)
+- `train_standard_lora.py`: `load_full_dataset()` to load ALL data without subsetting
+- `train_standard_lora.py`: Add --full_dataset, --num_epochs, --locked_config_path, --save_total_limit, --resume_from_checkpoint
 - `train_standard_lora.py`: Add EarlyStoppingCallback (patience=3, metric=eval_loss)
-- `train_standard_lora.py`: save_steps=200 and eval_steps=100 too frequent for 20K steps — change to 4000/2000
-- `train_standard_lora.py`: Add VRAM profiling step before training launch
-- `train_standard_lora.py`: grad_accum_steps=1 (was 2 in Phase 2)
+- `train_standard_lora.py`: Dynamic save_steps/eval_steps based on dataset size
+- `train_standard_lora.py`: Read batch size and LR from locked config or CLI overrides
 
-### Key Config Delta (Phase 2 -> Phase 2.1)
+### Key Config Delta (Phase 2 -> Phase 3)
 - target_mlp: false -> true (adds LoRA to MLP gate/up/down_proj)
 - dropout: 0.0 -> 0.05 (regularization)
-- lr: 8.2e-4 -> 3.47e-4 (lower, more stable)
+- lr: 8.2e-4 -> 9.8e-4 (sqrt-scaled for batch=16)
 - weight_decay: 1.33e-5 -> 1.74e-4 (13x higher regularization)
-- grad_accum_steps: 2 -> 1 (effective batch 4 -> 2)
-- lr_scheduler: (default) -> constant (no decay)
+- grad_accum_steps: 2 -> 4 (effective batch 4 -> 16 with batch_size=4)
+- lr_scheduler: cosine -> constant (no decay)
+- dataset: 2K subset -> 1.16M full
 
 </code_context>
 

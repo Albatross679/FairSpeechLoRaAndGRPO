@@ -39,3 +39,5 @@ checkpoints/
 
 # W&B
 wandb/
+datasets/
+temp.md

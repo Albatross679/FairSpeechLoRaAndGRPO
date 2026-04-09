@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SFT + RL: The Alternating Training Paradigm</title>
+<link rel="stylesheet" href="styles/walkie-landing.css">
+<style>
+/* === FILE-SPECIFIC STYLES === */
+
+/* TIMELINE */
+.timeline { position: relative; padding-left: 2rem; margin-top: 1rem; }
+.timeline::before {
+  content: ''; position: absolute; left: 7px; top: 0; bottom: 0;
+  width: 2px; background: #e0e0e0;
+}
+.tl-item {
+  position: relative; padding-bottom: 2.5rem; padding-left: 1.5rem;
+}
+.tl-item::before {
+  content: ''; position: absolute; left: -2rem; top: 0.3rem;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #e0e0e0; border: 3px solid #fafafa;
+}
+.tl-item.sft::before { background: #0066ff; }
+.tl-item.rl::before { background: #ff6b35; }
+.tl-item.bridge::before { background: #22c55e; }
+.tl-phase {
+  font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.1em; margin-bottom: 0.3rem;
+}
+.tl-item.sft .tl-phase { color: #0066ff; }
+.tl-item.rl .tl-phase { color: #ff6b35; }
+.tl-item.bridge .tl-phase { color: #22c55e; }
+.tl-title { font-size: 1.05rem; font-weight: 650; margin-bottom: 0.3rem; }
+.tl-desc { font-size: 0.88rem; color: #555; max-width: 540px; }
+
+/* TWO-COL LAYOUT */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: start; }
+.two-col-text h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 0.6rem; }
+.two-col-text p { font-size: 0.9rem; color: #555; margin-bottom: 0.8rem; }
+.two-col-text ul { list-style: none; padding: 0; }
+.two-col-text ul li {
+  padding: 0.5rem 0; font-size: 0.88rem; color: #555;
+  border-bottom: 1px solid #f0f0f0;
+  padding-left: 1.2rem; position: relative;
+}
+.two-col-text ul li::before {
+  content: ''; position: absolute; left: 0; top: 50%;
+  width: 6px; height: 6px; border-radius: 50%;
+  transform: translateY(-50%);
+}
+.sft-list li::before { background: #0066ff; }
+.rl-list li::before { background: #ff6b35; }
+
+/* BADGE INLINE */
+.badge {
+  display: inline-block; font-size: 0.72rem; font-weight: 600;
+  padding: 0.2rem 0.6rem; border-radius: 4px;
+  letter-spacing: 0.04em; text-transform: uppercase;
+}
+.badge-sft { background: #e8f0ff; color: #0066ff; }
+.badge-rl { background: #fff3ed; color: #ff6b35; }
+.badge-bridge { background: #ecfdf5; color: #16a34a; }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">SFT <span>+ RL</span></a>
+    <div class="nav-links" id="navLinks">
+      <a href="#core-insight">Core Insight</a>
+      <a href="#pipeline">Pipeline</a>
+      <a href="#why-alternate">Why Alternate</a>
+      <a href="#grpo">GRPO</a>
+      <a href="#lora">LoRA</a>
+      <a href="#our-plan">Our Plan</a>
+      <a href="#faq" class="nav-cta">FAQ</a>
+    </div>
+    <button class="mobile-toggle" onclick="document.getElementById('navLinks').classList.toggle('open')" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- TOP BADGE -->
+<div class="top-badge">CSE 5525 RESEARCH &mdash; FAIRNESS-AWARE ASR FINE-TUNING WITH GRPO</div>
+
+<!-- HERO -->
+<div class="hero-scroll-zone" id="heroZone">
+  <div class="hero-sticky">
+    <div class="hero" id="heroContent">
+      <h1 id="heroTitle">SFT Expands.<br>RL Squeezes.</h1>
+      <p class="subtitle" id="heroSubtitle">The modern training paradigm alternates supervised fine-tuning and reinforcement learning in multiple rounds. Every major lab converged on this pattern by 2025.</p>
+      <a href="#core-insight" class="hero-cta" id="heroCta">EXPLORE THE PATTERN &darr;</a>
+      <div class="device-wrap" id="heroDevice">
+        <div class="device">
+          <div class="dot-matrix-area"><canvas id="dotCanvas"></canvas></div>
+          <div class="device-brand">training loop</div>
+          <div class="rec-bar">
+            <div class="rec-left">
+              <div class="rec-dot"></div>
+              <div class="rec-timer" id="met-clock">00:00:00</div>
+            </div>
+            <div class="rec-wave" id="recWave"></div>
+          </div>
+          <div class="device-home"></div>
+        </div>
+      </div>
+      <div class="hero-stats" id="heroStats">
+        <div class="hero-stat"><div class="num">4+</div><div class="label">Stages</div></div>
+        <div class="hero-stat"><div class="num">SFT&harr;RL</div><div class="label">Alternating</div></div>
+        <div class="hero-stat"><div class="num">2025</div><div class="label">Convergence</div></div>
+        <div class="hero-stat"><div class="num">3</div><div class="label">Major Labs</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 1: CORE INSIGHT -->
+<section id="core-insight">
+  <div class="section-inner">
+    <div class="section-label">CORE INSIGHT</div>
+    <div class="section-title">"SFT Expands, RL Squeezes"</div>
+    <div class="section-desc">A 2025 paper (arXiv:2509.21128) provides the clearest explanation of why alternating SFT and RL is the modern standard.</div>
+    <div class="two-col">
+      <div class="two-col-text">
+        <h3><span class="badge badge-sft">SFT</span> Supervised Fine-Tuning</h3>
+        <p><strong>Expands</strong> the space of correct behaviors. Teaches new solution strategies by imitation &mdash; directly showing the model what good outputs look like.</p>
+        <ul class="sft-list">
+          <li>Rapid initial learning from demonstrations</li>
+          <li>Establishes format, readability, structure</li>
+          <li>Provides warm start (avoids wasting RL compute)</li>
+          <li>Teaches domain-specific patterns (transcription format)</li>
+        </ul>
+      </div>
+      <div class="two-col-text">
+        <h3><span class="badge badge-rl">RL</span> Reinforcement Learning</h3>
+        <p><strong>Compresses</strong> incorrect behaviors. Eliminates bad outputs through negative signal, discovering solutions no human demonstrated.</p>
+        <ul class="rl-list">
+          <li>Discovers novel solutions not in training data</li>
+          <li>Generalizes better (SFT tends to memorize)</li>
+          <li>Higher asymptotic performance ceiling</li>
+          <li>Can optimize non-differentiable objectives (fairness gaps)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 2: THE PIPELINE -->
+<section id="pipeline">
+  <div class="section-inner">
+    <div class="section-label">THE STANDARD PIPELINE</div>
+    <div class="section-title">4-Stage Alternating SFT &harr; RL</div>
+    <div class="section-desc">DeepSeek-R1, Qwen3, and Llama all converged on this multi-round pattern. Each stage builds on what the previous one accomplished.</div>
+
+    <div class="timeline">
+      <div class="tl-item sft">
+        <div class="tl-phase">Stage 1 &mdash; SFT</div>
+        <div class="tl-title">Cold-Start Supervised Fine-Tuning</div>
+        <div class="tl-desc">Teach the model correct output format and domain basics through imitation. Establishes readable structure, prevents language mixing, provides a competent starting point for RL.</div>
+      </div>
+      <div class="tl-item rl">
+        <div class="tl-phase">Stage 2 &mdash; RL (GRPO)</div>
+        <div class="tl-title">Reasoning-Oriented Reinforcement Learning</div>
+        <div class="tl-desc">Large-scale RL on task-specific objectives with rule-based rewards. The model discovers novel solutions and eliminates incorrect behaviors that SFT couldn't suppress.</div>
+      </div>
+      <div class="tl-item bridge">
+        <div class="tl-phase">Stage 3 &mdash; Rejection Sampling + SFT</div>
+        <div class="tl-title">Bridge: Capture RL Discoveries as SFT Data</div>
+        <div class="tl-desc">Sample 16-64 responses from the RL checkpoint, keep only correct/high-quality ones. Use filtered responses as new SFT training data. DeepSeek-R1 produced ~600k samples this way. Retrain from base model on this higher-quality dataset.</div>
+      </div>
+      <div class="tl-item rl">
+        <div class="tl-phase">Stage 4 &mdash; RL</div>
+        <div class="tl-title">General Reinforcement Learning</div>
+        <div class="tl-desc">Second RL phase targeting broader objectives: helpfulness, harmlessness, instruction-following. Uses both rule-based rewards and reward models for open-ended tasks.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 3: LAB COMPARISON -->
+<section id="labs">
+  <div class="section-inner">
+    <div class="section-label">EVIDENCE</div>
+    <div class="section-title">Every Major Lab Converged</div>
+    <div class="section-desc">The alternating pattern isn't one lab's approach &mdash; it's the field's consensus.</div>
+
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th>Stage</th>
+          <th>DeepSeek-R1</th>
+          <th>Qwen3</th>
+          <th>Llama 3.1 / 4</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="highlight">
+          <td><span class="badge badge-sft">Stage 1</span></td>
+          <td>Cold-start SFT on CoT examples</td>
+          <td>CoT cold start SFT</td>
+          <td>Lightweight SFT (pruned 50-95% data)</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-rl">Stage 2</span></td>
+          <td>GRPO on reasoning tasks</td>
+          <td>GRPO on reasoning tasks</td>
+          <td>Large-scale online RL</td>
+        </tr>
+        <tr class="highlight">
+          <td><span class="badge badge-bridge">Stage 3</span></td>
+          <td>Rejection sampling &rarr; SFT (600k samples)</td>
+          <td>Thinking mode fusion SFT</td>
+          <td>Lightweight DPO</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-rl">Stage 4</span></td>
+          <td>General RL (helpfulness + safety)</td>
+          <td>General RL (20+ task domains)</td>
+          <td>Additional RL rounds</td>
+        </tr>
+        <tr>
+          <td><strong>RL Algorithm</strong></td>
+          <td>GRPO</td>
+          <td>GRPO</td>
+          <td>PPO &rarr; DPO</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="stats-row" style="margin-top:2.5rem;">
+      <div class="stat-card">
+        <div class="num">R1-Zero</div>
+        <div class="label">Pure RL, no SFT: learned reasoning but terrible formatting, repetition, language mixing</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">SFT-Only</div>
+        <div class="label">Performance plateaus, can't suppress wrong behaviors, can't optimize fairness</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">SFT+RL</div>
+        <div class="label">Best of both: clean formatting from SFT, novel solutions and generalization from RL</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 4: WHY ALTERNATE -->
+<section id="why-alternate">
+  <div class="section-inner">
+    <div class="section-label">WHY ALTERNATE</div>
+    <div class="section-title">Rejection Sampling is the Bridge</div>
+    <div class="section-desc">The key mechanism that connects RL rounds back to SFT rounds, creating a virtuous improvement cycle.</div>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon">1</div>
+        <h3>RL Discovers</h3>
+        <p>Reinforcement learning finds novel, high-quality solutions that were never in the original training data. It explores policy space guided by reward signals.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">2</div>
+        <h3>Rejection Sampling Captures</h3>
+        <p>Generate 16-64 candidate outputs per prompt from the RL model. Filter to keep only correct/high-quality responses. This distills RL discoveries into clean supervised examples.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">3</div>
+        <h3>SFT Consolidates</h3>
+        <p>Retrain on the filtered, higher-quality data. The next SFT round has strictly better training data than the previous round. The cycle repeats.</p>
+      </div>
+    </div>
+
+    <div class="cta-banner" style="margin-top:3rem;">
+      <h2>The Virtuous Cycle</h2>
+      <p>RL discovers better solutions &rarr; rejection sampling captures them as supervised data &rarr; next SFT round trains on higher-quality data &rarr; better starting point for next RL round &rarr; repeat</p>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 5: GRPO -->
+<section id="grpo">
+  <div class="section-inner">
+    <div class="section-label">GRPO SPECIFICALLY</div>
+    <div class="section-title">Why GRPO Fits This Pattern</div>
+    <div class="section-desc">Group Relative Policy Optimization eliminates the critic model, making the alternating pattern more practical on limited hardware.</div>
+
+    <table class="compare-table">
+      <thead>
+        <tr><th>Aspect</th><th>PPO</th><th>GRPO</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Critic / Value Model</td><td>Required (~2x memory)</td><td class="check">Not needed (~1x)</td></tr>
+        <tr><td>Advantage Estimation</td><td>Per-token, learned value fn</td><td>Per-response, group-normalized</td></tr>
+        <tr><td>Memory Overhead</td><td class="dash">High</td><td class="check">~50% less</td></tr>
+        <tr><td>Typical Use</td><td>RLHF (reward model)</td><td>RLVR (verifiable rewards)</td></tr>
+        <tr><td>Stability</td><td>Complex to tune</td><td>Simpler, fewer hyperparams</td></tr>
+        <tr class="highlight"><td>Used By</td><td>InstructGPT, Llama 3.1</td><td>DeepSeek-R1, Qwen3</td></tr>
+      </tbody>
+    </table>
+
+    <div class="feature-grid" style="margin-top:2.5rem;">
+      <div class="feature-card">
+        <div class="feature-icon">R1</div>
+        <h3>ASR Accuracy Reward</h3>
+        <p><code>1 - WER(prediction, reference)</code><br>Core transcription quality. Higher is better.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">R2</div>
+        <h3>Hallucination Penalty</h3>
+        <p><code>-1</code> when hallucinations detected (repetitions, invented content). Penalizes confabulation.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">R3</div>
+        <h3>Fairness Reward (Ours)</h3>
+        <p><code>-|WER_g - WER_mean|</code><br>Penalizes demographic performance gaps. Combined with accuracy via &lambda; weighting.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 6: LORA -->
+<section id="lora">
+  <div class="section-inner">
+    <div class="section-label">PRACTICAL: LORA</div>
+    <div class="section-title">LoRA Without Regret</div>
+    <div class="section-desc">TRL's guide for multi-stage LoRA training. The key insight: SFT needs high rank, RL needs low rank.</div>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon"><span class="badge badge-sft">SFT</span></div>
+        <h3>High Rank: r = 256</h3>
+        <p>SFT needs capacity to learn from diverse training data. High rank captures the breadth of transcription patterns.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon"><span class="badge badge-rl">RL</span></div>
+        <h3>Low Rank: r = 1&ndash;32</h3>
+        <p>Policy gradient extracts ~1 bit of information per episode. Minimal parameter capacity is sufficient.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon"><span class="badge badge-bridge">MERGE</span></div>
+        <h3>Merge Between Stages</h3>
+        <p>Merge SFT LoRA into base model, then apply fresh LoRA for RL. Never stack adapters &mdash; causes training instability.</p>
+      </div>
+    </div>
+
+    <div class="faq-list" style="margin-top:2rem;">
+      <details class="faq-item">
+        <summary>Why <code>target_modules="all-linear"</code>?</summary>
+        <p>Applying LoRA to all weight matrices is critical. Increasing rank does NOT compensate for targeting fewer layers. Always use all-linear, adjust rank instead.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Why not stack LoRA adapters?</summary>
+        <p>Stacking (LoRA on top of LoRA) causes gradient interference and training instability. Merging the first adapter into the base weights gives a clean starting point for the next stage.</p>
+      </details>
+      <details class="faq-item">
+        <summary>What about catastrophic forgetting between stages?</summary>
+        <p>The BRIDGE method (arXiv:2509.06948) proposes separate LoRA for SFT and base params for RL, with gradient fusion. Achieves 44% faster training with 13% gain on Qwen2.5-3B. MIT 2025 study also shows RL minimizes forgetting vs SFT.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 7: OUR PLAN -->
+<section id="our-plan">
+  <div class="section-inner">
+    <div class="section-label">FOR OUR PROJECT</div>
+    <div class="section-title">Proposed Training Pipeline</div>
+    <div class="section-desc">Applying the alternating pattern to Qwen3-ASR-1.7B fairness fine-tuning on a single RTX A4000 (16GB).</div>
+
+    <div class="timeline">
+      <div class="tl-item sft">
+        <div class="tl-phase">Phase 1 &mdash; SFT Baseline</div>
+        <div class="tl-title">Standard LoRA SFT (r=256)</div>
+        <div class="tl-desc">Fine-tune Qwen3-ASR decoder on Fair-Speech + CommonVoice transcription data. Standard cross-entropy loss. This produces the "standard LoRA baseline" (&lambda;=0) AND the starting point for GRPO. Merge LoRA into base when done.</div>
+      </div>
+      <div class="tl-item rl">
+        <div class="tl-phase">Phase 2 &mdash; GRPO</div>
+        <div class="tl-title">Fairness-Aware GRPO (fresh LoRA, r=16)</div>
+        <div class="tl-desc">Apply fresh LoRA on merged SFT model. Composite reward: R = (1-&lambda;)(1-WER) + &lambda;(-|WER_g - WER_mean|). Sweep &lambda; to trace the accuracy-fairness Pareto frontier.</div>
+      </div>
+      <div class="tl-item bridge">
+        <div class="tl-phase">Phase 3 &mdash; Optional: Rejection Sampling</div>
+        <div class="tl-title">Capture Fairness-Aware Transcriptions</div>
+        <div class="tl-desc">If time permits: sample from best GRPO checkpoint, filter for low-gap + high-accuracy transcriptions, use as data for a second SFT round. Creates a model that is both fair and accurate without RL overhead at inference.</div>
+      </div>
+      <div class="tl-item rl">
+        <div class="tl-phase">Phase 4 &mdash; Baselines</div>
+        <div class="tl-title">FairLoRA + Group-DRO + ICASSP Comparisons</div>
+        <div class="tl-desc">Train the three comparison baselines: FairLoRA (supervised fairness regularizer), Group-DRO (distributionally robust optimization), and ICASSP 2026 fairness-prompted fine-tuning. All plotted on the same Pareto frontier.</div>
+      </div>
+    </div>
+
+    <div class="stats-row" style="margin-top:2rem;">
+      <div class="stat-card">
+        <div class="num">&lt;14GB</div>
+        <div class="unit">VRAM</div>
+        <div class="label">Validated in Phase 1.1 prototype</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">~1-2%</div>
+        <div class="unit">Params</div>
+        <div class="label">LoRA trainable parameters</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">+203%</div>
+        <div class="unit">Gap</div>
+        <div class="label">Qwen3-ASR ethnicity gap to close</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">4</div>
+        <div class="unit">Baselines</div>
+        <div class="label">Comparison methods for Pareto plot</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 8: FAQ -->
+<section id="faq">
+  <div class="section-inner">
+    <div class="section-label">FAQ</div>
+    <div class="section-title">Common Questions</div>
+    <div class="section-desc">Answers to questions about the SFT+RL alternating training paradigm.</div>
+
+    <div class="faq-list">
+      <details class="faq-item">
+        <summary>Can I skip SFT and go straight to GRPO?</summary>
+        <p>Technically yes &mdash; DeepSeek-R1-Zero proved it. But the model suffers from poor formatting, endless repetition, and language mixing. The cold-start SFT is cheap and dramatically improves RL stability. Don't skip it.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Can I skip RL and just do SFT?</summary>
+        <p>You can, but performance plateaus. SFT can't optimize for non-differentiable objectives like demographic fairness gaps. It also can't suppress incorrect behaviors as effectively &mdash; it "preserves incorrect trajectories with non-negligible probability mass."</p>
+      </details>
+      <details class="faq-item">
+        <summary>Why does DeepSeek retrain from the base model in Stage 3?</summary>
+        <p>Retraining from base with higher-quality data avoids accumulating training artifacts from the RL stage. The rejection-sampled data already encodes the RL improvements, so you get the benefits of RL without the formatting issues.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Is DPO a form of RL?</summary>
+        <p>Yes, DPO (Direct Preference Optimization) is an offline RL algorithm that optimizes the same objective as RLHF but without explicitly training a reward model. Llama 3.1 preferred it over PPO for stability reasons. It fits the same alternating pattern.</p>
+      </details>
+      <details class="faq-item">
+        <summary>How many alternating rounds are needed?</summary>
+        <p>Current practice: 2 rounds (SFT&rarr;RL&rarr;SFT&rarr;RL). More rounds show diminishing returns. For a class project with limited compute, even 1 round (SFT&rarr;GRPO) captures most of the benefit.</p>
+      </details>
+      <details class="faq-item">
+        <summary>What does TRL support for multi-stage training?</summary>
+        <div>TRL v1.0 (April 2026) provides <code>SFTTrainer</code>, <code>GRPOTrainer</code>, <code>DPOTrainer</code>, and <code>RewardTrainer</code>. Multi-stage is implemented as sequential script runs, not a single loop. Each trainer accepts a <code>peft_config</code> for LoRA integration.</div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <div class="logo">SFT + RL</div>
+      <div class="tagline">THE ALTERNATING TRAINING PARADIGM</div>
+    </div>
+    <div class="footer-col">
+      <h4>Key Papers</h4>
+      <a href="https://arxiv.org/abs/2501.12948">DeepSeek-R1</a>
+      <a href="https://arxiv.org/abs/2505.09388">Qwen3 Report</a>
+      <a href="https://arxiv.org/abs/2509.21128">SFT Expands, RL Squeezes</a>
+      <a href="https://arxiv.org/abs/2509.18569">GRPO for ASR</a>
+    </div>
+    <div class="footer-col">
+      <h4>Resources</h4>
+      <a href="https://huggingface.co/docs/trl">TRL Documentation</a>
+      <a href="https://rlhfbook.com">RLHF Book</a>
+      <a href="https://cameronrwolfe.substack.com/p/grpo">GRPO Explained</a>
+    </div>
+    <div class="footer-col">
+      <h4>Project</h4>
+      <a href="#">CSE 5525 Final</a>
+      <a href="#">Qwen3-ASR-1.7B</a>
+      <a href="#">Fairness Metrics</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>CSE 5525 &mdash; Speech and Language Processing</span>
+    <span>Last updated: April 6, 2026</span>
+  </div>
+</footer>
+
+<script>
+/* SCROLL-DRIVEN PARALLAX */
+(function() {
+  var zone = document.getElementById('heroZone');
+  var title = document.getElementById('heroTitle');
+  var subtitle = document.getElementById('heroSubtitle');
+  var cta = document.getElementById('heroCta');
+  var device = document.getElementById('heroDevice');
+  var stats = document.getElementById('heroStats');
+  if (!zone || !title || !device) return;
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+
+  function onScroll() {
+    var rect = zone.getBoundingClientRect();
+    var zoneH = zone.offsetHeight;
+    var viewH = window.innerHeight;
+    var scrolled = -rect.top;
+    var progress = clamp(scrolled / (zoneH - viewH), 0, 1);
+
+    var textP = clamp(progress / 0.4, 0, 1);
+    var textOpacity = 1 - textP;
+    var textY = textP * -60;
+    title.style.transform = 'translate3d(0,' + textY + 'px,0)';
+    title.style.opacity = textOpacity;
+    subtitle.style.transform = 'translate3d(0,' + (textY * 0.8) + 'px,0)';
+    subtitle.style.opacity = textOpacity;
+    cta.style.transform = 'translate3d(0,' + (textY * 0.6) + 'px,0)';
+    cta.style.opacity = textOpacity;
+
+    var devScale = lerp(1.0, 0.72, progress);
+    var devY = lerp(0, -80, progress);
+    device.style.transform = 'translate3d(0,' + devY + 'px,0) scale(' + devScale.toFixed(3) + ')';
+    device.style.transformOrigin = 'top center';
+
+    var statsIn = clamp((progress - 0.25) / 0.25, 0, 1);
+    var statsOut = clamp((progress - 0.65) / 0.25, 0, 1);
+    var statsOpacity = statsIn * (1 - statsOut);
+    var statsY = lerp(30, 0, statsIn) + lerp(0, -40, statsOut);
+    stats.style.transform = 'translate3d(0,' + statsY + 'px,0)';
+    stats.style.opacity = statsOpacity;
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+
+/* DOT MATRIX CANVAS — brain/network shape */
+(function() {
+  var canvas = document.getElementById('dotCanvas');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  var dpr = window.devicePixelRatio || 1;
+  var dots = []; var time = 0;
+
+  function resize() {
+    var rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    buildDots(rect.width, rect.height);
+  }
+
+  function buildDots(w, h) {
+    dots = [];
+    var spacing = Math.max(14, Math.min(20, w / 20));
+    var cx = w / 2; var cy = h / 2;
+    var maxR = Math.min(cx, cy) * 0.85;
+    for (var y = spacing; y < h - spacing / 2; y += spacing) {
+      for (var x = spacing; x < w - spacing / 2; x += spacing) {
+        var dx = x - cx; var dy = y - cy;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > maxR) continue;
+        /* Ring shape: two concentric circles with connection */
+        var angle = Math.atan2(dy, dx);
+        var innerR = maxR * 0.35;
+        var midR = maxR * 0.6;
+        var isOuter = dist > midR;
+        var isInner = dist < innerR;
+        var isBridge = Math.abs(angle) < 0.35 || Math.abs(angle - Math.PI) < 0.35 || Math.abs(angle + Math.PI) < 0.35;
+        if (!isOuter && !isInner && !isBridge) continue;
+        dots.push({ x: x, y: y, dist: dist, baseSize: 2.0 + (1 - dist/maxR) * 1.6 });
+      }
+    }
+  }
+
+  function draw() {
+    time += 0.015;
+    var w = canvas.width / dpr; var h = canvas.height / dpr;
+    ctx.clearRect(0, 0, w, h);
+    for (var i = 0; i < dots.length; i++) {
+      var d = dots[i];
+      var wave = Math.sin(d.dist * 0.04 - time * 2.5);
+      var scale = 0.7 + wave * 0.35;
+      var r = d.baseSize * scale;
+      var alpha = 0.55 + wave * 0.3;
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, Math.max(0.5, r), 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,102,255,' + Math.max(0.15, Math.min(0.85, alpha)) + ')';
+      ctx.fill();
+    }
+    requestAnimationFrame(draw);
+  }
+
+  resize(); draw();
+  window.addEventListener('resize', resize);
+})();
+
+/* WAVEFORM BARS */
+(function() {
+  var container = document.getElementById('recWave');
+  if (!container) return;
+  for (var i = 0; i < 40; i++) {
+    var bar = document.createElement('div');
+    bar.className = 'rec-wave-bar';
+    bar.style.animationDelay = (i * 0.06) + 's';
+    container.appendChild(bar);
+  }
+})();
+
+/* TIMER */
+(function() {
+  var el = document.getElementById('met-clock');
+  if (!el) return;
+  var start = Date.now();
+  setInterval(function() {
+    var elapsed = Math.floor((Date.now() - start) / 1000);
+    var h = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+    var m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+    var s = String(elapsed % 60).padStart(2, '0');
+    el.textContent = h + ':' + m + ':' + s;
+  }, 1000);
+})();
+</script>
+
+</body>
+</html>

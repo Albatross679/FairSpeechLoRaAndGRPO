@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lightning AI CLI - AI Hub & Deploy</title>
+<link rel="stylesheet" href="styles/walkie-landing.css">
+<style>
+/* === Code Block === */
+.code-block {
+  background: #1a1a2e; color: #e0e0e0; border-radius: 12px;
+  padding: 1.5rem 2rem; overflow-x: auto; margin: 1.5rem 0;
+  font-family: 'SF Mono','Fira Mono','Roboto Mono','Menlo',monospace;
+  font-size: 0.82rem; line-height: 1.7;
+  border: 1px solid #2a2a3e;
+}
+.code-block .comment { color: #6a6a8a; }
+.code-block .cmd { color: #7dd3fc; }
+.code-block .flag { color: #fbbf24; }
+.code-block .string { color: #86efac; }
+.code-block .prompt { color: #888; user-select: none; }
+.code-label {
+  display: inline-block; background: #0066ff; color: #fff;
+  font-size: 0.68rem; font-weight: 600; padding: 3px 10px;
+  border-radius: 6px 6px 0 0; letter-spacing: 0.06em;
+  text-transform: uppercase; margin-bottom: -1px; position: relative; z-index: 1;
+}
+
+/* === Timeline === */
+.timeline { max-width: 640px; margin: 0 auto; position: relative; }
+.timeline::before {
+  content: ''; position: absolute; left: 18px; top: 0; bottom: 0;
+  width: 2px; background: #e0e0e0;
+}
+.tl-item {
+  padding-left: 50px; padding-bottom: 2.5rem; position: relative;
+}
+.tl-item::before {
+  content: ''; position: absolute; left: 12px; top: 6px;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #fff; border: 2px solid #e0e0e0;
+}
+.tl-item.active::before { background: #0066ff; border-color: #0066ff; }
+.tl-phase {
+  font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.1em; color: #0066ff; margin-bottom: 0.3rem;
+}
+.tl-title {
+  font-family: 'SF Mono','Fira Mono','Roboto Mono','Menlo',monospace;
+  font-size: 1.05rem; font-weight: 650; color: #111; margin-bottom: 0.3rem;
+}
+.tl-desc { font-size: 0.88rem; color: #555; }
+.tl-code {
+  background: #1a1a2e; color: #e0e0e0; border-radius: 8px;
+  padding: 0.8rem 1.2rem; margin-top: 0.6rem; font-size: 0.78rem;
+  font-family: 'SF Mono','Fira Mono','Roboto Mono','Menlo',monospace;
+  overflow-x: auto;
+}
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav>
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">LIGHTNING <span>AI</span></a>
+    <div class="nav-links" id="navLinks">
+      <a href="#aihub">AI Hub</a>
+      <a href="#deploy">Deploy</a>
+      <a href="#compare">Compare</a>
+      <a href="#faq">FAQ</a>
+      <a href="https://lightning.ai/docs" class="nav-cta">Docs</a>
+    </div>
+    <button class="mobile-toggle" onclick="document.getElementById('navLinks').classList.toggle('open')" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- Badge -->
+<div class="top-badge">LIGHTNING CLI v2026.03 &mdash; FROM PRE-BUILT MODELS TO CUSTOM DEPLOYMENTS IN MINUTES</div>
+
+<!-- Hero -->
+<div class="hero-scroll-zone" id="heroZone">
+  <div class="hero-sticky">
+    <div class="hero" id="heroContent">
+      <h1 id="heroTitle">Two Ways to Deploy<br>ML Models</h1>
+      <p class="subtitle" id="heroSubtitle">Lightning AI CLI gives you two deployment paths: grab a pre-built model from the AI Hub, or deploy your own with full control over hardware and scaling.</p>
+      <a href="#aihub" class="hero-cta" id="heroCta">EXPLORE USE CASES</a>
+      <div class="device-wrap" id="heroDevice">
+        <div class="device">
+          <div class="dot-matrix-area"><canvas id="dotCanvas"></canvas></div>
+          <div class="device-brand">lightning ai</div>
+          <div class="rec-bar">
+            <div class="rec-left">
+              <div class="rec-dot"></div>
+              <div class="rec-timer" id="met-clock">00:00:00</div>
+            </div>
+            <div class="rec-wave" id="recWave"></div>
+          </div>
+          <div class="device-home"></div>
+        </div>
+      </div>
+      <div class="hero-stats" id="heroStats">
+        <div class="hero-stat"><div class="num">30+</div><div class="label">Pre-built Models</div></div>
+        <div class="hero-stat"><div class="num">B200</div><div class="label">Up to 8x GPUs</div></div>
+        <div class="hero-stat"><div class="num">&lt;5m</div><div class="label">Deploy Time</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- USE CASE 1: AI Hub -->
+<section id="aihub">
+  <div class="section-inner">
+    <div class="section-label">USE CASE 1</div>
+    <div class="section-title">AI Hub: Deploy Pre-Built Models</div>
+    <div class="section-desc">Browse a marketplace of ready-to-deploy API templates. No serving code needed &mdash; pick a model and launch it with a single command.</div>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon">&#x1F50D;</div>
+        <h3>Browse & Search</h3>
+        <p>Discover available model templates filtered by name, task type, or framework. From LLMs to image generators.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#x1F4CB;</div>
+        <h3>Inspect API Schema</h3>
+        <p>View full input/output specifications before deploying, so you know exactly what the endpoint expects.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#x26A1;</div>
+        <h3>One-Command Deploy</h3>
+        <p>Deploy any template to your cloud account with a single CLI command. No Dockerfile, no config files.</p>
+      </div>
+    </div>
+
+    <!-- Timeline: AI Hub workflow -->
+    <div style="margin-top: 3.5rem;">
+      <div class="section-label">WORKFLOW</div>
+      <div class="section-title" style="font-size: 1.3rem; margin-bottom: 2rem;">AI Hub in 3 Steps</div>
+
+      <div class="timeline">
+        <div class="tl-item active">
+          <div class="tl-phase">Step 1</div>
+          <div class="tl-title">Search the Hub</div>
+          <div class="tl-desc">Find models matching your use case.</div>
+          <div class="tl-code"><span style="color:#6a6a8a;"># Search for LLaMA models</span><br>lightning aihub list-apis --search "llama"</div>
+        </div>
+        <div class="tl-item active">
+          <div class="tl-phase">Step 2</div>
+          <div class="tl-title">Inspect the Template</div>
+          <div class="tl-desc">Check the input schema, output format, and resource requirements.</div>
+          <div class="tl-code"><span style="color:#6a6a8a;"># Get full API details</span><br>lightning aihub api-info &lt;API-ID&gt;</div>
+        </div>
+        <div class="tl-item active">
+          <div class="tl-phase">Step 3</div>
+          <div class="tl-title">Deploy to Cloud</div>
+          <div class="tl-desc">Launch the model API in your teamspace with one command.</div>
+          <div class="tl-code"><span style="color:#6a6a8a;"># Deploy to your account</span><br>lightning aihub deploy &lt;API-ID&gt; \<br>&nbsp;&nbsp;--name "my-llama-api" \<br>&nbsp;&nbsp;--teamspace "ml-team"</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- USE CASE 2: Deploy -->
+<section id="deploy">
+  <div class="section-inner">
+    <div class="section-label">USE CASE 2</div>
+    <div class="section-title">Deploy: Serve Your Own Models</div>
+    <div class="section-desc">Write a LitServe server script, then deploy it locally or to the cloud with full control over GPU type, scaling, and cost.</div>
+
+    <!-- Two-col: explanation + code -->
+    <div class="two-col">
+      <div class="two-col-text">
+        <span class="badge">LITSERVE</span>
+        <h3>Write a Server Script</h3>
+        <p>Define four methods &mdash; <code>setup</code>, <code>decode_request</code>, <code>predict</code>, <code>encode_response</code> &mdash; and LitServe handles the REST API, batching, and GPU management.</p>
+        <p>Your model loading happens once in <code>setup()</code>. Each request flows through the decode &rarr; predict &rarr; encode pipeline automatically.</p>
+      </div>
+      <div>
+        <div class="code-label">server.py</div>
+        <div class="code-block"><span class="comment"># server.py</span>
+<span class="cmd">import</span> litserve <span class="cmd">as</span> ls
+
+<span class="cmd">class</span> <span class="string">MyModel</span>(ls.LitAPI):
+    <span class="cmd">def</span> <span class="string">setup</span>(self, device):
+        <span class="cmd">from</span> transformers <span class="cmd">import</span> pipeline
+        self.pipe = pipeline(
+            <span class="string">"text-generation"</span>,
+            model=<span class="string">"gpt2"</span>,
+            device=device
+        )
+
+    <span class="cmd">def</span> <span class="string">decode_request</span>(self, request):
+        <span class="cmd">return</span> request[<span class="string">"prompt"</span>]
+
+    <span class="cmd">def</span> <span class="string">predict</span>(self, prompt):
+        <span class="cmd">return</span> self.pipe(
+            prompt, max_new_tokens=50
+        )[0][<span class="string">"generated_text"</span>]
+
+    <span class="cmd">def</span> <span class="string">encode_response</span>(self, output):
+        <span class="cmd">return</span> {<span class="string">"text"</span>: output}
+
+<span class="cmd">if</span> __name__ == <span class="string">"__main__"</span>:
+    api = ls.LitServer(MyModel())
+    api.run()</div>
+      </div>
+    </div>
+
+    <!-- Deploy commands -->
+    <div style="margin-top: 3rem;">
+      <div class="section-label">DEPLOYMENT OPTIONS</div>
+      <div class="section-title" style="font-size: 1.3rem; margin-bottom: 1.5rem;">From Local to Production</div>
+
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-icon">&#x1F4BB;</div>
+          <h3>Local Testing</h3>
+          <p>Run locally to validate your server before going to cloud.</p>
+          <div class="tl-code" style="margin-top: 0.8rem;">lightning deploy api server.py</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">&#x2601;&#xFE0F;</div>
+          <h3>Cloud + GPU</h3>
+          <p>Deploy to cloud on any GPU with auto-scaling replicas.</p>
+          <div class="tl-code" style="margin-top: 0.8rem;">lightning deploy api server.py \<br>&nbsp;&nbsp;--cloud \<br>&nbsp;&nbsp;--name "text-gen-api" \<br>&nbsp;&nbsp;--machine L4 \<br>&nbsp;&nbsp;--min-replica 1 \<br>&nbsp;&nbsp;--max-replica 4</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">&#x1F4B0;</div>
+          <h3>Spot Instances</h3>
+          <p>Use interruptible GPUs for significant cost savings on batch workloads.</p>
+          <div class="tl-code" style="margin-top: 0.8rem;">lightning deploy api server.py \<br>&nbsp;&nbsp;--cloud \<br>&nbsp;&nbsp;--machine A100 \<br>&nbsp;&nbsp;--interruptible</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Call the API -->
+    <div style="margin-top: 3rem;">
+      <div class="two-col">
+        <div class="two-col-text">
+          <span class="badge">USAGE</span>
+          <h3>Call Your Endpoint</h3>
+          <p>Once deployed, Lightning gives you a public HTTPS endpoint. Send JSON requests and get responses &mdash; standard REST API, works with any language or tool.</p>
+        </div>
+        <div>
+          <div class="code-label">curl</div>
+          <div class="code-block"><span class="prompt">$ </span><span class="cmd">curl</span> -X POST https://&lt;your-endpoint&gt;/predict \
+  -H <span class="string">"Content-Type: application/json"</span> \
+  -d <span class="string">'{"prompt": "Once upon a time"}'</span>
+
+<span class="comment"># Response:</span>
+{
+  <span class="string">"text"</span>: <span class="string">"Once upon a time, in a land far away,
+  there lived a young wizard who..."</span>
+}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Comparison -->
+<section id="compare">
+  <div class="section-inner">
+    <div class="section-label">COMPARISON</div>
+    <div class="section-title">AI Hub vs. Deploy</div>
+    <div class="section-desc">Choose the right path depending on whether you need a pre-built model or full control over your own.</div>
+
+    <table class="compare-table">
+      <thead>
+        <tr><th>Feature</th><th>AI Hub</th><th>Deploy (LitServe)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="label-cell">Code Required</td><td class="check">None</td><td>server.py (LitServe)</td></tr>
+        <tr><td class="label-cell">Custom Models</td><td class="dash">&mdash;</td><td class="check">Any model</td></tr>
+        <tr><td class="label-cell">Pre-built Templates</td><td class="check">30+ models</td><td class="dash">&mdash;</td></tr>
+        <tr><td class="label-cell">GPU Selection</td><td>Template default</td><td class="check">CPU to B200 x8</td></tr>
+        <tr><td class="label-cell">Auto-scaling</td><td>Managed</td><td class="check">min/max replicas</td></tr>
+        <tr><td class="label-cell">Spot Instances</td><td class="dash">&mdash;</td><td class="check">--interruptible</td></tr>
+        <tr><td class="label-cell">Local Testing</td><td class="dash">&mdash;</td><td class="check">Run without --cloud</td></tr>
+        <tr><td class="label-cell">Dockerization</td><td>Automatic</td><td class="check">lightning dockerize</td></tr>
+        <tr><td class="label-cell">Time to Deploy</td><td class="check">&lt; 2 minutes</td><td>5&ndash;10 minutes</td></tr>
+        <tr><td class="label-cell">Best For</td><td>Quick prototypes, standard models</td><td>Custom pipelines, production</td></tr>
+      </tbody>
+    </table>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="num">1</div>
+        <div class="unit">command</div>
+        <div class="label">AI Hub deploy</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">30+</div>
+        <div class="unit">GPUs</div>
+        <div class="label">Machine types available</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">4</div>
+        <div class="unit">methods</div>
+        <div class="label">LitServe API surface</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">8x</div>
+        <div class="unit">max</div>
+        <div class="label">Multi-GPU scaling</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="section-inner">
+    <div class="section-label">FAQ</div>
+    <div class="section-title">Common Questions</div>
+    <div class="section-desc">Answers to frequently asked questions about AI Hub and Deploy.</div>
+
+    <div class="faq-list">
+      <details class="faq-item">
+        <summary>When should I use AI Hub vs. Deploy?</summary>
+        <p>Use AI Hub when you want a standard model (like LLaMA, Stable Diffusion, Whisper) up and running fast with zero code. Use Deploy when you have a custom model, custom preprocessing, or need fine-grained control over hardware and scaling.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Can I switch from AI Hub to Deploy later?</summary>
+        <p>Yes. AI Hub is great for prototyping. Once you need customization, write a LitServe server.py wrapping the same model and deploy it with full control. The API endpoint format stays the same.</p>
+      </details>
+      <details class="faq-item">
+        <summary>What GPU types are available?</summary>
+        <p>Deploy supports: CPU (various sizes), T4, L4, L40S, A100, H100, H200, and B200 &mdash; each available in 1x, 2x, 4x, or 8x configurations. AI Hub uses the GPU type specified by the template author.</p>
+      </details>
+      <details class="faq-item">
+        <summary>How does auto-scaling work?</summary>
+        <p>Set --min-replica and --max-replica when deploying. Lightning automatically scales replicas based on incoming traffic. Scale to zero is possible with min-replica 0.</p>
+      </details>
+      <details class="faq-item">
+        <summary>What are interruptible (spot) instances?</summary>
+        <p>Adding --interruptible uses spot GPU pricing, which can be significantly cheaper. The trade-off is that your instance may be preempted during high-demand periods. Best for batch inference or fault-tolerant workloads.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Do I need to authenticate first?</summary>
+        <p>Inside a Lightning Studio, you're auto-authenticated. From any other environment, run <code>lightning login</code> first. The CLI will open a browser for OAuth.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- CTA Banner -->
+<div class="cta-banner">
+  <h2>Ready to deploy?</h2>
+  <p>Install the CLI and have a model running in under 5 minutes &mdash; no infrastructure expertise required.</p>
+  <a href="https://lightning.ai/docs">pip install lightning &rarr;</a>
+</div>
+
+<!-- Footer -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <div class="logo">LIGHTNING AI</div>
+      <div class="tagline">Build, train, and deploy AI models at any scale.</div>
+    </div>
+    <div class="footer-col">
+      <h4>Product</h4>
+      <a href="#aihub">AI Hub</a>
+      <a href="#deploy">Deploy</a>
+      <a href="#">Studios</a>
+      <a href="#">VMs</a>
+    </div>
+    <div class="footer-col">
+      <h4>Resources</h4>
+      <a href="#">Documentation</a>
+      <a href="#">LitServe</a>
+      <a href="#">Tutorials</a>
+      <a href="#">Blog</a>
+    </div>
+    <div class="footer-col">
+      <h4>Company</h4>
+      <a href="#">About</a>
+      <a href="#">Pricing</a>
+      <a href="#">GitHub</a>
+      <a href="#">Discord</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>Last updated: 2026-04-06</span>
+    <span>Generated with Claude Code</span>
+  </div>
+</footer>
+
+<script>
+/* === Scroll-Driven Parallax === */
+(function() {
+  var zone = document.getElementById('heroZone');
+  var title = document.getElementById('heroTitle');
+  var subtitle = document.getElementById('heroSubtitle');
+  var cta = document.getElementById('heroCta');
+  var device = document.getElementById('heroDevice');
+  var stats = document.getElementById('heroStats');
+  if (!zone || !title || !device) return;
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+
+  function onScroll() {
+    var rect = zone.getBoundingClientRect();
+    var zoneH = zone.offsetHeight;
+    var viewH = window.innerHeight;
+    var scrolled = -rect.top;
+    var progress = clamp(scrolled / (zoneH - viewH), 0, 1);
+
+    var textP = clamp(progress / 0.4, 0, 1);
+    var textOpacity = 1 - textP;
+    var textY = textP * -60;
+    title.style.transform = 'translate3d(0,' + textY + 'px,0)';
+    title.style.opacity = textOpacity;
+    subtitle.style.transform = 'translate3d(0,' + (textY * 0.8) + 'px,0)';
+    subtitle.style.opacity = textOpacity;
+    cta.style.transform = 'translate3d(0,' + (textY * 0.6) + 'px,0)';
+    cta.style.opacity = textOpacity;
+
+    var devScale = lerp(1.0, 0.72, progress);
+    var devY = lerp(0, -80, progress);
+    device.style.transform = 'translate3d(0,' + devY + 'px,0) scale(' + devScale.toFixed(3) + ')';
+    device.style.transformOrigin = 'top center';
+
+    var statsIn = clamp((progress - 0.25) / 0.25, 0, 1);
+    var statsOut = clamp((progress - 0.65) / 0.25, 0, 1);
+    var statsOpacity = statsIn * (1 - statsOut);
+    var statsY = lerp(30, 0, statsIn) + lerp(0, -40, statsOut);
+    stats.style.transform = 'translate3d(0,' + statsY + 'px,0)';
+    stats.style.opacity = statsOpacity;
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+
+/* === Dot Matrix Canvas (Lightning bolt shape) === */
+(function() {
+  var canvas = document.getElementById('dotCanvas');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  var dpr = window.devicePixelRatio || 1;
+  var dots = []; var time = 0;
+
+  function resize() {
+    var rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    buildDots(rect.width, rect.height);
+  }
+
+  /* Lightning bolt mask */
+  function isInsideBolt(x, y, cx, cy, maxR) {
+    var nx = (x - cx) / maxR;
+    var ny = (y - cy) / maxR;
+    /* Simple lightning bolt polygon */
+    var points = [
+      [0.1, -0.85], [0.35, -0.85], [0.05, -0.15], [0.4, -0.15],
+      [-0.15, 0.85], [0.0, 0.1], [-0.35, 0.1], [0.1, -0.85]
+    ];
+    var inside = false;
+    for (var i = 0, j = points.length - 1; i < points.length; j = i++) {
+      var xi = points[i][0], yi = points[i][1];
+      var xj = points[j][0], yj = points[j][1];
+      if (((yi > ny) !== (yj > ny)) && (nx < (xj - xi) * (ny - yi) / (yj - yi) + xi)) {
+        inside = !inside;
+      }
+    }
+    return inside;
+  }
+
+  function buildDots(w, h) {
+    dots = [];
+    var spacing = Math.max(14, Math.min(20, w / 22));
+    var cx = w / 2; var cy = h / 2;
+    var maxR = Math.min(cx, cy) * 0.88;
+    for (var y = spacing; y < h - spacing / 2; y += spacing) {
+      for (var x = spacing; x < w - spacing / 2; x += spacing) {
+        var dx = x - cx; var dy = y - cy;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > maxR) continue;
+        if (!isInsideBolt(x, y, cx, cy, maxR)) continue;
+        dots.push({ x: x, y: y, dist: dist, baseSize: 2.2 + (1 - dist / maxR) * 1.8 });
+      }
+    }
+  }
+
+  function draw() {
+    time += 0.015;
+    var w = canvas.width / dpr; var h = canvas.height / dpr;
+    ctx.clearRect(0, 0, w, h);
+    for (var i = 0; i < dots.length; i++) {
+      var d = dots[i];
+      var wave = Math.sin(d.dist * 0.04 - time * 2.5);
+      var scale = 0.7 + wave * 0.35;
+      var r = d.baseSize * scale;
+      var alpha = 0.55 + wave * 0.3;
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, Math.max(0.5, r), 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,102,255,' + Math.max(0.15, Math.min(0.95, alpha)) + ')';
+      ctx.fill();
+    }
+    requestAnimationFrame(draw);
+  }
+
+  resize(); draw();
+  window.addEventListener('resize', resize);
+})();
+
+/* === Recording Bar Waveform === */
+(function() {
+  var container = document.getElementById('recWave');
+  if (!container) return;
+  for (var i = 0; i < 40; i++) {
+    var bar = document.createElement('div');
+    bar.className = 'rec-wave-bar';
+    bar.style.animationDelay = (i * 0.06) + 's';
+    container.appendChild(bar);
+  }
+})();
+
+/* === Recording Timer === */
+(function() {
+  var clock = document.getElementById('met-clock');
+  if (!clock) return;
+  var start = Date.now();
+  setInterval(function() {
+    var elapsed = Math.floor((Date.now() - start) / 1000);
+    var h = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+    var m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+    var s = String(elapsed % 60).padStart(2, '0');
+    clock.textContent = h + ':' + m + ':' + s;
+  }, 1000);
+})();
+</script>
+</body>
+</html>

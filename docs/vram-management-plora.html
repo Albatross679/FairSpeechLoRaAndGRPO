@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VRAM Management in PLoRA Packed Sweeps</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<style>
+html { font-size: 62.5%; }
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  font-family: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  font-size: 1.7rem;
+  line-height: 1.618;
+  color: #4a4a4a;
+  background: #f5f4f0;
+  margin: 0;
+  padding: 0;
+}
+
+a { color: #7c3043; text-decoration: none; }
+a:visited { color: #5c2233; }
+a:hover { color: #a3415a; text-decoration: underline; }
+
+.page-wrapper { display: flex; max-width: 80em; margin: 0 auto; }
+
+.sidebar {
+  width: 240px; min-width: 240px; position: sticky; top: 0; height: 100vh;
+  overflow-y: auto; background: #f0efeb; padding: 2em 1.2em;
+  border-right: 1px solid #ddd; font-size: 1em;
+}
+.sidebar strong { display: block; font-size: 1.15em; color: #7c3043; margin-bottom: 0.8em; letter-spacing: 0.02em; }
+.sidebar ul { list-style: none; padding: 0; margin: 0; }
+.sidebar li { margin-bottom: 0.4em; }
+.sidebar a { display: block; padding: 0.35em 0.7em; border-radius: 4px; color: #4a4a4a; transition: background 0.15s, color 0.15s; }
+.sidebar a:hover { background: #ebe7e3; color: #7c3043; text-decoration: none; }
+.sidebar a.active { background: #ebe7e3; color: #7c3043; font-weight: 600; }
+
+.main-content { flex: 1; max-width: 56em; padding: 1.3em 2em 2em 2.5em; }
+
+h1 { font-size: 2em; color: #3a3a3a; margin-bottom: 0.1em; font-weight: 700; }
+p.subtitle { font-size: 1.15em; color: #7c3043; margin-top: 0; margin-bottom: 1.5em; font-style: italic; }
+hr { border: none; border-top: 2px solid #7c3043; margin: 1.5em 0; }
+h2 { font-size: 1.7em; color: #3a3a3a; border-bottom: 2px solid #7c3043; padding-bottom: 0.25em; margin-top: 2em; }
+h3 { font-size: 1.45em; color: #3a3a3a; margin-top: 1.5em; }
+
+table { width: 100%; border-collapse: collapse; font-size: 0.92em; margin: 1.2em 0; border-top: 2px solid #7c3043; border-bottom: 2px solid #7c3043; }
+thead th { padding: 0.6em 0.8em; text-align: left; font-weight: 700; color: #3a3a3a; border-bottom: 3px solid #7c3043; }
+tbody td { padding: 0.55em 0.8em; border-bottom: 1px solid #ddd; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: #f5eaed; }
+tr.highlight { background: transparent; }
+
+.callout { border-left: 4px solid #7c3043; background: #f1f1f1; padding: 1em 1.2em; margin: 1.2em 0; border-radius: 0 6px 6px 0; }
+.callout.warning { border-left-color: #d4a017; background: #fdf8e8; }
+.callout.danger { border-left-color: #c0392b; background: #fdf0ef; }
+.callout.success { border-left-color: #27ae60; background: #edf9f1; }
+
+ul, ol { padding-left: 1.5em; }
+li { margin-bottom: 0.3em; }
+
+nav#toc { display: none; background: #f0efeb; padding: 1em 1.5em; border-radius: 6px; margin-bottom: 1.5em; }
+nav#toc strong { color: #7c3043; display: block; margin-bottom: 0.5em; }
+nav#toc ul { list-style: none; padding: 0; }
+nav#toc li { margin-bottom: 0.3em; }
+
+.math-block { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 1.2em 1.5em; margin: 1.2em 0; text-align: center; overflow-x: auto; }
+
+.flow-diagram {
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
+  gap: 0.3em; margin: 1.5em 0; font-size: 0.88em;
+}
+.flow-box {
+  background: #fff; border: 2px solid #7c3043; border-radius: 6px;
+  padding: 0.6em 1em; text-align: center; font-weight: 600; color: #3a3a3a;
+  min-width: 9em;
+}
+.flow-box.active { background: #7c3043; color: #fff; }
+.flow-arrow { color: #7c3043; font-size: 1.4em; font-weight: 700; }
+
+footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-size: 0.85em; color: #999; }
+
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  nav#toc { display: block; }
+  .main-content { padding: 1em; max-width: 100%; }
+}
+@media (max-width: 684px) { body { font-size: 1.35rem; } }
+@media (max-width: 382px) { body { font-size: 1.2rem; } }
+@media print {
+  .sidebar { display: none; }
+  nav#toc { display: block; }
+  .main-content { max-width: 100%; padding: 0; }
+  body { background: #fff; font-size: 11pt; }
+  h2 { break-after: avoid; }
+  table, .callout { break-inside: avoid; }
+  a { color: #333; }
+}
+</style>
+</head>
+<body>
+<div class="page-wrapper">
+
+  <aside class="sidebar" id="sidebar-toc">
+    <strong>Contents</strong>
+    <ul>
+      <li><a href="#problem">The Problem</a></li>
+      <li><a href="#budget">VRAM Budget</a></li>
+      <li><a href="#estimation">Layer 1: Estimation</a></li>
+      <li><a href="#packing">Layer 2: Dynamic Packing</a></li>
+      <li><a href="#oom">Layer 3: OOM Recovery</a></li>
+      <li><a href="#profile">Empirical Profile</a></li>
+      <li><a href="#practice">In Practice</a></li>
+      <li><a href="#limitations">Limitations</a></li>
+    </ul>
+  </aside>
+
+  <div class="main-content">
+    <h1>VRAM Management in PLoRA</h1>
+    <p class="subtitle">How the packed LoRA sweep fits 25 adapters on a 15 GB T4</p>
+    <hr>
+
+    <nav id="toc">
+      <strong>Table of Contents</strong>
+      <ul>
+        <li><a href="#problem">1. The Problem</a></li>
+        <li><a href="#budget">2. VRAM Budget</a></li>
+        <li><a href="#estimation">3. Layer 1: Theoretical Estimation</a></li>
+        <li><a href="#packing">4. Layer 2: Dynamic Pack Sizing</a></li>
+        <li><a href="#oom">5. Layer 3: OOM Recovery</a></li>
+        <li><a href="#profile">6. Empirical VRAM Profile</a></li>
+        <li><a href="#practice">7. In Practice</a></li>
+        <li><a href="#limitations">8. Limitations</a></li>
+      </ul>
+    </nav>
+
+    <!-- The Problem -->
+    <h2 id="problem">1. The Problem</h2>
+    <p>
+      PLoRA attaches <em>N</em> parallel LoRA adapters to a single frozen base model and trains them
+      simultaneously. Each adapter has its own weights, optimizer states, and gradients, so VRAM grows
+      linearly with pack size. But different trial configs consume different amounts of memory&mdash;a
+      rank-32 adapter targeting attention + MLP uses ~4&times; more VRAM than a rank-4 attention-only adapter.
+      The sweep must decide <strong>how many adapters to pack per batch</strong> without knowing the exact
+      configs until Optuna suggests them.
+    </p>
+
+    <!-- VRAM Budget -->
+    <h2 id="budget">2. VRAM Budget</h2>
+    <table>
+      <thead><tr><th>Component</th><th>VRAM</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>T4 total</td><td>15,360 MB</td><td>Hardware limit</td></tr>
+        <tr><td>Safety margin</td><td>&minus;2,048 MB</td><td>Fragmentation, spikes, CUDA overhead</td></tr>
+        <tr><td><strong>VRAM cap</strong></td><td><strong>13,000 MB</strong></td><td>Hard ceiling for the sweep</td></tr>
+        <tr><td>Frozen base model (bf16)</td><td>&minus;3,400 MB</td><td>Qwen3-ASR-1.7B, shared across all adapters</td></tr>
+        <tr class="highlight"><td><strong>Available for adapters</strong></td><td><strong>9,600 MB</strong></td><td>Budget that dynamic packing divides among N adapters</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Layer 1: Theoretical Estimation -->
+    <h2 id="estimation">3. Layer 1: Theoretical Estimation</h2>
+    <p>
+      Before any adapter is loaded, <code>estimate_adapter_vram_mb()</code> computes a theoretical
+      VRAM cost from the adapter config. The formula accounts for every component that consumes GPU memory:
+    </p>
+    <div class="math-block">
+      $$\text{VRAM}_\text{adapter} = \underbrace{P \times 12\text{ bytes}}_{\text{weights + optimizer + gradients}} + \underbrace{300\text{ MB}}_{\text{activation overhead}}$$
+    </div>
+    <p>where $P$ is the total number of LoRA parameters:</p>
+    <div class="math-block">
+      $$P = 2 \times h \times r \times t \times L$$
+    </div>
+    <table>
+      <thead><tr><th>Symbol</th><th>Value</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td>$h$</td><td>1,536</td><td>Hidden dimension (Qwen3-ASR-1.7B)</td></tr>
+        <tr><td>$r$</td><td>{4, 8, 16, 32}</td><td>LoRA rank</td></tr>
+        <tr><td>$t$</td><td>4 or 7</td><td>Target modules (attn-only = 4, attn+MLP = 7)</td></tr>
+        <tr><td>$L$</td><td>28</td><td>Transformer layers</td></tr>
+      </tbody>
+    </table>
+    <p>The 12 bytes per parameter breaks down as:</p>
+    <table>
+      <thead><tr><th>Component</th><th>Bytes</th><th>Format</th></tr></thead>
+      <tbody>
+        <tr><td>Weight (A + B matrices)</td><td>2</td><td>bf16</td></tr>
+        <tr><td>AdamW momentum ($m$)</td><td>4</td><td>fp32</td></tr>
+        <tr><td>AdamW variance ($v$)</td><td>4</td><td>fp32</td></tr>
+        <tr><td>Gradient</td><td>2</td><td>bf16</td></tr>
+      </tbody>
+    </table>
+    <p>
+      The 300 MB activation overhead is a flat constant calibrated from empirical profiling. It covers
+      intermediate activations during forward/backward passes that gradient checkpointing does not eliminate.
+    </p>
+
+    <!-- Dynamic Pack Sizing -->
+    <h2 id="packing">4. Layer 2: Dynamic Pack Sizing</h2>
+    <p>
+      The sweep loop dynamically decides pack size for each batch. The process runs every iteration:
+    </p>
+    <div class="flow-diagram">
+      <div class="flow-box">Ask Optuna for 1 trial</div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box active">Estimate VRAM</div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box">Compute max_pack</div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box">Ask N&minus;1 more trials</div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box active">Recompute with actual configs</div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box">Trim excess</div>
+    </div>
+    <ol>
+      <li><strong>Ask one trial</strong> from Optuna to get the first config (rank, target_mlp, etc.)</li>
+      <li><strong>Estimate its VRAM</strong> via <code>estimate_adapter_vram_mb()</code></li>
+      <li><strong>Compute max_pack</strong> = $\lfloor 9{,}600 \,/\, \text{per\_adapter\_mb} \rfloor$, capped at remaining trials</li>
+      <li><strong>Ask additional trials</strong> to fill the pack (up to max_pack &minus; 1)</li>
+      <li><strong>Recompute</strong> <code>compute_pack_size()</code> with the actual heterogeneous configs, since
+        different trials may have different ranks and MLP settings</li>
+      <li><strong>Trim excess</strong>: if the recomputed pack size is smaller than the batch, extra trials
+        are returned to Optuna as pruned and re-asked in the next iteration</li>
+    </ol>
+    <p>
+      This means rank-4 batches might pack 25+ adapters, while rank-32 batches pack only a handful.
+      The pack size is never hardcoded&mdash;it adapts to whatever Optuna suggests.
+    </p>
+
+    <div class="callout">
+      <strong>Why two rounds of estimation?</strong> The first estimate (step 2) determines how many
+      trials to ask. But Optuna's TPE sampler generates different configs each time, so the actual batch
+      may mix rank-4 and rank-32 adapters. The second pass (step 5) catches this and trims the batch
+      to what actually fits.
+    </div>
+
+    <!-- OOM Recovery -->
+    <h2 id="oom">5. Layer 3: OOM Recovery</h2>
+    <p>
+      Theoretical estimates are approximations. If a batch triggers <code>torch.cuda.OutOfMemoryError</code>
+      despite passing the estimate, the sweep recovers:
+    </p>
+    <ol>
+      <li>The <code>(max_rank, has_mlp)</code> combination that caused the OOM is added to a <strong>blacklist</strong></li>
+      <li>All trials in the failed batch are marked as <code>FAIL</code> and <strong>re-asked</strong> (the completed count does not increment)</li>
+      <li>Future batches whose first trial matches a blacklisted combo are <strong>forced to pack_size = 1</strong></li>
+    </ol>
+    <p>
+      This creates a learning loop: the sweep starts optimistic (large packs), and if any config
+      exceeds the estimate, it permanently downgrades that config class to sequential execution.
+      The sweep never crashes&mdash;it gracefully degrades.
+    </p>
+
+    <div class="callout.warning" style="border-left: 4px solid #d4a017; background: #fdf8e8; padding: 1em 1.2em; margin: 1.2em 0; border-radius: 0 6px 6px 0;">
+      <strong>In practice, OOM recovery was never triggered.</strong> The 2 GB safety margin and
+      conservative activation overhead (300 MB flat) meant theoretical estimates were always sufficient.
+      Peak VRAM across all 220 trials was 9,744 MB&mdash;well under the 13 GB cap.
+    </div>
+
+    <!-- Empirical VRAM Profile -->
+    <h2 id="profile">6. Empirical VRAM Profile</h2>
+    <p>
+      Before the sweep, a one-time profiling step measured actual VRAM for all 8 possible
+      (rank, target_mlp) combinations by running 3 forward+backward steps and recording
+      <code>torch.cuda.max_memory_allocated()</code> deltas.
+    </p>
+    <div style="margin:1.5em 0;">
+      <canvas id="vramProfileChart"></canvas>
+    </div>
+    <table>
+      <thead><tr><th>Rank</th><th>Target</th><th>Theoretical</th><th>Empirical</th><th>Delta</th></tr></thead>
+      <tbody>
+        <tr><td>4</td><td>Attn only</td><td>305 MB</td><td>313 MB</td><td>+2.6%</td></tr>
+        <tr><td>4</td><td>Attn + MLP</td><td>308 MB</td><td>318 MB</td><td>+3.2%</td></tr>
+        <tr><td>8</td><td>Attn only</td><td>310 MB</td><td>322 MB</td><td>+3.9%</td></tr>
+        <tr><td>8</td><td>Attn + MLP</td><td>316 MB</td><td>335 MB</td><td>+6.0%</td></tr>
+        <tr><td>16</td><td>Attn only</td><td>320 MB</td><td>348 MB</td><td>+8.8%</td></tr>
+        <tr><td>16</td><td>Attn + MLP</td><td>332 MB</td><td>375 MB</td><td>+12.9%</td></tr>
+        <tr><td>32</td><td>Attn only</td><td>340 MB</td><td>413 MB</td><td>+21.5%</td></tr>
+        <tr class="highlight"><td>32</td><td>Attn + MLP</td><td>364 MB</td><td>724 MB</td><td>+98.9%</td></tr>
+      </tbody>
+    </table>
+    <p>
+      At low ranks, the theoretical estimate tracks closely (2&ndash;6% error). At rank 32 with MLP targeting,
+      the flat 300 MB activation overhead significantly underestimates the actual cost (724 MB empirical vs 364 MB theoretical).
+      However, because the sweep uses a 2 GB safety margin and the base model cost is conservatively estimated,
+      packing decisions remained safe even for the worst-case config.
+    </p>
+
+    <!-- In Practice -->
+    <h2 id="practice">7. In Practice</h2>
+    <div style="margin:1.5em 0;">
+      <canvas id="practiceChart"></canvas>
+    </div>
+    <table>
+      <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>T4 total VRAM</td><td>15,360 MB</td></tr>
+        <tr><td>VRAM cap (with safety margin)</td><td>13,000 MB</td></tr>
+        <tr><td>Peak observed VRAM</td><td>9,744 MB</td></tr>
+        <tr><td>Headroom remaining</td><td>3,304 MB (25.4%)</td></tr>
+        <tr><td>Typical pack size (rank-4 batches)</td><td>25 adapters</td></tr>
+        <tr><td>Typical pack size (rank-32 batches)</td><td>3&ndash;5 adapters</td></tr>
+        <tr><td>OOM events</td><td>0</td></tr>
+        <tr><td>Blacklisted configs</td><td>0</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout success">
+      <strong>The three-layer approach worked conservatively.</strong> The theoretical estimator was
+      accurate enough to avoid OOMs, the dynamic packer maximized throughput within the budget, and the
+      OOM recovery layer was never needed. The 2 GB safety margin was the key design
+      decision&mdash;it absorbed the estimation error at high ranks without sacrificing pack density at low ranks.
+    </div>
+
+    <!-- Limitations -->
+    <h2 id="limitations">8. Limitations</h2>
+    <table>
+      <thead><tr><th>What it does NOT do</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>No runtime VRAM monitoring during training steps</td>
+          <td>Pack size is decided once per batch; no mid-batch adjustment if memory spikes</td>
+        </tr>
+        <tr>
+          <td>No empirical profiling during the sweep itself</td>
+          <td>Profiling was a one-time validation step (Stage 0); the sweep relies on theoretical estimates + safety margin</td>
+        </tr>
+        <tr>
+          <td>No per-adapter gradient checkpointing toggle</td>
+          <td>Gradient checkpointing is always on globally; cannot selectively enable for memory-heavy adapters</td>
+        </tr>
+        <tr>
+          <td>No cross-batch memory reuse</td>
+          <td>Each batch loads fresh adapters; no warm-starting from previous batch's shared activations</td>
+        </tr>
+        <tr>
+          <td>Activation overhead is a flat constant (300 MB)</td>
+          <td>Does not scale with rank or batch size; underestimates at rank-32 + MLP (see profile table)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <footer>
+      <p><small>Last updated: April 8, 2026 &mdash; NLP Class Project (CSE 5525)</small></p>
+    </footer>
+  </div>
+
+</div>
+
+<script>
+(function() {
+  var sidebarLinks = document.querySelectorAll('#sidebar-toc a');
+  var sections = [];
+  sidebarLinks.forEach(function(link) {
+    var id = link.getAttribute('href').slice(1);
+    var el = document.getElementById(id);
+    if (el) sections.push({ id: id, el: el, link: link });
+  });
+  function onScroll() {
+    var scrollY = window.scrollY + 80;
+    var current = null;
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].el.offsetTop <= scrollY) current = sections[i];
+    }
+    sidebarLinks.forEach(function(l) { l.classList.remove('active'); });
+    if (current) current.link.classList.add('active');
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+</script>
+<script>
+var palatino = 'Palatino Linotype, Palatino, Book Antiqua, Georgia, serif';
+var chartTitleFont = { size: 17, family: palatino };
+var axisTitleFont = { size: 15, family: palatino, weight: '600' };
+var axisTickFont = { size: 13, family: palatino };
+var legendFont = { size: 13, family: palatino };
+
+// --- VRAM Profile: Theoretical vs Empirical ---
+(function() {
+  var configs = ['r4\nattn', 'r4\n+mlp', 'r8\nattn', 'r8\n+mlp', 'r16\nattn', 'r16\n+mlp', 'r32\nattn', 'r32\n+mlp'];
+  var theoretical = [305, 308, 310, 316, 320, 332, 340, 364];
+  var empirical =   [313, 318, 322, 335, 348, 375, 413, 724];
+
+  new Chart(document.getElementById('vramProfileChart'), {
+    type: 'bar',
+    data: {
+      labels: configs,
+      datasets: [
+        {
+          label: 'Theoretical',
+          data: theoretical,
+          backgroundColor: 'rgba(124,48,67,0.5)',
+          borderColor: '#7c3043',
+          borderWidth: 1
+        },
+        {
+          label: 'Empirical',
+          data: empirical,
+          backgroundColor: 'rgba(42,100,150,0.5)',
+          borderColor: '#2a6496',
+          borderWidth: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      aspectRatio: 2.2,
+      plugins: {
+        title: { display: true, text: 'Per-Adapter VRAM: Theoretical vs Empirical', font: chartTitleFont, padding: { bottom: 14 } },
+        legend: { position: 'top', labels: { font: legendFont, padding: 16 } },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              return ctx.dataset.label + ': ' + ctx.raw + ' MB';
+            }
+          }
+        }
+      },
+      scales: {
+        y: { title: { display: true, text: 'VRAM (MB)', font: axisTitleFont, padding: { bottom: 8 } }, ticks: { font: axisTickFont }, beginAtZero: true },
+        x: { title: { display: true, text: 'Adapter Config (rank + target)', font: axisTitleFont, padding: { top: 8 } }, ticks: { font: axisTickFont } }
+      }
+    }
+  });
+})();
+
+// --- Practice: VRAM usage breakdown ---
+(function() {
+  var labels = ['Base Model', 'Adapters\n(peak)', 'Safety Margin', 'Unused'];
+  var data = [3400, 6344, 2048, 3568];
+  var colors = ['#7c3043', '#2a6496', '#c9944a', '#ddd'];
+
+  new Chart(document.getElementById('practiceChart'), {
+    type: 'doughnut',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: data,
+        backgroundColor: colors,
+        borderColor: '#fff',
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      aspectRatio: 2.0,
+      plugins: {
+        title: { display: true, text: 'T4 VRAM Allocation (15,360 MB total)', font: chartTitleFont, padding: { bottom: 14 } },
+        legend: { position: 'right', labels: { font: legendFont, padding: 12 } },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              var pct = (ctx.raw / 15360 * 100).toFixed(1);
+              return ctx.label.replace('\n', ' ') + ': ' + ctx.raw + ' MB (' + pct + '%)';
+            }
+          }
+        }
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>

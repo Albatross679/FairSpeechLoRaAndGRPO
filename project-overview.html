@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GRPO Fairness-Aware ASR Fine-Tuning — Project Overview</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
@@ -48,12 +49,12 @@ hr { border: none; border-top: 2px solid #7c3043; margin: 1.5em 0; }
 h2 { font-size: 1.7em; color: #3a3a3a; border-bottom: 2px solid #7c3043; padding-bottom: 0.25em; margin-top: 2em; }
 h3 { font-size: 1.45em; color: #3a3a3a; margin-top: 1.5em; }
 
-table { width: 100%; border-collapse: collapse; font-size: 0.92em; margin: 1.2em 0; }
-thead th { background: #7c3043; color: #fff; padding: 0.6em 0.8em; text-align: left; font-weight: 600; }
+table { width: 100%; border-collapse: collapse; font-size: 0.92em; margin: 1.2em 0; border-top: 2px solid #7c3043; border-bottom: 2px solid #7c3043; }
+thead th { padding: 0.6em 0.8em; text-align: left; font-weight: 700; color: #3a3a3a; border-bottom: 3px solid #7c3043; }
 tbody td { padding: 0.55em 0.8em; border-bottom: 1px solid #ddd; }
-tbody tr:nth-child(even) { background: #f5f3f0; }
-tbody tr:hover { background: #f0ece8; }
-tr.highlight { background: #f5eaed !important; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: #f5eaed; }
+tr.highlight { background: transparent; }
 
 .callout { border-left: 4px solid #7c3043; background: #f1f1f1; padding: 1em 1.2em; margin: 1.2em 0; border-radius: 0 6px 6px 0; }
 
@@ -66,6 +67,27 @@ nav#toc ul { list-style: none; padding: 0; }
 nav#toc li { margin-bottom: 0.3em; }
 
 .math-block { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 1.2em 1.5em; margin: 1.2em 0; text-align: center; overflow-x: auto; }
+
+/* Code block */
+pre.code-block {
+  background: #faf9f7;
+  border: 1px solid #ddd;
+  border-left: 3px solid #7c3043;
+  border-radius: 4px;
+  padding: 1.2em 1.5em;
+  margin: 1.2em 0;
+  overflow-x: auto;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.85em;
+  line-height: 1.65;
+  color: #3a3a3a;
+}
+pre.code-block code { display: block; }
+pre.code-block .comment { color: #998; font-style: italic; }
+
+#top10Table tbody tr { cursor: pointer; transition: background 0.15s; }
+#top10Table tbody tr.row-active { background: #f5eaed; font-weight: 600; }
+#top10Table tbody tr.row-dimmed { opacity: 0.35; }
 
 footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-size: 0.85em; color: #999; }
 
@@ -93,13 +115,11 @@ footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-s
   <aside class="sidebar" id="sidebar-toc">
     <strong>Contents</strong>
     <ul>
-      <li><a href="#overview">Overview</a></li>
-      <li><a href="#datasets">Datasets</a></li>
-      <li><a href="#models">Models</a></li>
-      <li><a href="#perturbations">Perturbations</a></li>
-      <li><a href="#metrics">Metrics</a></li>
-      <li><a href="#findings">Key Findings</a></li>
-      <li><a href="#next">Next Steps</a></li>
+      <li><a href="#overview">1. Overview</a></li>
+      <li><a href="#datasets">2. Datasets</a></li>
+      <li><a href="#midterm">3. Midterm Findings</a></li>
+      <li><a href="#lora-baseline">4. Standard LoRA Baseline</a></li>
+      <li><a href="#next">5. Next Steps</a></li>
     </ul>
   </aside>
 
@@ -113,16 +133,14 @@ footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-s
       <ul>
         <li><a href="#overview">1. Overview</a></li>
         <li><a href="#datasets">2. Datasets</a></li>
-        <li><a href="#models">3. Models Evaluated</a></li>
-        <li><a href="#perturbations">4. Perturbations</a></li>
-        <li><a href="#metrics">5. Metrics</a></li>
-        <li><a href="#findings">6. Key Findings</a></li>
-        <li><a href="#next">7. Next Steps</a></li>
+        <li><a href="#midterm">3. Midterm Findings (COLM 2026)</a></li>
+        <li><a href="#lora-baseline">4. Standard LoRA Baseline</a></li>
+        <li><a href="#next">5. Next Steps</a></li>
       </ul>
     </nav>
 
     <!-- Overview -->
-    <h2 id="overview">Overview</h2>
+    <h2 id="overview">1. Overview</h2>
     <p>
       As pretrained large language models replace task-specific decoders in speech recognition, a critical
       question arises: do their text-derived priors make recognition fairer or more biased across demographic groups?
@@ -130,17 +148,36 @@ footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-s
     <p>
       We evaluated <strong>nine ASR models</strong> spanning three architectural generations on
       ~43,000 utterances across <strong>five demographic axes</strong> (ethnicity, accent, gender, age, first language)
-      using Common Voice 24 and Meta's Fair-Speech. We then stress-tested all models under
+      using Common Voice 25 and Meta's Fair-Speech. We then stress-tested all models under
       <strong>12 acoustic degradation conditions</strong> across both datasets, totaling 216 inference runs.
       The midterm paper, <em>"Do LLM Decoders Listen Fairly?"</em>, is under review at COLM 2026.
     </p>
 
     <!-- Datasets -->
-    <h2 id="datasets">Datasets</h2>
+    <h2 id="datasets">2. Datasets</h2>
+
+    <h3>File structure</h3>
+    <pre class="code-block"><code>datasets/
+├── meta_speech_fairness/              <span class="comment"># Fair-Speech — 6.1 GB</span>
+│   ├── downloaded_file.tsv            <span class="comment"># metadata: hash_name, transcript, ethnicity, age, L1, …</span>
+│   └── asr_fairness_audio/            <span class="comment"># 26,473 WAV files (flat directory)</span>
+│
+├── cv-corpus-25.0-2026-03-09/en/      <span class="comment"># Common Voice 25 — 84 GB</span>
+│   ├── train.tsv                      <span class="comment"># 1.15M utterances</span>
+│   ├── dev.tsv                        <span class="comment"># 16.4K utterances</span>
+│   ├── test.tsv                       <span class="comment"># 16.4K utterances</span>
+│   ├── validated.tsv                  <span class="comment"># 1.88M (superset of train+dev+test)</span>
+│   ├── other.tsv / invalidated.tsv
+│   ├── clip_durations.tsv
+│   └── clips/                         <span class="comment"># 2.20M MP3 files</span>
+│
+└── librispeech/LibriSpeech/test-clean/ <span class="comment"># LibriSpeech — 350 MB</span>
+    └── {speaker_id}/{chapter_id}/      <span class="comment"># 40 speakers × N chapters</span>
+        └── 1089-134686-0000.flac       <span class="comment"># 2,620 FLAC files total</span></code></pre>
 
     <table>
       <thead>
-        <tr><th>Dataset</th><th>Source</th><th>Utterances</th><th>Duration</th><th>Size</th><th>Demographic Axes</th></tr>
+        <tr><th>Dataset</th><th>Source</th><th>Utterances</th><th>Duration</th><th>Size</th><th>Demographic Axes</th><th>Speaker ID</th><th>Access</th></tr>
       </thead>
       <tbody>
         <tr class="highlight">
@@ -148,32 +185,39 @@ footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-s
           <td>Meta Research (Veliche et al., 2024)</td>
           <td>~26,470</td>
           <td>~54 hrs</td>
-          <td>~6 GB (WAV)</td>
-          <td>Ethnicity (7), gender, age, L1 (30+), SES (3)</td>
+          <td>6.1 GB (WAV)</td>
+          <td>Ethnicity (7), gender (2), age (4 brackets), L1 (30), SES (3)</td>
+          <td>None</td>
+          <td>Manual download; license form on Meta website</td>
         </tr>
         <tr class="highlight">
-          <td><strong>Common Voice 24</strong></td>
+          <td><strong>Common Voice 25</strong></td>
           <td>Mozilla (Ardila et al., 2020)</td>
-          <td>~16,400</td>
-          <td>~23 hrs</td>
-          <td>~1.2 GB (MP3)</td>
-          <td>Accent (6 groups, $n \geq 50$), gender, age (5 bins)</td>
+          <td>1.88M validated; 2.20M clips total</td>
+          <td>3,766 hrs</td>
+          <td>84 GB (MP3)</td>
+          <td>Accent (6&ndash;8 groups, $n \geq 50$), gender (5), age (9 bins)</td>
+          <td><code>client_id</code> (3,001 unique)</td>
+          <td>MDC REST API; requires <code>MDC_CLIENT_ID</code> + <code>MDC_API_KEY</code></td>
         </tr>
         <tr>
           <td><strong>LibriSpeech test-clean</strong></td>
           <td>OpenSLR (Panayotov et al., 2015)</td>
           <td>2,620</td>
           <td>~5.4 hrs</td>
-          <td>346 MB (FLAC)</td>
-          <td>None</td>
+          <td>350 MB (FLAC)</td>
+          <td>Gender (2, via SPEAKERS.TXT)</td>
+          <td><code>speaker_id</code> (40 unique)</td>
+          <td>Direct download; no auth</td>
         </tr>
       </tbody>
     </table>
 
     <h3>Why Fair-Speech matters</h3>
     <p>
-      Because all speakers read the <em>same prompted sentences</em>, any WER differences are attributable to
-      acoustic or model factors, not vocabulary confounds. This makes Fair-Speech the primary dataset for
+      All speakers read from a <em>shared pool of prompted sentences</em> (23,045 unique sentences across 26,471 utterances),
+      so vocabulary is largely controlled and WER differences are primarily attributable to
+      acoustic or model factors, not lexical confounds. This makes Fair-Speech the primary dataset for
       isolating demographic bias. To our knowledge, we report the first comprehensive multi-model benchmark on Fair-Speech.
     </p>
 
@@ -189,21 +233,41 @@ footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-s
         <tr><td>transcription</td><td>Reference text (prompted sentence)</td><td>"boyd was not always popular with rank and file officers"</td></tr>
         <tr><td>ethnicity</td><td>Self-reported ethnicity (7 groups)</td><td>Black or African American, White, Asian/South Asian/Asian American, Hispanic/Latino/Spanish, Native American, Pacific Islander, Middle Eastern/North African</td></tr>
         <tr><td>gender</td><td>Binary</td><td>male, female</td></tr>
-        <tr><td>age</td><td>Bracket</td><td>18-22, 23-30, 31-45, 46-65</td></tr>
+        <tr><td>age</td><td>Bracket (4 ranges)</td><td>18 - 22, 23 - 30, 31 - 45, 46 - 65</td></tr>
         <tr><td>first_language</td><td>Self-reported L1 (30+ languages)</td><td>English, Spanish, Mandarin, Hindi, Tagalog, French, ...</td></tr>
         <tr><td>socioeconomic_bkgd</td><td>Self-reported SES (3 levels)</td><td>Low, Medium, Affluent</td></tr>
       </tbody>
     </table>
     <p>
       Audio stored as WAV files in a flat directory, named by hash_name.
-      ~593 unique speakers, ~26,470 utterances. Because all speakers read the same prompted sentences,
-      any WER differences are attributable to acoustic or model factors, not vocabulary confounds.
+      26,471 utterances from a shared pool of 23,045 prompted sentences.
+      <strong>Limitation:</strong> <code>hash_name</code> is 1:1 per utterance (26,471 unique hash_names = 26,471 rows)
+      with no speaker-grouping column, so speaker-disjoint train/eval splits are not possible for this dataset.
     </p>
 
-    <h3>Common Voice 24 schema</h3>
+    <h3>Common Voice 25 schema</h3>
     <p>
-      Standard Mozilla Common Voice format: a tab-separated metadata file with MP3 audio clips (~1.2 GB for test split, ~23 hours).
-      We use the English test split. Average utterance: ~5 seconds.
+      The full Common Voice 25 English corpus is 84 GB (2.20M clips, 3,766 hrs) and ships pre-split into
+      <code>train.tsv</code> (1.15M utterances), <code>dev.tsv</code> (16.4K), and <code>test.tsv</code> (16.4K),
+      plus <code>validated.tsv</code> (1.88M) and <code>other.tsv</code> (383K).
+      We use the <strong>test split</strong> for midterm benchmarking and the <strong>train split</strong> for fine-tuning (Phase 2+).
+    </p>
+    <h4>Local completeness</h4>
+    <table>
+      <thead>
+        <tr><th>Dataset</th><th>Split</th><th>Metadata rows</th><th>Audio on disk</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <tr><td rowspan="1"><strong>Fair-Speech</strong></td><td>all</td><td>26,471</td><td>26,473 WAV</td><td>Complete</td></tr>
+        <tr><td rowspan="3"><strong>Common Voice 25</strong></td><td>train</td><td>1,147,812</td><td>1,133,664 MP3</td><td>98.8% (14,148 missing)</td></tr>
+        <tr><td>dev</td><td>16,403</td><td>14,134 MP3</td><td>86.2% (2,269 missing)</td></tr>
+        <tr><td>test</td><td>16,403</td><td>13,914 MP3</td><td>84.8% (2,489 missing)</td></tr>
+        <tr><td rowspan="1"><strong>LibriSpeech test-clean</strong></td><td>all</td><td>2,620</td><td>2,620 FLAC</td><td>Complete</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Common Voice TSVs reference clips not present in the official archive&mdash;likely
+      removed by contributors after metadata generation. Our pipeline filters to audio present on disk.
     </p>
     <table>
       <thead><tr><th>Column</th><th>Description</th><th>Example values</th></tr></thead>
@@ -212,20 +276,24 @@ footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-s
         <tr><td>path</td><td>MP3 filename</td><td>common_voice_en_XXXXX.mp3</td></tr>
         <tr><td>sentence</td><td>Reference transcription (Wikipedia text)</td><td>"in korea carnations express admiration love and gratitude"</td></tr>
         <tr><td>accents</td><td>Self-reported accent (long-form)</td><td>United States English, India and South Asia, England English, Canadian English, Australian English, African</td></tr>
-        <tr><td>gender</td><td>Self-reported</td><td>male_masculine, female_feminine</td></tr>
-        <tr><td>age</td><td>Decade bin</td><td>teens, twenties, thirties, fourties, fifties, ...</td></tr>
+        <tr><td>gender</td><td>Self-reported (5 values)</td><td>male_masculine, female_feminine, non-binary, transgender, do_not_wish_to_say</td></tr>
+        <tr><td>age</td><td>Decade bin (9 bins)</td><td>teens, twenties, thirties, fourties, fifties, sixties, seventies, eighties, nineties</td></tr>
       </tbody>
     </table>
     <p>
-      Audio stored as MP3 clips in a flat directory. ~16,400 utterances across 6 accent groups ($n \geq 50$ each),
+      Audio stored as MP3 clips in a flat directory. The test split has ~16,400 utterances across 6 accent groups ($n \geq 50$ each),
       including a large Indian-accent subgroup ($n = 511$) that enabled fine-grained hallucination analysis.
+      The train split has 8 accent groups with $n \geq 50$ (us, england, canada, indian, australia, african, newzealand, Northumbrian).
+      The raw <code>client_id</code> column is preserved as <code>speaker_id</code> in processed manifests
+      (3,001 unique speakers across 18.9K utterances in train).
     </p>
 
     <h3>LibriSpeech test-clean schema</h3>
     <p>
-      Hierarchical directory structure with FLAC audio (346 MB compressed, ~5.4 hours).
-      2,620 utterances from Project Gutenberg audiobooks. No demographic metadata &mdash; used only as a
-      reference baseline to confirm model competence (all 9 models achieve 1.5&ndash;3.5% WER).
+      Hierarchical directory structure with FLAC audio (350 MB, ~5.4 hours).
+      40 unique speakers (20F, 20M), 2,620 utterances from Project Gutenberg audiobooks.
+      Gender metadata available via <code>SPEAKERS.TXT</code>; no ethnicity, accent, or age labels.
+      Used primarily as a held-out accuracy baseline to confirm model competence (all 9 models achieve 1.5&ndash;3.5% WER).
     </p>
     <table>
       <thead><tr><th>Element</th><th>Format</th><th>Description</th></tr></thead>
@@ -240,52 +308,23 @@ footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-s
 
     <h3>Processed manifests</h3>
     <p>
-      Raw datasets are normalized into standardized CSV manifests for the inference pipeline.
+      Raw datasets are normalized into standardized CSV manifests for the inference pipeline:
+      <code>cv_train.csv</code> (Common Voice), <code>ls_test_clean.csv</code> (LibriSpeech), and Fair-Speech manifests.
       Demographic labels are shortened (e.g., "Black or African American" &rarr; "Black/AA",
       "United States English" &rarr; "us"), gender is standardized, and age brackets are cleaned.
-      Each manifest row contains an utterance ID, absolute audio path, normalized reference text, and all
-      available demographic columns for that dataset.
+      Each manifest row contains an utterance ID, <code>speaker_id</code> (where available), absolute audio path,
+      normalized reference text, and all available demographic columns for that dataset.
     </p>
 
-    <h3>Dataset access</h3>
-    <table>
-      <thead>
-        <tr><th>Dataset</th><th>Access method</th><th>Auth required</th><th>Full download size</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><strong>LibriSpeech test-clean</strong></td>
-          <td>Direct download from OpenSLR</td>
-          <td>None</td>
-          <td>346 MB (.tar.gz)</td>
-        </tr>
-        <tr>
-          <td><strong>Common Voice 25.0 English</strong></td>
-          <td>Mozilla Data Collective REST API</td>
-          <td>MDC API key (env: <code>MDC_CLIENT_ID</code>, <code>MDC_API_KEY</code>). Must accept dataset terms in browser before API access works.</td>
-          <td>88 GB (.tar.gz)</td>
-        </tr>
-        <tr>
-          <td><strong>Fair-Speech</strong></td>
-          <td>Manual download from Meta AI</td>
-          <td>License agreement form on Meta website &mdash; no API available. Meta emails a download link after acceptance.</td>
-          <td>~6 GB (estimated)</td>
-        </tr>
-      </tbody>
-    </table>
+    <!-- Midterm Findings -->
+    <h2 id="midterm">3. Midterm Findings (COLM 2026)</h2>
+    <p>
+      The midterm paper, <em>"Do LLM Decoders Listen Fairly?"</em> (Ginjala &amp; Wen, under review at COLM 2026),
+      benchmarked nine ASR models across three architectural generations on ~43,000 utterances under clean and
+      degraded conditions. The methodology and key results are summarized below.
+    </p>
 
-    <p><strong>Download URLs:</strong></p>
-    <ul>
-      <li><strong>LibriSpeech</strong>: <code>https://www.openslr.org/resources/12/test-clean.tar.gz</code></li>
-      <li><strong>Common Voice</strong>: presigned URL via <code>POST /api/datasets/cmndapwry02jnmh07dyo46mot/download</code> at <code>datacollective.mozillafoundation.org</code> (dataset ID: <code>cmndapwry02jnmh07dyo46mot</code>). URL valid 12 hours, rate limit 30/day.</li>
-      <li><strong>Fair-Speech</strong>: <code>https://ai.meta.com/datasets/speech-fairness-dataset/</code> (manual form)</li>
-    </ul>
-
-    <p><strong>Note:</strong> Common Voice is available as version 25.0 on MDC (version 24.0 used in the midterm paper is no longer listed).
-      Neither Common Voice 24 nor Fair-Speech are on HuggingFace. LibriSpeech is available via HuggingFace (<code>librispeech_asr</code>) but the OpenSLR direct download is simpler.</p>
-
-    <!-- Models -->
-    <h2 id="models">Models Evaluated</h2>
+    <h3>Models evaluated</h3>
     <p>Nine open-weight models from HuggingFace, grouped by the role of the language model in decoding:</p>
 
     <table>
@@ -328,8 +367,7 @@ footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-s
       <strong>Generation 3</strong>: audio embeddings routed into a pretrained LLM backbone.
     </p>
 
-    <!-- Perturbations -->
-    <h2 id="perturbations">Perturbations</h2>
+    <h3>Perturbations</h3>
     <p>
       Real-world speech is rarely clean. Degraded signals force the decoder to compensate from its language prior,
       potentially revealing demographic biases invisible on clean benchmarks. We tested all models under
@@ -352,35 +390,47 @@ footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-s
       Total: 9 models &times; 12 conditions &times; 2 datasets = <strong>216 inference runs</strong>.
     </p>
 
-    <!-- Metrics -->
-    <h2 id="metrics">Metrics</h2>
+    <h3>Metrics</h3>
     <p>Primary accuracy metric: Word Error Rate (WER). Primary fairness metric: max/min ratio (MMR):</p>
     <div class="math-block">
       $$\text{MMR} = \frac{\max_{g \in G}\, \text{WER}_g}{\min_{g \in G}\, \text{WER}_g}$$
     </div>
+    <ul>
+      <li>$G$ = demographic groups with $n \geq 50$</li>
+      <li>$\text{MMR} = 1.0$ is perfect parity; preferred over absolute gap because it is scale-invariant</li>
+      <li>All group-level WERs include 95% bootstrap CIs (200 resamples)</li>
+    </ul>
+
+    <strong>Error decomposition</strong> (Morris et al., 2004)
+    <ul>
+      <li><strong>Substitutions</strong> &mdash; acoustic confusion</li>
+      <li><strong>Deletions</strong> &mdash; missed words</li>
+      <li><strong>Insertions</strong> &mdash; decoder-driven hallucinations, further classified:
+        <ul>
+          <li><em>Repetition</em> &mdash; autoregressive loops</li>
+          <li><em>Syntactic</em> &mdash; function words</li>
+          <li><em>Content</em> &mdash; semantic fabrications</li>
+        </ul>
+      </li>
+    </ul>
+
+    <strong>Perturbation fairness &mdash; is the model's fairness real or fragile?</strong>
     <p>
-      where $G$ is the set of demographic groups with $n \geq 50$.
-      $\text{MMR} = 1.0$ is perfect parity; preferred over absolute gap because it is scale-invariant.
-      All group-level WERs include 95% bootstrap CIs (200 resamples).
-    </p>
-    <p>
-      Error decomposition following Morris et al. (2004): substitutions, insertions, and deletions &mdash;
-      distinguishing acoustic confusion from decoder-driven hallucinations.
-      Insertions further classified into <em>repetition</em> (autoregressive loops),
-      <em>syntactic</em> (function words), and <em>content</em> (semantic fabrications).
-    </p>
-    <p>
-      Perturbation fairness measured by amplification ratio:
+      Clean audio is easy &mdash; the model barely needs its language prior.
+      Degraded audio forces that reliance, surfacing demographic biases hidden under clean conditions.
     </p>
     <div class="math-block">
       $$\alpha = \frac{\text{MMR}_\text{pert}}{\text{MMR}_\text{clean}}$$
     </div>
-    <p>where $\alpha > 1$ means degradation widens demographic gaps and $\alpha < 1$ means compression.</p>
+    <ul>
+      <li>$\alpha = 1$ &mdash; no fairness change</li>
+      <li>$\alpha > 1$ &mdash; degradation <strong>widens</strong> demographic gaps</li>
+      <li>$\alpha < 1$ &mdash; degradation <strong>compresses</strong> gaps (often "low-accuracy parity")</li>
+    </ul>
 
-    <!-- Findings -->
-    <h2 id="findings">Key Findings</h2>
+    <h3>Key findings</h3>
 
-    <h3>Ethnicity fairness</h3>
+    <strong>Ethnicity fairness</strong>
     <ol>
       <li><strong>Black/AA speakers have the highest WER across all 9 models</strong>, regardless of generation or
         architecture. Statistically significant (non-overlapping 95% CIs) for 8 of 9 models.</li>
@@ -391,7 +441,7 @@ footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-s
         both absolute WER per group and relative disparity.</li>
     </ol>
 
-    <h3>Accent fairness and hallucination</h3>
+    <strong>Accent fairness and hallucination</strong>
     <ol>
       <li><strong>Audio compression predicts accent fairness</strong> more than LLM scale. Low-compression
         Qwen3-1.7B (accent MMR = 1.82) outperforms high-compression Granite-2B (MMR = 3.30) at comparable parameter count.</li>
@@ -403,7 +453,7 @@ footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-s
         (e.g., "grow sea monkeys" &rarr; "go and see what happens").</li>
     </ol>
 
-    <h3>Robustness under degradation</h3>
+    <strong>Robustness under degradation</strong>
     <ol>
       <li><strong>Severe degradation paradoxically compresses fairness gaps.</strong> Under 30% masking, all models'
         ethnicity MMR compresses ($\alpha = 0.36\text{-}0.79$) &mdash; "low-accuracy parity" where all groups converge
@@ -421,8 +471,293 @@ footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-s
       primary lever for equitable and robust speech recognition.
     </div>
 
+    <!-- Standard LoRA Baseline -->
+    <h2 id="lora-baseline">4. Standard LoRA Baseline</h2>
+
+    <h3>Target model: Qwen3-ASR-1.7B</h3>
+    <p>
+      We fine-tune <strong>Qwen3-ASR-1.7B</strong> (Qwen, 2025), a Generation 3 speech model that routes
+      audio embeddings directly into a pretrained LLM decoder. It achieved the best accuracy in our midterm
+      evaluation (4.73% WER on Fair-Speech, 7.76% on Common Voice) while maintaining competitive fairness,
+      making it the natural target for fairness-aware fine-tuning.
+    </p>
+    <table>
+      <thead>
+        <tr><th colspan="2">Model Architecture</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Architecture</td><td>Audio encoder + LLM decoder (Qwen3-based)</td></tr>
+        <tr><td>Total parameters</td><td>1.7B</td></tr>
+        <tr><td>Audio encoder</td><td>24 layers, 16 attention heads, d_model=1024, 128 mel bins</td></tr>
+        <tr><td>LLM decoder (thinker)</td><td>Qwen3, 28 layers, 16 attention heads (8 KV heads, GQA), hidden=2048, FFN=6144</td></tr>
+        <tr><td>Activation</td><td>SiLU (decoder), GELU (encoder)</td></tr>
+        <tr><td>Positional encoding</td><td>RoPE ($\theta = 10^6$, max 65,536 positions)</td></tr>
+        <tr><td>Vocabulary</td><td>151,936 tokens</td></tr>
+        <tr><td>Languages</td><td>30 (English, Chinese, Arabic, French, Spanish, Korean, Japanese, ...)</td></tr>
+        <tr><td>Precision</td><td>bf16</td></tr>
+        <tr><td>VRAM footprint (frozen)</td><td>~3.4 GB</td></tr>
+        <tr><td>HuggingFace ID</td><td>Qwen/Qwen3-ASR-1.7B</td></tr>
+      </tbody>
+    </table>
+    <p>
+      The encoder compresses raw audio into embeddings with low information loss (no discrete codebook),
+      which the LLM decoder autoregressively transcribes. During LoRA fine-tuning, the audio encoder is
+      <strong>frozen</strong>&mdash;only the decoder&rsquo;s attention and (optionally) MLP projections are adapted.
+    </p>
+
+    <h3>Training setup</h3>
+    <p>
+      We established a <strong>standard LoRA baseline</strong> ($\lambda = 0$, no fairness objective)
+      through a prototyping pipeline that progressively scaled from 1 batch to 2,000 samples,
+      with each stage gating the next.
+      All work ran on a single <strong>Lightning.ai Studio</strong> instance:
+    </p>
+    <table>
+      <thead><tr><th>Resource</th><th>Specification</th></tr></thead>
+      <tbody>
+        <tr><td>GPU</td><td>NVIDIA Tesla T4 (15 GB VRAM)</td></tr>
+        <tr><td>CPU</td><td>Intel Xeon Platinum 8259CL, 4 vCPUs @ 2.50 GHz</td></tr>
+        <tr><td>RAM</td><td>16 GB</td></tr>
+        <tr><td>Disk</td><td>229 GB (overlay)</td></tr>
+        <tr><td>CUDA</td><td>12.8</td></tr>
+        <tr><td>PyTorch</td><td>2.8.0+cu128</td></tr>
+        <tr><td>OS</td><td>Ubuntu 24.04 LTS</td></tr>
+        <tr><td>Platform</td><td>Lightning.ai Studio</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Prototyping pipeline</h3>
+    <table>
+      <thead>
+        <tr><th>Stage</th><th>Purpose</th><th>Scale</th><th>Steps</th><th>Key Result</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>0. LoRA Prototype</strong></td>
+          <td>Can LoRA attach to Qwen3-ASR? Fits VRAM?</td>
+          <td>200 samples</td>
+          <td>100</td>
+          <td>VRAM 7.7 GB / 15 GB budget; 6.4M trainable params (0.31%)</td>
+        </tr>
+        <tr>
+          <td><strong>1. Pipeline Sanity</strong></td>
+          <td>6 gate checks before any real training</td>
+          <td>1 batch</td>
+          <td>200</td>
+          <td>All 6 passed: overfit &rarr; 0.0000, gradients &check;, checkpoint round-trip &check;</td>
+        </tr>
+        <tr>
+          <td><strong>2. HP Sweep</strong></td>
+          <td>Large-scale hyperparameter search (PLoRA + ASHA + RsLoRA)</td>
+          <td>500 samples</td>
+          <td>100 &times; 220 trials</td>
+          <td>Best eval loss 0.1424; rank = 4, MLP targeting, LR 3.47e-4</td>
+        </tr>
+        <tr>
+          <td><strong>3. Validation</strong></td>
+          <td>Re-rank top 3 at medium scale</td>
+          <td>1,000 samples</td>
+          <td>300 &times; 3 configs</td>
+          <td>Rankings flipped &mdash; attention-only LoRA won</td>
+        </tr>
+        <tr class="highlight">
+          <td><strong>4. Final Training</strong></td>
+          <td>Train with locked config</td>
+          <td>2,000 samples</td>
+          <td>500</td>
+          <td>Loss 2.31 &rarr; 0.27; adapter 8.6 MB</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>HP sweep: PLoRA + ASHA + RsLoRA</h3>
+    <p>
+      We used three techniques to run a large-scale HP sweep on a single T4:
+    </p>
+    <ul>
+      <li><strong>PLoRA (Packed LoRA)</strong> &mdash; attach <em>N</em> parallel LoRA adapters to a single frozen
+        base model and train them simultaneously via round-robin gradient steps, eliminating redundant model loading</li>
+      <li><strong>ASHA</strong> (Asynchronous Successive Halving) &mdash; early-stop unpromising trials at rung
+        checkpoints {25, 50, 75} steps, keeping only the top 1/3 per rung</li>
+      <li><strong>RsLoRA</strong> (rank-stable scaling) &mdash; replace the standard LoRA scaling $\alpha/r$ with
+        $\alpha/\sqrt{r}$, decoupling rank from effective learning rate</li>
+    </ul>
+    <p>
+      <strong>220 Optuna trials</strong> total (TPE sampler, ask/tell API) across 9 HP dimensions, each training
+      for 100 steps on a 500-sample stratified subset (Fair-Speech + Common Voice).
+      Gradient isolation was verified before sweeping (max parameter diff = 0.0 across 224 params).
+      Total wall-clock: <strong>~13 hours</strong>, peak VRAM 9.7 GB.
+    </p>
+    <table>
+      <thead>
+        <tr><th>Hyperparameter</th><th>Search Space</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>LoRA rank</td><td>{4, 8, 16, 32}</td></tr>
+        <tr><td>Alpha ratio ($\alpha = \text{ratio} \times r$)</td><td>{1, 2}</td></tr>
+        <tr><td>Learning rate</td><td>1e-5 &ndash; 1e-3 (log-uniform)</td></tr>
+        <tr><td>Dropout</td><td>{0.0, 0.05, 0.1, 0.15}</td></tr>
+        <tr><td>Target MLP layers</td><td>{True, False}</td></tr>
+        <tr><td>Weight decay</td><td>1e-6 &ndash; 1e-2 (log-uniform)</td></tr>
+        <tr><td>LR scheduler</td><td>{constant, linear, cosine}</td></tr>
+        <tr><td>Warmup ratio</td><td>{0.0, 0.03, 0.1}</td></tr>
+        <tr><td>Gradient accum steps</td><td>{1, 2, 4}</td></tr>
+      </tbody>
+    </table>
+    <p>
+      We ran two 100-trial sweeps: one without RsLoRA, one with. ASHA pruned 70% and 64% of trials
+      respectively, reducing effective compute to ~68 full-trial equivalents per sweep.
+    </p>
+    <table>
+      <thead>
+        <tr><th>Sweep</th><th>Trials</th><th>Best Loss</th><th>Best Rank</th><th>Pruned</th><th>Time</th></tr>
+      </thead>
+      <tbody>
+        <tr class="highlight">
+          <td><strong>PLoRA + ASHA</strong></td><td>100</td><td><strong>0.1424</strong></td><td>4</td><td>70/100</td><td>358 min</td>
+        </tr>
+        <tr>
+          <td>PLoRA + ASHA + RsLoRA</td><td>100</td><td>0.1451</td><td>8</td><td>64/100</td><td>387 min</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Eval loss over training steps (top 10 configs)</h3>
+    <p>
+      Step-level eval loss for the 10 best-performing trials across <em>both</em> sweeps (5 without RsLoRA, 5 with).
+      Solid lines = without RsLoRA; dashed lines = with RsLoRA. All trials converge to a narrow
+      0.142&ndash;0.150 band by step 100. Hover any curve to highlight it.
+    </p>
+    <div style="margin:1.5em 0;">
+      <canvas id="top10LossCurves"></canvas>
+    </div>
+
+    <table id="top10Table">
+      <thead>
+        <tr><th>#</th><th>Trial</th><th>Final Loss</th><th>Rank</th><th>MLP</th><th>LR</th><th>Dropout</th><th>RsLoRA</th></tr>
+      </thead>
+      <tbody>
+        <tr data-curve="0" class="highlight"><td>1</td><td>T77</td><td><strong>0.1424</strong></td><td>4</td><td>Yes</td><td>3.47e-4</td><td>0.05</td><td>No</td></tr>
+        <tr data-curve="1"><td>2</td><td>T16</td><td>0.1441</td><td>8</td><td>Yes</td><td>2.41e-4</td><td>0.15</td><td>No</td></tr>
+        <tr data-curve="2"><td>3</td><td>T85</td><td>0.1442</td><td>4</td><td>Yes</td><td>3.23e-4</td><td>0.05</td><td>No</td></tr>
+        <tr data-curve="3"><td>4</td><td>T66</td><td>0.1451</td><td>8</td><td>Yes</td><td>2.91e-4</td><td>0.05</td><td>Yes</td></tr>
+        <tr data-curve="4"><td>5</td><td>T16</td><td>0.1471</td><td>4</td><td>Yes</td><td>2.83e-4</td><td>0.0</td><td>Yes</td></tr>
+        <tr data-curve="5"><td>6</td><td>T76</td><td>0.1485</td><td>4</td><td>Yes</td><td>3.15e-4</td><td>0.05</td><td>No</td></tr>
+        <tr data-curve="6"><td>7</td><td>T95</td><td>0.1486</td><td>4</td><td>Yes</td><td>3.29e-4</td><td>0.05</td><td>No</td></tr>
+        <tr data-curve="7"><td>8</td><td>T13</td><td>0.1488</td><td>4</td><td>Yes</td><td>8.58e-4</td><td>0.0</td><td>Yes</td></tr>
+        <tr data-curve="8"><td>9</td><td>T18</td><td>0.1493</td><td>32</td><td>Yes</td><td>2.22e-5</td><td>0.05</td><td>Yes</td></tr>
+        <tr data-curve="9"><td>10</td><td>T68</td><td>0.1499</td><td>8</td><td>Yes</td><td>3.02e-4</td><td>0.05</td><td>Yes</td></tr>
+      </tbody>
+    </table>
+
+    <h3>RsLoRA effect on rank preference</h3>
+    <p>
+      Standard LoRA scales the adapter update by $\alpha/r$, so doubling rank halves the effective
+      update magnitude. RsLoRA uses $\alpha/\sqrt{r}$ instead, softening this penalty.
+      The effect on the sweep was clear:
+    </p>
+    <table>
+      <thead>
+        <tr><th>Top-10 rank distribution</th><th>rank 4</th><th>rank 8</th><th>rank 32</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Without RsLoRA</td><td>8</td><td>2</td><td>0</td></tr>
+        <tr><td>With RsLoRA</td><td>2</td><td>7</td><td>1</td></tr>
+      </tbody>
+    </table>
+    <p>
+      RsLoRA shifted the optimal rank from 4 to 8 by letting higher-rank adapters retain more gradient signal.
+      However, the best absolute loss was still achieved without RsLoRA (0.142 vs 0.145).
+      Since we already swept alpha ratio alongside rank, the sweep could find the right scaling either way&mdash;RsLoRA
+      is a convenience for rank-agnostic tuning, not a strict improvement when alpha is co-optimized.
+    </p>
+
+    <h3>Final training (locked config)</h3>
+    <p>
+      The sweep winner (T77) was used for final training on 2,000 samples (1,787 train / 204 eval)
+      from Fair-Speech + Common Voice combined, with speaker-disjoint splits where speaker IDs are
+      available (Common Voice <code>client_id</code>).
+    </p>
+    <table>
+      <thead><tr><th>Parameter</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>LoRA rank / alpha</td><td>4 / 4 (ratio = 1)</td></tr>
+        <tr><td>Target modules</td><td>Attention + MLP (q, k, v, o, gate, up, down projections)</td></tr>
+        <tr><td>Learning rate</td><td>3.47e-4 (constant, no warmup)</td></tr>
+        <tr><td>Dropout</td><td>0.05</td></tr>
+        <tr><td>Weight decay</td><td>1.74e-4</td></tr>
+        <tr><td>Trainable params</td><td>4.36M / 2.04B (0.21%)</td></tr>
+        <tr><td>Training loss</td><td>1.38 &rarr; 0.09</td></tr>
+        <tr><td>Eval loss</td><td>0.128 &rarr; 0.111 (best at step 300)</td></tr>
+        <tr><td>Peak VRAM</td><td>7.17 GB</td></tr>
+        <tr><td>Adapter size</td><td>19.4 KB</td></tr>
+        <tr><td>Training time</td><td>~33 min (500 steps, ~1.1 epochs)</td></tr>
+      </tbody>
+    </table>
+    <div style="margin:1.5em 0;">
+      <canvas id="trainingChart"></canvas>
+    </div>
+
+    <h3>Baseline evaluation</h3>
+    <p>
+      The trained adapter was evaluated on three datasets with bootstrap 95% CIs (1,000 resamples).
+      All demographic groups have $n \geq 50$.
+    </p>
+
+    <table>
+      <thead>
+        <tr><th colspan="4">Fair-Speech &mdash; Ethnicity Axis (800 utterances, overall WER 3.15%)</th></tr>
+        <tr><th>Group</th><th>WER</th><th>N</th><th>95% CI</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Middle Eastern</td><td>1.49%</td><td>18</td><td>&mdash;</td></tr>
+        <tr><td>Hispanic</td><td>2.26%</td><td>75</td><td>[0.77%, 3.65%]</td></tr>
+        <tr><td>White</td><td>2.35%</td><td>178</td><td>[1.37%, 3.54%]</td></tr>
+        <tr><td>Pacific Islander</td><td>2.49%</td><td>38</td><td>&mdash;</td></tr>
+        <tr><td>Asian</td><td>2.84%</td><td>112</td><td>[1.66%, 4.39%]</td></tr>
+        <tr><td>Native American</td><td>3.12%</td><td>141</td><td>[1.96%, 4.61%]</td></tr>
+        <tr><td>Black/AA</td><td>4.39%</td><td>238</td><td>[3.11%, 5.70%]</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Fairness:</strong> max-min ratio 1.94, relative gap 93.8%</p>
+
+    <table>
+      <thead>
+        <tr><th colspan="4">Common Voice &mdash; Accent Axis (632 utterances, overall WER 2.66%)</th></tr>
+        <tr><th>Group</th><th>WER</th><th>N</th><th>95% CI</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>US</td><td>1.65%</td><td>100</td><td>[0.73%, 2.61%]</td></tr>
+        <tr><td>Northumbrian</td><td>1.71%</td><td>51</td><td>[0.77%, 2.69%]</td></tr>
+        <tr><td>African</td><td>2.04%</td><td>81</td><td>[0.79%, 3.44%]</td></tr>
+        <tr><td>Australia</td><td>2.13%</td><td>100</td><td>[1.16%, 3.42%]</td></tr>
+        <tr><td>Canada</td><td>2.29%</td><td>100</td><td>[1.08%, 3.71%]</td></tr>
+        <tr><td>England</td><td>2.45%</td><td>100</td><td>[1.34%, 3.66%]</td></tr>
+        <tr><td>Indian</td><td>6.11%</td><td>100</td><td>[3.89%, 8.48%]</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Fairness:</strong> max-min ratio 3.69, relative gap 269.5%, WER std 0.014</p>
+
+    <table>
+      <thead>
+        <tr><th colspan="2">LibriSpeech test-clean (held-out accuracy baseline)</th></tr>
+        <tr><th>Metric</th><th>Value</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Overall WER</td><td>1.85%</td></tr>
+        <tr><td>Utterances</td><td>2,620</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Baseline summary:</strong> The sweep-optimized LoRA adapter achieves strong accuracy (1.85&ndash;3.15% WER)
+      with improved fairness over the initial config &mdash; the ethnicity max-min ratio dropped from 3.43 to 1.94.
+      Black/AA speakers still have the highest WER (4.39%), but the gap to the best group narrowed from 242% to 94%.
+      These baselines define the gaps that fairness-aware GRPO training aims to compress.
+    </div>
+
     <!-- Next Steps -->
-    <h2 id="next">Next Steps</h2>
+    <h2 id="next">5. Next Steps</h2>
     <p>
       The midterm findings motivate a <strong>fairness-aware fine-tuning intervention</strong> for Qwen3-ASR-1.7B
       using Group Relative Policy Optimization (GRPO) with a composite accuracy-fairness reward:
@@ -431,15 +766,17 @@ footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-s
       $$R = (1 - \lambda)\,(1 - \text{WER}) \;+\; \lambda\bigl(-\lvert \text{WER}_g - \overline{\text{WER}} \rvert\bigr)$$
     </div>
     <p>
-      We have prepared speaker-level stratified train/eval splits for Fair-Speech (80/20, ~21K/5.3K utterances,
-      stratified by ethnicity with disjoint speakers) and a demographic-aware data loading pipeline.
-      The remaining work: LoRA adapter integration, GRPO training loop, three fairness baselines
+      We train on both Fair-Speech and Common Voice combined (equal split), with speaker-disjoint train/eval splits
+      where speaker IDs are available (Common Voice <code>client_id</code>; Fair-Speech lacks speaker grouping).
+      A standard LoRA baseline (lambda=0) has been trained and evaluated, establishing per-group WER baselines
+      across ethnicity and accent axes.
+      The remaining work: GRPO training loop, three fairness baselines
       (FairLoRA, Group-DRO, ICASSP 2026 fairness-prompted), and a $\lambda$ sweep to trace the
       accuracy&ndash;fairness Pareto frontier.
     </p>
 
     <footer>
-      <p><small>Last updated: April 5, 2026</small></p>
+      <p><small>Last updated: April 8, 2026</small></p>
     </footer>
   </div>
 
@@ -466,6 +803,211 @@ footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-s
   window.addEventListener('scroll', onScroll, { passive: true });
   onScroll();
 })();
+</script>
+<script>
+// Chart font constants (Burgundy Palatino style spec)
+var palatino = 'Palatino Linotype, Palatino, Book Antiqua, Georgia, serif';
+var chartTitleFont = { size: 17, family: palatino };
+var axisTitleFont = { size: 15, family: palatino, weight: '600' };
+var axisTickFont = { size: 13, family: palatino };
+var legendFont = { size: 13, family: palatino };
+
+// --- Standard LoRA training: loss over 500 steps ---
+(function() {
+  var trainSteps = [10,20,30,40,50,60,70,80,90,100,110,120,130,140,150,160,170,180,190,200,
+                    210,220,230,240,250,260,270,280,290,300,310,320,330,340,350,360,370,380,390,400,
+                    410,420,430,440,450,460,470,480,490,500];
+  var trainLoss = [1.3787,0.4059,0.5642,0.2294,0.3675,0.2084,0.4140,0.2614,0.3187,0.2019,
+                   0.3692,0.2760,0.3350,0.2518,0.3466,0.3193,0.4444,0.1582,0.2772,0.1209,
+                   0.3195,0.1789,0.3570,0.2145,0.1918,0.1926,0.0807,0.2426,0.4098,0.4239,
+                   0.4054,0.2733,0.1766,0.2731,0.2798,0.1959,0.2914,0.3503,0.3475,0.3426,
+                   0.2889,0.3541,0.1959,0.3705,0.1639,0.1330,0.1449,0.1974,0.0871,0.0858];
+  var evalSteps = [100, 200, 300, 400, 500];
+  var evalLoss  = [0.1276, 0.1250, 0.1112, 0.1275, 0.1164];
+
+  new Chart(document.getElementById('trainingChart'), {
+    type: 'line',
+    data: {
+      labels: trainSteps,
+      datasets: [
+        {
+          label: 'Train Loss (per 10 steps)',
+          data: trainLoss,
+          borderColor: 'rgba(124,48,67,0.45)',
+          backgroundColor: 'rgba(124,48,67,0.08)',
+          pointRadius: 2,
+          borderWidth: 1.5,
+          fill: true,
+          tension: 0.25
+        },
+        {
+          label: 'Eval Loss (per 100 steps)',
+          data: evalSteps.map(function(s, i) { return {x: s, y: evalLoss[i]}; }),
+          borderColor: '#2a6496',
+          backgroundColor: '#2a6496',
+          pointRadius: 6,
+          pointStyle: 'rectRot',
+          borderWidth: 2.5,
+          fill: false,
+          showLine: true,
+          tension: 0
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      aspectRatio: 2.2,
+      plugins: {
+        title: {display:true, text:'LoRA Fine-Tuning: Loss over 500 Steps (Sweep Winner Config)', font:chartTitleFont, padding:{bottom:14}},
+        legend: {position:'top', labels:{font:legendFont, padding:16}}
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          title: {display:true, text:'Training Step', font:axisTitleFont, padding:{top:8}},
+          min: 0, max: 510, ticks: {stepSize:50, font:axisTickFont}
+        },
+        y: {
+          title: {display:true, text:'Loss', font:axisTitleFont, padding:{bottom:8}},
+          min: 0, max: 1.5, ticks: {font:axisTickFont}
+        }
+      }
+    }
+  });
+})();
+
+// --- Top 10 eval loss curves over training steps (both sweeps) ---
+(function() {
+  var steps = [20, 25, 40, 50, 60, 75, 80, 100];
+  // Combined top 10: 5 from Stage 2 (no RsLoRA, solid), 5 from Stage 3 (RsLoRA, dashed)
+  var trials = [
+    {name:'T77 r4+mlp',          loss:[0.1804,0.1804,0.1723,0.1769,0.1905,0.1548,0.1495,0.1424], rslora:false, winner:true},
+    {name:'T16 r8+mlp',          loss:[0.2397,0.2084,0.1791,0.2021,0.1589,0.1517,0.1534,0.1441], rslora:false, winner:false},
+    {name:'T85 r4+mlp',          loss:[0.1814,0.1818,0.1722,0.1632,0.1589,0.1498,0.1517,0.1442], rslora:false, winner:false},
+    {name:'T66 r8+mlp [Rs]',     loss:[0.1721,0.1602,0.1817,0.1618,0.1511,0.1457,0.1455,0.1451], rslora:true,  winner:false},
+    {name:'T16 r4+mlp [Rs]',     loss:[0.2251,0.2162,0.2116,0.1928,0.1730,0.1578,0.1514,0.1471], rslora:true,  winner:false},
+    {name:'T76 r4+mlp',          loss:[0.1801,0.1902,0.1753,0.1636,0.1695,0.1509,0.1475,0.1485], rslora:false, winner:false},
+    {name:'T95 r4+mlp',          loss:[0.1830,0.1764,0.1822,0.1737,0.1582,0.1542,0.1558,0.1486], rslora:false, winner:false},
+    {name:'T13 r4+mlp [Rs]',     loss:[0.2034,0.1973,0.1853,0.1684,0.1570,0.1625,0.1695,0.1488], rslora:true,  winner:false},
+    {name:'T18 r32+mlp [Rs]',    loss:[0.1904,0.1761,0.1602,0.1558,0.1568,0.1525,0.1533,0.1493], rslora:true,  winner:false},
+    {name:'T68 r8+mlp [Rs]',     loss:[0.2108,0.1911,0.1674,0.1687,0.1523,0.1509,0.1504,0.1499], rslora:true,  winner:false}
+  ];
+  var palette = [
+    '#7c3043','#b85c3a','#c9944a','#5a7d5a','#2a6496',
+    '#9b59b6','#e67e22','#1abc9c','#7f8c8d','#d4a017'
+  ];
+  var origWidth = trials.map(function(t){ return t.winner ? 3 : 1.5; });
+  var origRadius = trials.map(function(t){ return t.winner ? 5 : 2; });
+  var datasets = trials.map(function(t,i) {
+    return {
+      label: t.name,
+      data: t.loss,
+      borderColor: palette[i],
+      backgroundColor: palette[i],
+      borderWidth: origWidth[i],
+      pointRadius: origRadius[i],
+      pointStyle: t.winner ? 'rectRot' : 'circle',
+      borderDash: t.rslora ? [6, 3] : [],
+      fill: false,
+      tension: 0.25
+    };
+  });
+  var top10Chart = new Chart(document.getElementById('top10LossCurves'), {
+    type: 'line',
+    data: { labels: steps, datasets: datasets },
+    options: {
+      responsive: true,
+      aspectRatio: 2.2,
+      interaction: { mode: 'dataset', intersect: false },
+      plugins: {
+        title: {display:true, text:'Eval Loss Over Training Steps (Top 10 Configs, PLoRA + ASHA)', font:chartTitleFont, padding:{bottom:14}},
+        legend: {
+          position: 'right',
+          labels: {font:{size:11, family:palatino}, padding:8, boxWidth:14},
+          onHover: function(e, legendItem, legend) {
+            highlightDataset(legend.chart, legendItem.datasetIndex);
+          },
+          onLeave: function(e, legendItem, legend) {
+            resetHighlight(legend.chart);
+          }
+        },
+        tooltip: { mode: 'dataset', intersect: false }
+      },
+      onHover: function(e, elements) {
+        if (elements.length > 0) {
+          highlightDataset(top10Chart, elements[0].datasetIndex);
+        } else {
+          resetHighlight(top10Chart);
+        }
+      },
+      scales: {
+        x: {title:{display:true, text:'Training Step', font:axisTitleFont, padding:{top:8}}, ticks:{font:axisTickFont}},
+        y: {title:{display:true, text:'Eval Loss', font:axisTitleFont, padding:{bottom:8}}, min:0.13, max:0.24, ticks:{font:axisTickFont}}
+      }
+    }
+  });
+
+  // --- Bidirectional hover: chart <-> table ---
+  var tableRows = document.querySelectorAll('#top10Table tbody tr[data-curve]');
+
+  function highlightDataset(chart, activeIndex) {
+    // Highlight curve
+    chart.data.datasets.forEach(function(ds, i) {
+      if (i === activeIndex) {
+        ds.borderColor = palette[i];
+        ds.borderWidth = 3.5;
+        ds.pointRadius = 5;
+      } else {
+        ds.borderColor = palette[i] + '22';
+        ds.borderWidth = 1;
+        ds.pointRadius = 0;
+      }
+    });
+    chart.update('none');
+    // Highlight table row
+    tableRows.forEach(function(row) {
+      var idx = parseInt(row.getAttribute('data-curve'));
+      if (idx === activeIndex) {
+        row.classList.add('row-active');
+        row.classList.remove('row-dimmed');
+      } else {
+        row.classList.remove('row-active');
+        row.classList.add('row-dimmed');
+      }
+    });
+  }
+
+  function resetHighlight(chart) {
+    // Reset curves
+    chart.data.datasets.forEach(function(ds, i) {
+      ds.borderColor = palette[i];
+      ds.borderWidth = origWidth[i];
+      ds.pointRadius = origRadius[i];
+    });
+    chart.update('none');
+    // Reset table rows
+    tableRows.forEach(function(row) {
+      row.classList.remove('row-active', 'row-dimmed');
+    });
+  }
+
+  // Canvas mouseleave
+  document.getElementById('top10LossCurves').addEventListener('mouseleave', function() {
+    resetHighlight(top10Chart);
+  });
+
+  // Table row hover -> highlight chart curve
+  tableRows.forEach(function(row) {
+    row.addEventListener('mouseenter', function() {
+      var idx = parseInt(this.getAttribute('data-curve'));
+      highlightDataset(top10Chart, idx);
+    });
+    row.addEventListener('mouseleave', function() {
+      resetHighlight(top10Chart);
+    });
+  });
+})();
+
 </script>
 </body>
 </html>
