@@ -575,6 +575,24 @@ def run_train(args):
             args.fs_manifest, args.cv_manifest, args.subset_size, SEED)
     print(f"  Total samples: {len(combined_df):,}")
 
+    # Filter out very long audio samples (prevents OOM from outliers)
+    if args.max_audio_secs is not None:
+        import soundfile as sf
+        print(f"  Filtering samples > {args.max_audio_secs}s...")
+        keep = []
+        for i, path in enumerate(combined_df["audio_path"].values):
+            try:
+                info = sf.info(path)
+                keep.append(info.frames / info.samplerate <= args.max_audio_secs)
+            except Exception:
+                keep.append(True)
+            if (i + 1) % 200000 == 0:
+                print(f"    Checked {i+1:,}/{len(combined_df):,}...")
+        n_before = len(combined_df)
+        combined_df = combined_df[keep].reset_index(drop=True)
+        n_dropped = n_before - len(combined_df)
+        print(f"  Dropped {n_dropped:,} samples > {args.max_audio_secs}s ({100*n_dropped/n_before:.2f}%), kept {len(combined_df):,}")
+
     # Speaker-disjoint split
     train_df, eval_df = create_speaker_disjoint_split(combined_df, test_size=0.1, seed=SEED)
     print(f"  Train: {len(train_df)}, Eval: {len(eval_df)}")
@@ -828,6 +846,8 @@ def main():
         help="Max total audio seconds per batch when --dynamic_batch is set (default: 120)")
     parser.add_argument("--max_batch_size", type=int, default=64,
         help="Ceiling on dynamic batch size (default: 64)")
+    parser.add_argument("--max_audio_secs", type=float, default=None,
+        help="Drop audio samples longer than this (seconds). Prevents OOM from outlier-length samples.")
     args = parser.parse_args()
 
     torch.manual_seed(SEED)
