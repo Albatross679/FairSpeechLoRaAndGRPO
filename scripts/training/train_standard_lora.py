@@ -780,9 +780,12 @@ def run_train(args):
     print(f"  adapter_model.safetensors: {size_kb:.1f} KB")
     print(f"  adapter_config.json: OK")
 
-    # Save training config
+    # Save training config. Record both the locked HPs (params) AND the
+    # effective values actually used at runtime — CLI overrides (--lr,
+    # --batch_size, --grad_accum) are only visible in the effective_* fields.
     train_config = {
         "params": params,
+        "effective_learning_rate": lr,
         "effective_batch_size": effective_batch,
         "batch_size": batch_size,
         "grad_accum_steps": grad_accum,
