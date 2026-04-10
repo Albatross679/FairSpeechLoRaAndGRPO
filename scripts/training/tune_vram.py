@@ -502,17 +502,21 @@ def select_winner(metrics_list):
     passing_sorted = sorted(passing, key=sort_key)
     winner = passing_sorted[0]
 
-    # Occam tiebreaker: if a simpler-complexity cell is within 2pp util of the
-    # leader, prefer it. Only apply to the top two.
-    if len(passing_sorted) >= 2:
-        lead = passing_sorted[0]
-        runner = passing_sorted[1]
-        lead_u = lead.get("mean_gpu_util") or 0.0
-        runner_u = runner.get("mean_gpu_util") or 0.0
-        lead_c = lead.get("complexity_score") or 0
-        runner_c = runner.get("complexity_score") or 0
-        if (lead_u - runner_u) <= 2.0 and runner_c < lead_c:
-            winner = runner
+    # Occam tiebreaker: among ALL passing cells within 2 percentage points of
+    # the utilization leader, prefer the one with the lowest complexity_score
+    # (fixed batching > dynamic; GC on > GC off). Tiebreak within the simpler
+    # band by the original sort key (util, tok/s, step_time). This matches the
+    # plan's explicit rule — the previous implementation only compared the top
+    # two cells and could skip a simpler cell that ranked 3rd or later.
+    lead_u = winner.get("mean_gpu_util") or 0.0
+    tie_band = [m for m in passing_sorted
+                if (lead_u - (m.get("mean_gpu_util") or 0.0)) <= 2.0]
+    if tie_band:
+        min_complexity = min((m.get("complexity_score") or 0) for m in tie_band)
+        simpler = [m for m in tie_band
+                   if (m.get("complexity_score") or 0) == min_complexity]
+        # Preserve the original sort order within the simpler group
+        winner = simpler[0]
 
     reason = (
         f"mean_gpu_util={winner.get('mean_gpu_util'):.1f}%, "
