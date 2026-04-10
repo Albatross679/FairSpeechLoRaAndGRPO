@@ -131,7 +131,7 @@ def patch_outer_forward(model):
     cls._forward_patched = True
 
 
-def apply_lora(model, rank, alpha, dropout, target_mlp=False):
+def apply_lora(model, rank, alpha, dropout, target_mlp=False, gradient_checkpointing=True):
     patch_outer_forward(model)
     cls = model.__class__
     if not hasattr(cls, "_embeddings_patched"):
@@ -146,9 +146,16 @@ def apply_lora(model, rank, alpha, dropout, target_mlp=False):
     for param in model.thinker.audio_tower.parameters():
         param.requires_grad = False
 
-    model.gradient_checkpointing_enable(
-        gradient_checkpointing_kwargs={"use_reentrant": False}
-    )
+    if gradient_checkpointing:
+        model.gradient_checkpointing_enable(
+            gradient_checkpointing_kwargs={"use_reentrant": False}
+        )
+    else:
+        # use_cache must be False during training regardless of GC; normally
+        # gradient_checkpointing_enable() sets this as a side-effect.
+        model.config.use_cache = False
+        if hasattr(model, "thinker") and hasattr(model.thinker, "config"):
+            model.thinker.config.use_cache = False
 
     targets = ["q_proj", "k_proj", "v_proj", "o_proj"]
     if target_mlp:
@@ -663,10 +670,15 @@ def run_train(args):
     model, processor = load_model_and_processor()
     print_gpu_memory("After model load")
 
-    model = apply_lora(model, rank, alpha, dropout, target_mlp)
+    gradient_checkpointing_enabled = not getattr(args, "no_grad_checkpoint", False)
+    model = apply_lora(
+        model, rank, alpha, dropout, target_mlp,
+        gradient_checkpointing=gradient_checkpointing_enabled,
+    )
     if torch.cuda.is_available():
         model = model.cuda()
     print_gpu_memory("After PEFT wrap + GPU")
+    print(f"  gradient_checkpointing_enabled={gradient_checkpointing_enabled}")
 
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total = sum(p.numel() for p in model.parameters())
@@ -687,8 +699,9 @@ def run_train(args):
     training_kwargs = dict(
         output_dir=args.output_dir,
         per_device_train_batch_size=batch_size,
-        per_device_eval_batch_size=1,
+        per_device_eval_batch_size=args.eval_batch_size,
         gradient_accumulation_steps=grad_accum,
+        optim=args.optim,
         learning_rate=lr,
         weight_decay=weight_decay,
         bf16=True,
@@ -744,7 +757,20 @@ def run_train(args):
         # since the batch sampler handles actual batch formation
         training_kwargs["per_device_train_batch_size"] = 1
 
-    training_args = TrainingArguments(**training_kwargs)
+    # Optimizer construction may fail on hosts where the fused AdamW kernel
+    # is unavailable (older bitsandbytes, missing NVIDIA apex, etc). Fall back
+    # to the non-fused variant with a warning rather than crashing the run.
+    effective_optim = args.optim
+    try:
+        training_args = TrainingArguments(**training_kwargs)
+    except (ValueError, ImportError, RuntimeError) as e:
+        if "fused" in str(e).lower() or "adamw_torch_fused" in training_kwargs.get("optim", ""):
+            print(f"  WARN: optim={training_kwargs['optim']} unavailable ({e}); falling back to adamw_torch")
+            training_kwargs["optim"] = "adamw_torch"
+            effective_optim = "adamw_torch"
+            training_args = TrainingArguments(**training_kwargs)
+        else:
+            raise
 
     TrainerClass = DynamicBatchTrainer if args.dynamic_batch else Trainer
     trainer = TrainerClass(
@@ -796,6 +822,11 @@ def run_train(args):
         "train_samples": len(train_df),
         "eval_samples": len(eval_df),
         "steps_per_epoch": steps_per_epoch,
+        # Plan 03-02 observability: what actually ran, not just what was requested
+        "vram_config_source": os.path.abspath(args.vram_config) if args.vram_config else None,
+        "gradient_checkpointing_enabled": gradient_checkpointing_enabled,
+        "optim": effective_optim,
+        "eval_batch_size": args.eval_batch_size,
         "final_train_loss": train_result.training_loss,
         "final_step": train_result.global_step,
         "training_time_sec": elapsed,
@@ -884,7 +915,49 @@ def main():
              "Set higher if GPU-Util is low during training. Set 0 to disable multiprocessing.")
     parser.add_argument("--dataloader_prefetch_factor", type=int, default=2,
         help="Batches prefetched per worker (default: 2). Ignored if num_workers=0.")
+    # -- Plan 03-02 VRAM tuning flags ----------------------------------------
+    parser.add_argument("--vram_config", type=str, default=None,
+        help="Path to a JSON file with a top-level flags object whose keys "
+             "are applied to args. unless the same flag was explicitly passed "
+             "on the command line. Lets tune_vram.py and Plan 03-03 launch "
+             "with a single config argument.")
+    parser.add_argument("--no_grad_checkpoint", action="store_true", default=False,
+        help="Disable gradient checkpointing (default: enabled). When disabled, "
+             "activation memory is 2-4x higher but step time is 25-35 percent "
+             "faster. Use when VRAM budget allows it (Plan 03-02 cell F).")
+    parser.add_argument("--optim", type=str, default="adamw_torch_fused",
+        choices=["adamw_torch", "adamw_torch_fused"],
+        help="Optimizer implementation. Default 'adamw_torch_fused' gives "
+             "~5-10 percent throughput win on Ampere+. Falls back to "
+             "'adamw_torch' with a warning if the fused kernel is unavailable.")
+    parser.add_argument("--eval_batch_size", type=int, default=8,
+        help="per_device_eval_batch_size (default: 8, was hardcoded 1). Larger "
+             "eval batch reduces eval wall-clock dramatically on long-seq ASR.")
     args = parser.parse_args()
+
+    # --vram_config: load a JSON file and apply its 'flags' to args for keys
+    # that the user did NOT explicitly override on the command line. Explicit
+    # CLI flags always win so tune_vram.py's per-cell overrides compose with
+    # a baseline vram_config.json if the user passes both.
+    if args.vram_config:
+        import sys as _sys
+        with open(args.vram_config) as _f:
+            _vc = json.load(_f)
+        _flags = _vc.get("flags", {}) or {}
+        _explicit = set()
+        for _tok in _sys.argv[1:]:
+            if _tok.startswith("--"):
+                _explicit.add(_tok.lstrip("-").split("=", 1)[0])
+        for _k, _v in _flags.items():
+            if _k in _explicit:
+                continue  # respect explicit CLI override
+            if hasattr(args, _k):
+                setattr(args, _k, _v)
+            else:
+                print(f"  WARN: --vram_config key '{_k}' is not a known argparse flag; ignoring")
+        print(f"  --vram_config applied from {args.vram_config}: {len(_flags)} flags "
+              f"({sum(1 for k in _flags if k not in _explicit)} applied, "
+              f"{sum(1 for k in _flags if k in _explicit)} skipped due to explicit CLI)")
 
     torch.manual_seed(SEED)
     np.random.seed(SEED)
