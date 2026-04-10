@@ -4,14 +4,15 @@
   "target_host_cpu_cores": 4,
   "target_host_storage": "overlayfs",
   "tuned_at": "2026-04-10T18:43:26Z",
+  "overridden_at": "2026-04-10T19:30:00Z",
   "grid_spec_sha256": "2e5a9dabe8c1a253f0e7d441a901031ad40ed05ad2a2fe8aa7590638ee727eb7",
   "flags": {
     "locked_config_path": "outputs/standard-lora/locked_config.json",
     "lr": 0.00098,
-    "dataloader_num_workers": 4,
+    "dataloader_num_workers": 2,
     "dataloader_prefetch_factor": 2,
     "wandb_project": "none",
-    "save_total_limit": 1,
+    "save_total_limit": 3,
     "batch_size": 8,
     "grad_accum": 2,
     "optim": "adamw_torch_fused"
@@ -23,6 +24,15 @@
     "tokens_per_sec": 7.9601990049751254,
     "final_loss": 0.41259519577026366
   },
-  "verdict": "blocked",
-  "verdict_reason": "mean_gpu_util 41.0% < 55% \u2014 I/O remediation required before Plan 03-03 launch; see outputs/full-lora-vram-tune/io_remediation_report.md"
+  "preflight_full_dataset_nw2": {
+    "config": "cell C flags + --full_dataset + --dataloader_num_workers 2, 100 cold-cache steps",
+    "peak_vram_gb": 15.93,
+    "mean_gpu_util_steady": 45.67,
+    "median_step_time_s": 1.85,
+    "final_loss": 0.3884,
+    "source": "outputs/full-lora-preflight-cellC-nw2/metrics.json",
+    "note": "+4.67 pp util and -0.16 s/step vs grid cell C at nw=4. num_workers=2 baked into flags above as a result."
+  },
+  "verdict": "go_with_warning",
+  "verdict_reason": "USER OVERRIDE 2026-04-10: measured mean_gpu_util 45.67% (pre-flight on full dataset with nw=2) is below the 55% acceptable floor. User reviewed io_remediation_report.md + logs/phase3-vram-preflight-cellC-nw2.md and chose Option 6 (accept degraded throughput) to unblock Plan 03-03 and downstream phases 4/4.1/5/6. Expected wall-clock: ~65K steps/epoch * 1.85 s/step * 2 epochs = ~66 hours if both epochs complete, less if early stopping triggers. Bottleneck is CPU-bound audio decode, not filesystem I/O - fix-forward path is a follow-up plan to pre-decode to WebDataset shards (expected 3-5x throughput). Audit trail: commits 529ae38 (pre-flight + diagnosis), 6e21867 (remediation report), d99045c (grid)."
 }
