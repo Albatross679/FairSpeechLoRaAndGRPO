@@ -41,3 +41,6 @@ checkpoints/
 wandb/
 datasets/
 temp.md
+
+# Per-VM Claude Code install (skills, agents, commands cloned by /gsd-update)
+.claude/
