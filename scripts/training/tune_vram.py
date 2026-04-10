@@ -251,6 +251,42 @@ def stop_poller(poller):
             pass
 
 
+def compute_real_samples_per_step(cell, train_log, metrics):
+    """Return the real samples per full training step for this cell.
+
+    Fixed-batching cells: trivially `effective_batch_size` (from
+    training_config.json), which is `batch_size * grad_accum`.
+
+    Dynamic-batching cells: training_config.json.effective_batch_size is
+    always `1 * grad_accum = 4` because the TrainingArguments value only
+    reflects the trainer-level knob, not the FrameBudgetBatchSampler's
+    actual output. Parse the trainer's stdout for the printed
+    "{N} batches, avg {Y} samples/batch" line emitted by the dynamic-
+    batch setup block in train_standard_lora.py:run_train() and multiply
+    Y by grad_accum.
+
+    Returns None if no samples/step can be inferred (unknown config).
+    """
+    flags = cell.get("flags", {}) or {}
+    if not flags.get("dynamic_batch"):
+        eb = metrics.get("effective_batch_size")
+        return int(eb) if eb else None
+
+    grad_accum = int(flags.get("grad_accum") or 1)
+    try:
+        with open(train_log, "r", errors="replace") as f:
+            text = f.read()
+    except OSError:
+        return None
+
+    import re
+    m = re.search(r"(\d+)\s+batches,\s*avg\s+([\d.]+)\s+samples/batch", text)
+    if not m:
+        return None
+    avg_samples_per_batch = float(m.group(2))
+    return int(round(avg_samples_per_batch * grad_accum))
+
+
 # -- Per-cell execution ------------------------------------------------------
 
 def run_cell(cell, args, shared_flags):
@@ -361,13 +397,27 @@ def run_cell(cell, args, shared_flags):
         warm_sorted = sorted(warm)
         median_step_time_s = warm_sorted[len(warm_sorted) // 2]
         metrics["median_step_time_s"] = float(median_step_time_s)
-        # tokens_per_sec — proxy via effective_batch / step_time since we don't
-        # have token counts here. This still orders cells correctly.
-        eff_bs = metrics.get("effective_batch_size") or 16
-        metrics["tokens_per_sec"] = float(eff_bs) / float(median_step_time_s)
+        # Real samples/sec is the comparable throughput metric across cells.
+        # Fixed-batch: effective_batch_size (from training_config.json) / step_time
+        # Dynamic-batch: dataloader_batches has avg-samples-per-batch that gets
+        #   multiplied by grad_accum — parse it from the trainer log since the
+        #   training_config.json effective_batch_size is 1*grad_accum=4 (wrong
+        #   for dynamic, it only captures the trainer-level knob, not the real
+        #   FrameBudgetBatchSampler output).
+        samples_per_step = compute_real_samples_per_step(cell, train_log, metrics)
+        metrics["real_samples_per_step"] = samples_per_step
+        metrics["samples_per_sec"] = (
+            float(samples_per_step) / float(median_step_time_s)
+            if samples_per_step else None
+        )
+        # Keep tokens_per_sec for backwards-compat, but now it equals
+        # samples_per_sec so the sort ordering is consistent.
+        metrics["tokens_per_sec"] = metrics["samples_per_sec"]
     else:
         metrics["median_step_time_s"] = None
         metrics["tokens_per_sec"] = None
+        metrics["samples_per_sec"] = None
+        metrics["real_samples_per_step"] = None
 
     # Verdict
     verdict = "pass"

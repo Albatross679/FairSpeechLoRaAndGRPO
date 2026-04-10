@@ -1,0 +1,39 @@
+{
+  "experiment": "Plan 03-02 Task 3 zero-cost pre-flight",
+  "context": "Run cell C flags (fixed 8x2, adamw_torch_fused, GC on) on the FULL training dataset (1.04M samples after speaker-disjoint split) with --dataloader_num_workers 2 and --max_steps 100, no --max_audio_secs filter, no page-cache warming. Compare to grid cell C (subset 5000, num_workers=4) to isolate the num_workers=2 + cold-full-dataset deltas.",
+  "config": {
+    "mode": "train",
+    "full_dataset": true,
+    "batch_size": 8,
+    "grad_accum": 2,
+    "optim": "adamw_torch_fused",
+    "gradient_checkpointing_enabled": true,
+    "dataloader_num_workers": 2,
+    "dataloader_prefetch_factor": 2,
+    "max_steps": 100,
+    "lr": 9.8e-4,
+    "seed": 42
+  },
+  "wallclock_sec": 234,
+  "trainer_training_time_sec": 208.04,
+  "median_step_time_s": 1.85,
+  "peak_vram_gb": 15.93,
+  "nvidia_smi_peak_mem_mib": 18852,
+  "final_train_loss": 0.3884,
+  "effective_batch_size": 16,
+  "gpu_util_windows": {
+    "offset_0s":  {"n": 137, "mean": 40.72, "median": 13, "p10": 1,  "p90": 100},
+    "offset_5s":  {"n": 134, "mean": 41.62, "median": 15, "p10": 2,  "p90": 100},
+    "offset_10s": {"n": 130, "mean": 42.86, "median": 22, "p10": 7,  "p90": 100},
+    "offset_20s": {"n": 122, "mean": 45.63, "median": 34, "p10": 9,  "p90": 100},
+    "offset_30s": {"n": 116, "mean": 45.67, "median": 34, "p10": 9,  "p90": 100}
+  },
+  "verdict": "blocked",
+  "verdict_reason": "mean_gpu_util (steady, 20s offset from training start) = 45.67% < 55% acceptable floor. +4.67 pp over grid cell C (41.0%) but within measurement noise (grid repro hit 50.57%). Not a high-enough signal to upgrade from blocked.",
+  "findings": {
+    "num_workers_2_vs_4": "num_workers=2 is marginally better than the grid's num_workers=4 on the 4-core cgroup (+4.7 pp util, -0.16 s/step). Consistent with 'fewer worker processes reduce context-switch thrash on the CPU quota'. Worth keeping as a default.",
+    "cold_vs_warm_cache": "Cold-cache full-dataset performs within measurement noise of warm-cache 5000-sample subset. This is strong evidence that page-cache hit rate is NOT the binding constraint — otherwise cold full-dataset would be meaningfully worse.",
+    "decode_bound_not_io_bound": "The bottleneck is CPU-bound audio decode (MP3 decompress + resample + mel-spectrogram), not filesystem read latency. 4-core cgroup can decode ~6-8 samples/sec total, which matches the GPU's 16 samples / 2 s = 8 samples/sec demand — the system is decode-starved, not I/O-starved.",
+    "remediation_implications": "Options 2 (/dev/shm staging) and 3 (page cache warming) are ruled out — they cache bytes, not decoded tensors. Option 1 (WebDataset pre-decode to log-mel shards) and Option 5 (migrate to a host with more CPU cores) are the two viable paths forward."
+  }
+}

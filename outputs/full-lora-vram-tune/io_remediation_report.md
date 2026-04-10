@@ -1,8 +1,44 @@
 # Plan 03-02 Task 3 — I/O Remediation Report
 
 **Generated:** 2026-04-10
+**Updated:** 2026-04-10 (after zero-cost pre-flight — see §Pre-flight update)
 **Verdict trigger:** `vram_config.json` verdict = `blocked` — best cell mean_gpu_util = 41.0% (cell C), well below the 55% acceptable floor.
 **Task 3 scope:** diagnose the bottleneck and recommend mitigation options. **Do not implement** any option without explicit user approval.
+
+## ⚠ Pre-flight update (added 2026-04-10, after initial report was written)
+
+A zero-cost pre-flight was run after the report's initial recommendation (Options 4 + 3 as the first step). The result **invalidates part of the original diagnosis** and **rules out Options 2 and 3**. See `outputs/full-lora-preflight-cellC-nw2/metrics.json` for raw data.
+
+**Experiment:** Ran cell C flags on the **full 1.04M-sample dataset** (cold page cache, no warming) with `--dataloader_num_workers 2` for 100 training steps.
+
+**Result:**
+
+| Measurement | Context | mean_gpu_util | step_s |
+|---|---|---|---|
+| Grid cell C (original) | subset 5000, nw=4, warm | 41.0% | 2.01 |
+| Grid cell C (reproducibility) | subset 5000, nw=4, warm | 50.6% | 2.08 |
+| **Pre-flight** | **full dataset, nw=2, cold** | **45.7%** | **1.85** |
+
+**Key findings:**
+
+1. **Cold-cache full-dataset performs within measurement noise of warm-cache small subset.** If filesystem read latency were the binding constraint, cold-cache reads of 1600 random samples from 1.04M files would have been meaningfully slower than warm re-reads of 5000 cached files. They weren't. → **Page cache hit rate is not the ceiling.**
+2. **`num_workers=2` gives +4.7 pp util and −0.16 s/step vs `num_workers=4`.** Consistent with "fewer workers reduce context-switch thrash on the 4-core cgroup". Small win, worth keeping as a default. Not a fix.
+3. **The binding constraint is CPU-bound audio decode, not filesystem I/O.** The 4-core cgroup can decode ~6–8 audio samples per second total (MP3 decompress + 16 kHz resample + mel-spectrogram extraction). The GPU consumes 16 samples / 2 s = 8 samples/sec. System is decode-starved, exactly at the break-even point.
+
+**Implications for the ranked options below:**
+
+| Option | Original guess | After pre-flight |
+|---|---|---|
+| 1. WebDataset pre-decode | 3–5× throughput | **Still 3–5×** — pre-decoded tensors eliminate the CPU decode pipeline entirely. **This is the fix.** |
+| 2. /dev/shm staging | 1.5–2.5× | **RULED OUT (~1×)** — caches bytes, not decoded tensors. Doesn't touch the decode step. |
+| 3. Warm page cache | +5–10 pp | **RULED OUT (~0 pp)** — same reason. Page cache holds file bytes, not decoded audio. |
+| 4. Lower `num_workers` to 2 | ±5 pp | **+4.7 pp measured.** Keep as a default, not a fix. |
+| 5. Migrate to 8+ core NVMe host | 1.7–3× | **1.5–2× per ~2× CPU cores.** Proportional to decode parallelism gain. Viable. |
+| 6. Accept ~45% util | ~73h for 2 epochs | **~66h** (slightly better step time from nw=2). Still too slow for the schedule. |
+
+**Updated recommendation:** Skip Options 2 and 3. Primary path is Option 1 (pre-decode to sharded log-mel/PCM) because it fixes the root cause. Alternative is Option 5 (migrate to a host with more CPU cores). Bake `num_workers=2` into whichever path wins. The rest of this report is the original analysis, preserved for traceability — read it for host constraints and option details, but trust the updated table above over the original ranking.
+
+---
 
 ---
 
