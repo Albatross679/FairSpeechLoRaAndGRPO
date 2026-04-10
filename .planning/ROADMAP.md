@@ -38,6 +38,16 @@ Plans:
 - [ ] 04-01-PLAN.md — Prototype validation (lambda=0.0, 200 steps, signal check)
 - [ ] 04-02-PLAN.md — Lambda sweep (0, 0.3, 0.7) + evaluation + Pareto analysis
 
+### Phase 04.1: Experiments with different RL algorithms on phase 3 outputs (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 4
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 04.1 to break down)
+
 ### Phase 5: Launch the Scaled-Up RL
 - **Goal:** Launch the scaled-up RL training run using validated GRPO configuration from Phase 4 prototyping — producing the fairness-aware checkpoint at full scale
 - **Depends on:** Phase 4 (RL prototyping validated)
@@ -115,7 +125,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 2 | 2/2 | Complete | 2026-04-07 |
 | 2.1 | 2/2 | Ready | — |
-| 3 | 3/3 | Planned | — |
+| 3 | 1/4 | In Progress | — |
 | 4 | 0/2 | Planned | — |
 | 5 | 0 | Planned | — |
 | 6 | 0 | Planned | — |

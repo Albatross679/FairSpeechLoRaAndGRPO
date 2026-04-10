@@ -36,7 +36,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Baselines
 
-- [ ] **BASE-01**: Standard LoRA baseline (lambda=0, pure accuracy reward, no fairness term)
+- [x] **BASE-01**: Standard LoRA baseline (lambda=0, pure accuracy reward, no fairness term)
 - [ ] **BASE-02**: FairLoRA baseline: L = L_standard + lambda * Var(L_g across groups)
 - [ ] **BASE-03**: Group-DRO baseline with smoothed exponential group weight updates
 - [ ] **BASE-04**: ICASSP 2026 fairness-prompted baseline: L = lambda_e*L_ERM + lambda_s*L_SD + lambda_d*L_DRO + lambda_i*L_IRM
@@ -102,7 +102,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | GRPO-08 | Phase 2 | Pending |
 | GRPO-09 | Phase 2 | Pending |
 | GRPO-10 | Phase 2 | Pending |
-| BASE-01 | Phase 1.2 | Pending |
+| BASE-01 | Phase 1.2 | Complete |
 | BASE-02 | Phase 3 | Pending |
 | BASE-03 | Phase 3 | Pending |
 | BASE-04 | Phase 3 | Pending |

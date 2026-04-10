@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 3 context updated with Phase 2.1 results
-last_updated: "2026-04-08T17:11:51.870Z"
-last_activity: 2026-04-08
+stopped_at: Completed 03-02-PLAN.md — verdict BLOCKED, Plan 03-03 gated on I/O mitigation
+last_updated: "2026-04-10T18:55:21.368Z"
+last_activity: 2026-04-10
 progress:
-  total_phases: 7
+  total_phases: 8
   completed_phases: 2
-  total_plans: 6
-  completed_plans: 4
-  percent: 67
+  total_plans: 10
+  completed_plans: 6
+  percent: 60
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-05)
 
 **Core value:** Produce a working GRPO training pipeline that traces the accuracy-fairness Pareto frontier for Qwen3-ASR-1.7B
-**Current focus:** Phase 02.1 — plora-packed-hp-sweep
+**Current focus:** Phase 03 — full-sft-lora-training
 
 ## Current Position
 
-Phase: 02.1 (plora-packed-hp-sweep) — EXECUTING
-Plan: 2 of 2
+Phase: 03 (full-sft-lora-training) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-04-08
+Last activity: 2026-04-10
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -54,6 +54,7 @@ Progress: [░░░░░░░░░░] 0%
 
 *Updated after each plan completion*
 | Phase 02.1 P02 | 776 | 5 tasks | 12 files |
+| Phase 03 P02 | 37min | 3 tasks | 22 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,7 @@ None yet.
 - Phase 4 added: RL prototyping before scaling up RL
 - Phase 5 added: Launch the scaled-up RL
 - Phase 7 added: FairLoRA + Group-DRO + ICASSP Comparisons
+- Phase 4.1 inserted after Phase 4: Experiments with different RL algorithms on phase 3 outputs (URGENT)
 
 ### Blockers/Concerns
 
@@ -85,6 +87,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-08T17:11:51.859Z
-Stopped at: Phase 3 context updated with Phase 2.1 results
-Resume file: .planning/phases/03-full-sft-lora-training/03-CONTEXT.md
+Last session: 2026-04-10T18:55:21.365Z
+Stopped at: Completed 03-02-PLAN.md — verdict BLOCKED, Plan 03-03 gated on I/O mitigation
+Resume file: outputs/full-lora-vram-tune/io_remediation_report.md
