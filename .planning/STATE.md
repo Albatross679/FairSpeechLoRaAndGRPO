@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-02-PLAN.md — verdict BLOCKED, Plan 03-03 gated on I/O mitigation
-last_updated: "2026-04-10T18:55:21.368Z"
+stopped_at: Plan 03-03 full-scale training LAUNCHED detached (PID 253833, ~67h ETA); USER OVERRIDE of blocked verdict; resume via bash outputs/full-lora/launch.sh resume
+last_updated: "2026-04-10T19:33:21.455Z"
 last_activity: 2026-04-10
 progress:
   total_phases: 8
@@ -87,6 +87,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-10T18:55:21.365Z
-Stopped at: Completed 03-02-PLAN.md — verdict BLOCKED, Plan 03-03 gated on I/O mitigation
-Resume file: outputs/full-lora-vram-tune/io_remediation_report.md
+Last session: 2026-04-10T19:33:21.451Z
+Stopped at: Plan 03-03 full-scale training LAUNCHED detached (PID 253833, ~67h ETA); USER OVERRIDE of blocked verdict; resume via bash outputs/full-lora/launch.sh resume
+Resume file: logs/phase3-full-sft-lora-launch.md
