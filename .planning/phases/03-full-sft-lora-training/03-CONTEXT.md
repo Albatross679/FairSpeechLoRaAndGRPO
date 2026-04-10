@@ -83,20 +83,40 @@ Scale up SFT LoRA training from Phase 2's 2K-sample prototype to the full datase
 - Phase 2.1 Stage 2 peak VRAM: 12,153 MB (packed multi-adapter — single adapter will be much lower)
 - VRAM profile rank=4+target_mlp=true: ~328 MB adapter overhead
 
-### Scale-Up Estimates (updated for 1.16M dataset on RTX 3090)
+### Scale-Up Estimates (updated 2026-04-10 for actual A6000 host)
 - Full dataset: ~1,159,789 samples -> 90/10 split -> ~1,043,810 train + ~115,979 eval
 - Steps per epoch: 1,043,810 / 16 (effective batch=16) = ~65,238
-- At ~2 sec/step on RTX 3090: ~36 hours per epoch
+- **Wall-clock: unknown until Plan 03-02 measures it** on the actual host. The original "~2 sec/step → 36h/epoch" estimate assumed an RTX 3090 with fast I/O — neither is true here. Plan 03-02's VRAM tuning grid projects wall-clock from `winner.median_step_time_s × 65,238 steps/epoch`.
 - Early stopping (patience=3, eval every 5000 steps) will terminate after 15000 steps of no improvement
-- Estimated peak VRAM: ~12-14 GB (rank=4, target_mlp=true, batch=4, RTX 3090 has 24 GB)
-- Hardware: 2x RTX 3090 (24 GB each), using 1 GPU for training
+- **Peak VRAM budget:** < 44 GB (4 GB safety margin on the A6000's 48 GB). Plan 03-01 dry-run measured 7.87 GB peak at the conservative bs=4/grad_accum=4/GC-on config; Plan 03-02 explores larger configs within the 44 GB ceiling.
 
-### Script Modifications Needed
-- `train_standard_lora.py`: `load_full_dataset()` to load ALL data without subsetting
-- `train_standard_lora.py`: Add --full_dataset, --num_epochs, --locked_config_path, --save_total_limit, --resume_from_checkpoint
-- `train_standard_lora.py`: Add EarlyStoppingCallback (patience=3, metric=eval_loss)
-- `train_standard_lora.py`: Dynamic save_steps/eval_steps based on dataset size
-- `train_standard_lora.py`: Read batch size and LR from locked config or CLI overrides
+### Hardware (actual, 2026-04-10)
+- **GPU:** NVIDIA RTX A6000, 48 GB GDDR6 ECC, SM 8.6 (Ampere), boost 2100 MHz
+- **Torch:** 2.10.0+cu128, cudnn 9.10, driver 580.95.05
+- **CPU:** AMD EPYC 9554 host (124 cores) but cgroup-limited to **3.96 cores** (`cpu.max = 396000 100000`) — dataloader worker parallelism is capped at ~4
+- **RAM:** 32 GB total, ~23 GB available; /dev/shm tmpfs 32 GB (shares RAM)
+- **Storage:** overlayfs over `/dev/vda`, 196 GB / 97 GB free. Datasets on the same overlay — no separate NVMe mount. This is the dominant I/O constraint surfaced in Plan 03-01.
+- **Dataset locations:** `/workspace/project/datasets/cv-corpus-25.0-2026-03-09/en/clips/` (1.13M MP3s) and `/workspace/project/datasets/meta_speech_fairness/asr_fairness_audio/` (26K WAVs)
+
+**A6000 vs RTX 3090 perf note:** A6000 has 2× the VRAM of a 3090 but ~20% less memory bandwidth (768 vs 936 GB/s). At matched batch size, compute throughput is roughly parity. The A6000's advantage is *capacity* (run larger effective batches), not *raw speed*.
+
+### Script Modifications (Plan 03-01 — done; Plan 03-02 — planned)
+**Plan 03-01 added:**
+- `train_standard_lora.py`: `load_full_dataset()` loads ALL data without subsetting
+- `train_standard_lora.py`: `--full_dataset`, `--num_epochs`, `--locked_config_path`, `--save_total_limit`, `--resume_from_checkpoint`, `--lr`, `--dataloader_num_workers`, `--dataloader_prefetch_factor`
+- `train_standard_lora.py`: `EarlyStoppingCallback` (patience=3, metric=eval_loss)
+- `train_standard_lora.py`: Dynamic `save_steps`/`eval_steps` based on dataset size
+- `train_standard_lora.py`: `load_model_and_processor()` uses `attn_implementation="sdpa"` by default
+- `train_standard_lora.py`: `TrainingArguments` uses `dataloader_pin_memory=True`, `persistent_workers=True`, `prefetch_factor`
+- `scripts/training/validate_dryrun_gates.py`: reusable pre-flight VRAM/GPU-Util gates script
+
+**Plan 03-02 will add:**
+- `train_standard_lora.py`: `--vram_config PATH` to consume a frozen JSON launch config
+- `train_standard_lora.py`: `--no_grad_checkpoint` to disable gradient checkpointing (default: on, backwards-compat with Plan 03-01 dry-run)
+- `train_standard_lora.py`: `--optim {adamw_torch,adamw_torch_fused}` with safe fallback (default: fused)
+- `train_standard_lora.py`: `--eval_batch_size` (default: 8, was hardcoded 1)
+- `train_standard_lora.py`: `training_config.json` observability fields: `vram_config_source`, `gradient_checkpointing_enabled`, `optim`
+- `scripts/training/tune_vram.py`: 6-cell grid runner that picks a Pareto-optimal config and freezes it as `outputs/full-lora-vram-tune/vram_config.json`
 
 ### Key Config Delta (Phase 2 -> Phase 3)
 - target_mlp: false -> true (adds LoRA to MLP gate/up/down_proj)
