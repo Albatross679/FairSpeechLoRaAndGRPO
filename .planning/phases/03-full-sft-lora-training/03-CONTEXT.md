@@ -63,8 +63,8 @@ Scale up SFT LoRA training from Phase 2's 2K-sample prototype to the full datase
 - `scripts/training/data_loader.py` — ASRFairnessDataset, DemographicStratifiedSampler
 - `scripts/training/data_collator.py` — DataCollatorForQwen3ASR
 - `outputs/manifests/fs_train.csv` — Fair-Speech manifest (26,471 rows)
-- `outputs/manifests/cv_train.csv` — Common Voice train manifest (18,876 rows)
-- `outputs/manifests/cv_dev.csv` — Common Voice dev manifest (1,854 rows)
+- `outputs/manifests/cv_train.csv` — Common Voice train manifest (1,133,318 rows, regenerated 2026-04-10 from full CV 25 corpus for Phase 3 scale-up per D-01; was 18,876 in Phase 2 era)
+- `outputs/manifests/cv_dev.csv` — Common Voice dev manifest (14,133 rows; was 1,854 in Phase 2 era after accent filtering)
 
 ### Research and architecture
 - `.planning/research/PITFALLS.md` — Pitfall #9 (speaker-disjoint splits), Pitfall #3 (premature scaling — Phase 3 only runs after Phase 2.1 validation)
