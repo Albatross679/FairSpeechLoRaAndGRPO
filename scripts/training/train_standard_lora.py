@@ -78,21 +78,38 @@ class DynamicBatchTrainer(Trainer):
         epoch = getattr(self.state, "epoch", None)
         self._frame_budget_sampler.set_epoch(int(epoch) if epoch is not None else 0)
 
-        return DataLoader(
-            self.train_dataset,
+        nw = self.args.dataloader_num_workers
+        dl_kwargs = dict(
             batch_sampler=self._frame_budget_sampler,
             collate_fn=self.data_collator,
-            num_workers=self.args.dataloader_num_workers,
+            num_workers=nw,
             pin_memory=self.args.dataloader_pin_memory,
         )
+        if nw > 0:
+            # persistent_workers avoids respawning workers each epoch;
+            # prefetch_factor keeps each worker's queue warm.
+            dl_kwargs["persistent_workers"] = getattr(self.args, "dataloader_persistent_workers", True)
+            pf = getattr(self.args, "dataloader_prefetch_factor", None)
+            if pf is not None:
+                dl_kwargs["prefetch_factor"] = pf
+        return DataLoader(self.train_dataset, **dl_kwargs)
 
 
 # -- Model Helpers (reused from phase2_hp_sweep.py) ---------------------------
 
-def load_model_and_processor():
+def load_model_and_processor(attn_implementation="sdpa"):
+    """Load Qwen3-ASR with SDPA attention by default.
+
+    SDPA (PyTorch scaled_dot_product_attention) uses memory-efficient attention
+    kernels — O(N) activation memory vs. eager's O(N^2). Free win on Ampere+ GPUs
+    (RTX 3090). Set attn_implementation="eager" to fall back to the original path.
+    """
     from qwen_asr import Qwen3ASRModel
     asr_wrapper = Qwen3ASRModel.from_pretrained(
-        MODEL_ID, dtype=torch.bfloat16, device_map=None,
+        MODEL_ID,
+        dtype=torch.bfloat16,
+        device_map=None,
+        attn_implementation=attn_implementation,
     )
     return asr_wrapper.model, asr_wrapper.processor
 
@@ -559,6 +576,8 @@ def run_train(args):
         batch_size = args.batch_size
     if args.grad_accum is not None:
         grad_accum = args.grad_accum
+    if args.lr is not None:
+        lr = args.lr
 
     print(f"\n  Locked HPs: lr={lr:.2e}, rank={rank}, alpha={alpha}, "
           f"dropout={dropout:.2f}, mlp={target_mlp}, wd={weight_decay:.2e}, "
@@ -680,7 +699,14 @@ def run_train(args):
         save_steps=save_steps,
         save_total_limit=args.save_total_limit,
         remove_unused_columns=False,
-        dataloader_pin_memory=False,
+        # Data-pipeline settings: on a 1.16M-sample audio dataset, the dataloader
+        # is the dominant risk for GPU starvation. Workers parallelize audio
+        # decoding across CPU cores, pin_memory + persistent_workers overlap H2D
+        # transfer with compute, and prefetch_factor keeps a queue warm per worker.
+        dataloader_num_workers=args.dataloader_num_workers,
+        dataloader_pin_memory=True,
+        dataloader_persistent_workers=args.dataloader_num_workers > 0,
+        dataloader_prefetch_factor=args.dataloader_prefetch_factor if args.dataloader_num_workers > 0 else None,
         report_to=report_to,
         run_name=run_name,
         seed=SEED,
@@ -840,6 +866,8 @@ def main():
         help="Override per-device train batch size (takes precedence over locked config)")
     parser.add_argument("--grad_accum", type=int, default=None,
         help="Override gradient accumulation steps (takes precedence over locked config)")
+    parser.add_argument("--lr", type=float, default=None,
+        help="Override learning rate from locked config (takes precedence; e.g. for sqrt-scaling at higher effective batch)")
     parser.add_argument("--dynamic_batch", action="store_true",
         help="Use dynamic batching by frame budget instead of fixed batch size")
     parser.add_argument("--frame_budget", type=float, default=120.0,
@@ -848,6 +876,11 @@ def main():
         help="Ceiling on dynamic batch size (default: 64)")
     parser.add_argument("--max_audio_secs", type=float, default=None,
         help="Drop audio samples longer than this (seconds). Prevents OOM from outlier-length samples.")
+    parser.add_argument("--dataloader_num_workers", type=int, default=4,
+        help="Parallel dataloader workers for audio decoding (default: 4). "
+             "Set higher if GPU-Util is low during training. Set 0 to disable multiprocessing.")
+    parser.add_argument("--dataloader_prefetch_factor", type=int, default=2,
+        help="Batches prefetched per worker (default: 2). Ignored if num_workers=0.")
     args = parser.parse_args()
 
     torch.manual_seed(SEED)
