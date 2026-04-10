@@ -1,0 +1,28 @@
+{
+  "source": "phase-03 VRAM tuning, cell C",
+  "target_host": "NVIDIA RTX A6000 (49140 MiB)",
+  "target_host_cpu_cores": 4,
+  "target_host_storage": "overlayfs",
+  "tuned_at": "2026-04-10T18:43:26Z",
+  "grid_spec_sha256": "2e5a9dabe8c1a253f0e7d441a901031ad40ed05ad2a2fe8aa7590638ee727eb7",
+  "flags": {
+    "locked_config_path": "outputs/standard-lora/locked_config.json",
+    "lr": 0.00098,
+    "dataloader_num_workers": 4,
+    "dataloader_prefetch_factor": 2,
+    "wandb_project": "none",
+    "save_total_limit": 1,
+    "batch_size": 8,
+    "grad_accum": 2,
+    "optim": "adamw_torch_fused"
+  },
+  "measured": {
+    "peak_vram_gb": 18.574883460998535,
+    "mean_gpu_util": 41,
+    "median_step_time_s": 2.01,
+    "tokens_per_sec": 7.9601990049751254,
+    "final_loss": 0.41259519577026366
+  },
+  "verdict": "blocked",
+  "verdict_reason": "mean_gpu_util 41.0% < 55% \u2014 I/O remediation required before Plan 03-03 launch; see outputs/full-lora-vram-tune/io_remediation_report.md"
+}
