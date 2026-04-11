@@ -1,449 +1,553 @@
-# Architecture Patterns
-
-**Domain:** GRPO fairness-aware ASR fine-tuning for Qwen3-ASR-1.7B
-**Researched:** 2026-04-05
-
-## Recommended Architecture
-
-### High-Level System View
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    EXISTING PIPELINE (read-only)                    │
-│  prepare_*.py → run_inference.py → compute_fairness_metrics.py     │
-│                      → generate_all_plots.py                        │
-└──────────────┬──────────────────────────────┬───────────────────────┘
-               │ reuse manifest CSVs          │ reuse metrics code
-               ▼                              ▼
-┌──────────────────────────┐    ┌──────────────────────────────────┐
-│   TRAINING SUBSYSTEM     │    │   EVALUATION BRIDGE              │
-│                          │    │                                  │
-│  ┌──────────────────┐    │    │  infer_with_adapter() ──────┐    │
-│  │ FairnessDataLoader│    │    │  (loads LoRA + base model)  │    │
-│  │ (demographic-aware│    │    │                             │    │
-│  │  batch sampler)   │    │    │  compute_fairness_metrics() │    │
-│  └────────┬─────────┘    │    │  (reuse existing code)  ◄───┘    │
-│           ▼              │    │                             │    │
-│  ┌──────────────────┐    │    │  pareto_frontier_plot()     │    │
-│  │ Reward Computer   │    │    └──────────────────────────────────┘
-│  │ R=(1-λ)(1-WER)   │    │
-│  │  +λ(-|WER_g-WER|)│    │
-│  └────────┬─────────┘    │
-│           ▼              │
-│  ┌──────────────────┐    │
-│  │ GRPO Trainer      │    │
-│  │ (policy update    │    │
-│  │  with clipped     │    │
-│  │  ratio + KL)      │    │
-│  └──────────────────┘    │
-└──────────────────────────┘
-```
-
-### Integration Principle
-
-**Do not modify existing scripts.** The 28 existing scripts form a stable benchmarking pipeline. New training code lives in a separate `scripts/training/` subdirectory and imports shared utilities (text normalization, WER computation) from the existing codebase. Evaluation reuses `run_inference.py`'s model loading patterns and `compute_fairness_metrics.py`'s metric functions.
-
-## Component Boundaries
-
-| Component | Responsibility | Communicates With | New vs Existing |
-|-----------|---------------|-------------------|-----------------|
-| **FairnessDataLoader** | Demographic-stratified batching of audio + transcripts | Reads manifest CSVs; feeds Training Loop | NEW |
-| **RewardComputer** | Computes composite accuracy-fairness reward per group | Receives hypotheses from model; uses JiWER for WER | NEW |
-| **GRPOTrainer** | Policy gradient updates with clipped ratio + KL penalty | Wraps model forward pass; calls RewardComputer | NEW |
-| **BaselineTrainers** | Standard LoRA, FairLoRA, Group-DRO, Fairness-Prompted | Share DataLoader and evaluation; differ in loss/update | NEW |
-| **AdapterManager** | LoRA config, loading, saving, merging for Qwen3-ASR | Used by all trainers; produces adapter checkpoints | NEW |
-| **EvaluationBridge** | Loads adapter + base model, runs inference, computes fairness metrics | Reuses `infer_qwen3_asr()` pattern + `compute_fairness_metrics()` | NEW (wraps existing) |
-| **ParetoPlotter** | Generates accuracy-vs-fairness Pareto frontier across methods/lambdas | Reads evaluation JSONs; produces figures | NEW |
-| **Manifest CSVs** | Dataset definition with demographic annotations | Read by DataLoader and EvaluationBridge | EXISTING |
-| **run_inference.py** | Model loading patterns, text normalization, WER computation | Pattern reuse (not direct import due to script structure) | EXISTING |
-| **compute_fairness_metrics.py** | Fairness metric computation (gap%, ratio, std, bootstrap) | Function reuse or reimport | EXISTING |
-
-## Data Flow
-
-### Training Data Flow
-
-```
-1. Manifest CSV (Fair-Speech / Common Voice)
-   │  columns: utterance_id, audio_path, sentence, ethnicity, accent, ...
-   ▼
-2. FairnessDataLoader
-   │  - Loads audio as waveform tensors (16kHz, bf16)
-   │  - Stratified sampling: each batch has balanced demographic representation
-   │  - Groups utterances by demographic for reward computation
-   │  - Returns: {audio_tensors, references, demographic_labels, group_ids}
-   ▼
-3. Model Forward Pass (G times per prompt for GRPO)
-   │  - Qwen3-ASR-1.7B with LoRA adapters on decoder layers
-   │  - AuT encoder (300M, FROZEN) → projector → Qwen3 LLM decoder (LoRA TRAINABLE)
-   │  - Each prompt generates G candidate transcriptions
-   │  - Returns: {hypotheses[G], log_probs[G]}
-   ▼
-4. RewardComputer
-   │  - For each candidate: WER_i = jiwer.wer(reference, hypothesis_i)
-   │  - Accuracy reward: (1 - WER_i)
-   │  - Fairness penalty: -|WER_group - WER_overall|
-   │  - Composite: R_i = (1-λ)(1-WER_i) + λ(-|WER_g - WER_mean|)
-   │  - Group-normalize: A_i = (R_i - mean(R)) / std(R)
-   │  - Returns: {advantages[G], rewards[G]}
-   ▼
-5. GRPO Policy Update
-   │  - Clipped importance ratio: min(ratio * A, clip(ratio, 1-ε, 1+ε) * A)
-   │  - KL penalty: β * D_KL(π_θ || π_ref)
-   │  - Gradient step on LoRA parameters only
-   │  - Save reference policy π_ref = π_θ_old at interval
-   ▼
-6. Checkpoint
-   │  - Save LoRA adapter weights (adapter_model.safetensors)
-   │  - Save training state (optimizer, scheduler, step)
-   │  - Log: step, reward_mean, reward_std, WER, fairness_gap, KL
-```
-
-### Evaluation Data Flow
-
-```
-1. Adapter Checkpoint (LoRA weights)
-   │
-   ▼
-2. Load Base Model + Merge Adapter
-   │  - Qwen3ASRModel.from_pretrained("Qwen/Qwen3-ASR-1.7B")
-   │  - PeftModel.from_pretrained(base, adapter_path)
-   │  - model.merge_and_unload() for inference speed
-   ▼
-3. Inference (reuse infer_qwen3_asr pattern)
-   │  - Manifest CSV → batch audio paths → model.transcribe()
-   │  - Write predictions CSV (same format as existing pipeline)
-   │  - predictions_{method}_{lambda}.csv
-   ▼
-4. Fairness Metrics (reuse compute_fairness_metrics.py logic)
-   │  - Group by ethnicity/accent → per-group WER
-   │  - Compute: max_min_ratio, relative_gap_pct, wer_std
-   │  - Bootstrap CIs for significance
-   │  - Output: analysis JSON per method/lambda
-   ▼
-5. Pareto Frontier
-   │  - Collect (overall_WER, fairness_gap) for each method × lambda
-   │  - Plot accuracy vs fairness across all 5 methods
-   │  - Identify Pareto-optimal configurations
-```
-
-## Qwen3-ASR-1.7B Internal Architecture (Training Target)
-
-```
-┌─────────────────────────────────────────────────────┐
-│                Qwen3-ASR-1.7B                       │
-│                                                      │
-│  ┌──────────────────┐                                │
-│  │ AuT Encoder      │  300M params, FROZEN           │
-│  │ (AED architecture)│                                │
-│  │ Fbank 128-dim     │                                │
-│  │ → 8x downsample   │                                │
-│  │ → 12.5Hz tokens   │                                │
-│  └────────┬─────────┘                                │
-│           ▼                                          │
-│  ┌──────────────────┐                                │
-│  │ Projector        │  Small, FROZEN or TRAINABLE     │
-│  │ (linear layer)   │  Maps encoder dim → LLM dim    │
-│  └────────┬─────────┘                                │
-│           ▼                                          │
-│  ┌──────────────────┐                                │
-│  │ Qwen3-1.7B LLM  │  ~1.4B params                  │
-│  │ Decoder          │                                │
-│  │                  │  LoRA on: q_proj, k_proj,       │
-│  │  [LoRA adapters] │  v_proj, o_proj, gate_proj,     │
-│  │                  │  up_proj, down_proj              │
-│  │                  │  rank=8-16, ~1-2% trainable     │
-│  └────────┬─────────┘                                │
-│           ▼                                          │
-│  Token predictions (autoregressive text generation)   │
-└─────────────────────────────────────────────────────┘
-```
-
-**LoRA placement rationale:** Apply LoRA to the LLM decoder only. The AuT encoder is a specialized audio encoder pretrained on 40M hours -- modifying it risks destroying audio understanding for marginal gains. The decoder is where language generation bias manifests, making it the right target for fairness intervention. This keeps trainable parameters at ~14-28M (1-2% of total), feasible on 16GB VRAM.
-
-**Confidence:** MEDIUM -- Qwen3-ASR uses the `qwen-asr` package which wraps the HuggingFace model. LoRA integration requires accessing the underlying `transformers` model, which the `qwen-asr` package may or may not expose cleanly. This is a key integration risk to validate early.
-
-## Baseline Architectures
-
-All four baselines share the same DataLoader, AdapterManager, and EvaluationBridge. They differ only in their training objective.
-
-### Baseline 1: Standard LoRA (lambda=0)
-
-```
-Loss = CrossEntropy(hypothesis, reference)
-```
-
-Standard supervised fine-tuning with LoRA. Equivalent to GRPO with lambda=0 but uses SFT instead of RL. This is the "accuracy-only" baseline.
-
-- **Trainer:** Standard HuggingFace `Trainer` with LoRA
-- **No demographic awareness** in loss function
-- **Purpose:** Establishes what accuracy improvement is possible without fairness
-
-### Baseline 2: FairLoRA
-
-```
-Loss = L_CE + λ_fair * Σ_g (L_g - mean(L))²
-```
-
-Adds a fairness regularizer that penalizes variance in per-group loss. Adapted from the vision domain (Sukumaran et al., 2024).
-
-- **Trainer:** Custom trainer that computes per-group losses within each batch
-- **Requires:** Demographic labels per sample (already in manifests)
-- **Key hyperparameter:** λ_fair regularization strength (sweep 0.01-100)
-- **Architecturally identical** to Standard LoRA except loss function
-
-### Baseline 3: Group-DRO
-
-```
-Loss = max_g L_g(θ)  (optimize for worst-group performance)
-```
-
-Distributionally robust optimization that minimizes the maximum group loss rather than average loss. Following Sagawa et al. (2020) with exponential gradient updates on group weights.
-
-- **Trainer:** Custom trainer tracking per-group losses and adjusting group weights
-- **Group weights** updated each step: w_g ← w_g * exp(η * L_g), then normalize
-- **Key hyperparameter:** η (group weight step size)
-- **Does not use RL** -- pure supervised objective with reweighted groups
-
-### Baseline 4: Fairness-Prompted Fine-Tuning (ICASSP 2026)
-
-```
-Loss = λ_e * L_ERM + λ_s * L_SD + λ_i * L_IRM + λ_a * L_GroupDRO
-```
-
-Combines empirical risk minimization with Spectral Decoupling (SD), Invariant Risk Minimization (IRM), and Group-DRO in a fusion loss. Based on the fairness-prompted approach from the ICASSP 2026 paper (arXiv:2510.18374).
-
-- **Trainer:** Custom trainer computing 4 loss terms per batch
-- **Spectral Decoupling:** Adds ||logits||² penalty to reduce overconfident predictions
-- **IRM:** Penalizes gradients that vary across demographic groups
-- **Reference hyperparameters:** λ_e=1, λ_s=0.06, λ_i=0.01, λ_a=1
-- **Most complex baseline** -- multiple interacting loss terms
-
-### GRPO (Primary Method)
-
-```
-J = E[ min(ratio * A, clip(ratio) * A) - β * D_KL(π_θ || π_ref) ]
-A_i = (R_i - mean(R)) / std(R)
-R_i = (1-λ)(1-WER_i) + λ(-|WER_g - WER_mean|)
-```
-
-Group Relative Policy Optimization with composite fairness reward. The key differentiator: this is RL-based, not supervised. The model generates multiple candidate transcriptions and is rewarded for both accuracy AND demographic parity.
-
-- **Trainer:** Custom GRPO loop (no HF Trainer -- manual policy gradient)
-- **Group size G:** Number of candidate transcriptions per input (start with G=4, memory-permitting)
-- **Key hyperparameters:** λ (fairness weight, sweep 0-1), β (KL coefficient), ε (clip range), G (group size)
-- **Reference policy:** Frozen copy of initial model weights (bf16, kept on CPU to save VRAM)
-
-## Suggested Directory Structure
-
-```
-scripts/
-├── training/                          # NEW: all training code
-│   ├── __init__.py
-│   ├── config.py                      # Shared training configs, paths, hyperparams
-│   ├── data_loader.py                 # FairnessDataLoader with demographic batching
-│   ├── reward.py                      # RewardComputer (WER + fairness composite)
-│   ├── adapter.py                     # AdapterManager (LoRA setup, save/load)
-│   ├── train_grpo.py                  # GRPO training loop (primary method)
-│   ├── train_standard_lora.py         # Baseline 1: standard SFT + LoRA
-│   ├── train_fairlora.py              # Baseline 2: FairLoRA regularizer
-│   ├── train_group_dro.py             # Baseline 3: Group-DRO
-│   ├── train_fairness_prompted.py     # Baseline 4: ICASSP fusion loss
-│   ├── evaluate.py                    # EvaluationBridge (adapter → inference → metrics)
-│   └── plot_pareto.py                 # Pareto frontier visualization
-├── run_inference.py                   # EXISTING (unchanged)
-├── compute_fairness_metrics.py        # EXISTING (unchanged)
-└── ...                                # EXISTING (unchanged)
-
-results/
-├── training/                          # NEW: training outputs
-│   ├── grpo_lambda_0.0/              # adapter weights + training logs
-│   ├── grpo_lambda_0.25/
-│   ├── grpo_lambda_0.5/
-│   ├── grpo_lambda_0.75/
-│   ├── grpo_lambda_1.0/
-│   ├── standard_lora/
-│   ├── fairlora/
-│   ├── group_dro/
-│   ├── fairness_prompted/
-│   └── evaluation/                    # prediction CSVs + analysis JSONs
-│       ├── predictions_grpo_0.5_fairspeech.csv
-│       └── analysis_all_methods.json
-└── figures/
-    └── pareto_frontier.pdf            # NEW: key deliverable figure
-```
-
-## Patterns to Follow
-
-### Pattern 1: Manifest-as-Contract
-
-**What:** All data flows through CSV manifests with standardized columns. Training code reads the same manifests as inference code.
-
-**Why:** The existing pipeline already uses this pattern. Consistency means training data preparation is zero-cost -- reuse `prepare_fairspeech.py` and `prepare_dataset.py` outputs directly.
-
-**Example:**
-```python
-# Training loads same manifest as inference
-manifest = pd.read_csv("data/fs_manifest.csv")
-# Demographic columns already present: ethnicity, accent, gender, age
-# Audio paths already validated
-# Reference transcripts in 'sentence' column
-```
-
-### Pattern 2: Shared Text Normalization
-
-**What:** Use `whisper_normalizer.english.EnglishTextNormalizer` identically in training reward computation and evaluation.
-
-**Why:** WER reward during training must match WER computation during evaluation. Different normalization = reward signal misaligned with evaluation metric.
-
-**Example:**
-```python
-from whisper_normalizer.english import EnglishTextNormalizer
-normalizer = EnglishTextNormalizer()
-# Same normalizer in reward.py AND evaluate.py
-```
-
-### Pattern 3: Incremental Checkpointing
-
-**What:** Save adapter weights and training state at regular intervals. Resume from last checkpoint on failure.
-
-**Why:** RTX A4000 with 16GB VRAM -- OOM crashes are likely during GRPO with G>2. Lambda sweeps mean many training runs.
-
-**Example:**
-```python
-# Every N steps
-adapter.save_pretrained(f"results/training/grpo_lambda_{lam}/step_{step}")
-torch.save(optimizer.state_dict(), f"results/training/grpo_lambda_{lam}/step_{step}/optim.pt")
-```
-
-### Pattern 4: Demographic-Aware Batch Sampling
-
-**What:** Each training batch must contain samples from multiple demographic groups to compute the fairness reward meaningfully.
-
-**Why:** The fairness reward R = ... + λ(-|WER_g - WER_mean|) requires computing per-group WER within each batch. If a batch has only one demographic group, the fairness signal is trivially zero.
-
-**Example:**
-```python
-class DemographicBatchSampler:
-    """Ensures each batch has samples from >= K demographic groups."""
-    def __init__(self, manifest, group_col="ethnicity", min_groups=3, batch_size=8):
-        self.groups = manifest.groupby(group_col).indices
-        # Round-robin across groups to fill each batch
-```
-
-## Anti-Patterns to Avoid
-
-### Anti-Pattern 1: Modifying Existing Scripts
-
-**What:** Adding training logic to `run_inference.py` or `compute_fairness_metrics.py`.
-
-**Why bad:** The existing pipeline is validated for benchmarking 9 models. Changes risk breaking midterm results. Two team members share the codebase.
-
-**Instead:** Create `scripts/training/` as a separate module. Import or copy-paste shared utilities (text normalization, WER computation) rather than modifying originals.
-
-### Anti-Pattern 2: Full-Model GRPO Sampling on GPU
-
-**What:** Keeping both policy model and reference model on GPU simultaneously.
-
-**Why bad:** Qwen3-ASR-1.7B in bf16 = ~3.4GB. With LoRA adapters + optimizer states + G=4 candidate generations + KL computation against reference, 16GB VRAM is extremely tight.
-
-**Instead:** Keep reference model on CPU (or use a frozen copy sharing weights with base model). Use gradient checkpointing. Start with G=2 and increase only if VRAM permits.
-
-### Anti-Pattern 3: Computing Fairness Reward Per-Sample
-
-**What:** Computing the fairness penalty for each individual sample independently.
-
-**Why bad:** Fairness is a group-level property. |WER_g - WER_mean| requires aggregating WER across a demographic group, not a single utterance. Per-sample computation yields a meaningless signal.
-
-**Instead:** Accumulate WER within demographic groups across the batch (or across a window of recent batches), then assign the group-level fairness penalty to all samples in that group.
-
-### Anti-Pattern 4: Using qwen-asr Package for Training
-
-**What:** Trying to backpropagate through the `qwen_asr.Qwen3ASRModel.transcribe()` API.
-
-**Why bad:** The `qwen-asr` package is an inference wrapper. It likely does not expose the underlying model in a way that supports gradient computation through the decoding process.
-
-**Instead:** Load the model directly via HuggingFace `transformers` (AutoModelForCausalLM or the specific Qwen3 model class), attach LoRA via PEFT, and implement the generation + log-probability computation manually. Use the `qwen-asr` package only for final evaluation inference.
-
-## VRAM Budget (RTX A4000, 16GB)
-
-| Component | Estimated VRAM | Notes |
-|-----------|---------------|-------|
-| Qwen3-ASR-1.7B base (bf16) | ~3.4 GB | Encoder + projector + decoder |
-| LoRA adapters (rank 8) | ~14 MB | Negligible |
-| Optimizer states (AdamW) | ~28 MB | 2x LoRA params |
-| Gradient checkpointing overhead | ~0.5 GB | Recomputation buffers |
-| G=2 candidate generations (bf16) | ~1.5 GB | KV cache for 2 sequences |
-| G=4 candidate generations (bf16) | ~3.0 GB | KV cache for 4 sequences |
-| Reference model KL (CPU offload) | 0 GB | Computed on CPU |
-| Audio batch (8 utterances, 10s) | ~0.1 GB | Raw waveforms |
-| **Total (G=2)** | **~5.5 GB** | Comfortable headroom |
-| **Total (G=4)** | **~7.0 GB** | Feasible with monitoring |
-
-**Recommendation:** Start with G=2 to ensure stability, then test G=4. G=8 likely infeasible without reducing batch size to 1-2.
-
-## Build Order (Dependencies)
-
-The components have strict build-order dependencies. Build bottom-up:
-
-```
-Phase 1: Foundation (no training dependencies)
-  ├── config.py           (paths, hyperparameters, shared constants)
-  ├── adapter.py          (LoRA setup for Qwen3-ASR, save/load)
-  └── data_loader.py      (manifest → demographic-aware batches)
-
-Phase 2: Supervised Baselines (needs Phase 1)
-  ├── train_standard_lora.py    (simplest: SFT + LoRA, validates adapter works)
-  └── evaluate.py               (adapter → inference → metrics bridge)
-
-Phase 3: Fairness Baselines (needs Phase 2 patterns)
-  ├── reward.py                 (composite reward function, needed by GRPO too)
-  ├── train_fairlora.py         (adds fairness regularizer to Phase 2)
-  ├── train_group_dro.py        (adds group reweighting to Phase 2)
-  └── train_fairness_prompted.py (fusion loss, most complex baseline)
-
-Phase 4: GRPO (needs Phases 1-3)
-  └── train_grpo.py             (RL loop using reward.py + adapter.py)
-
-Phase 5: Analysis
-  └── plot_pareto.py            (Pareto frontier across all methods)
-```
-
-**Rationale:** Standard LoRA (Phase 2) validates that the adapter mechanism works with Qwen3-ASR before adding complexity. FairLoRA and Group-DRO (Phase 3) are simpler fairness approaches that establish the reward function and demographic batching before GRPO needs them. GRPO (Phase 4) is the most complex and depends on all prior components being validated.
-
-## Integration Points with Existing Code
-
-| Existing Code | What We Reuse | How |
-|--------------|--------------|-----|
-| `prepare_fairspeech.py` output | `fs_manifest.csv` with demographic columns | Read directly in `data_loader.py` |
-| `prepare_dataset.py` output | `cv_test_manifest.csv` | Read directly in `data_loader.py` |
-| `run_inference.py` model loading | Pattern for Qwen3-ASR loading + inference | Adapt `load_qwen3_asr()` to return underlying transformers model |
-| `run_inference.py` text normalization | `EnglishTextNormalizer` usage | Import same normalizer in `reward.py` and `evaluate.py` |
-| `compute_fairness_metrics.py` | WER grouping, fairness metric formulas, bootstrap CIs | Extract into importable functions or reimplement in `evaluate.py` |
-| `generate_all_plots.py` | Matplotlib/Seaborn style, color palettes | Follow same visual style for Pareto plot |
-| `IncrementalCSVWriter` pattern | Fault-tolerant result writing | Adapt for training checkpoints and evaluation predictions |
-
-**Key risk:** The existing scripts are standalone (no `__init__.py`, no shared module). Functions cannot be directly imported without restructuring. The pragmatic approach: copy the ~20 lines of fairness metric computation into `evaluate.py` rather than refactoring the existing codebase.
-
-## Scalability Considerations
-
-| Concern | Current Scale (class project) | If Scaling Up |
-|---------|-------------------------------|--------------|
-| Lambda sweep | 5-7 values (0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0) | Bayesian optimization over continuous lambda |
-| Training data | ~43K utterances (Fair-Speech + CV) | Millions of utterances need streaming dataloader |
-| GRPO group size | G=2-4 (VRAM limited) | G=16-64 on multi-GPU for better advantage estimates |
-| Baselines | 4 methods, sequential training | Parallel training on multi-GPU cluster |
-| Demographic axes | 2 (ethnicity, accent) | Intersectional (ethnicity x accent x gender) |
-
-## Sources
-
-- [GRPO for Speech Recognition (Amazon, ASRU 2025)](https://arxiv.org/abs/2509.01939) -- validates GRPO for ASR with rule-based rewards
-- [Qwen3-ASR Technical Report](https://arxiv.org/html/2601.21337v2) -- model architecture: AuT encoder (300M) + projector + Qwen3-1.7B
-- [FairLoRA (Sukumaran et al., 2024)](https://arxiv.org/abs/2410.17358) -- per-group loss variance regularizer for LoRA
-- [Fairness-Prompted Finetuning (ICASSP 2026)](https://arxiv.org/html/2510.18374) -- ERM + SD + IRM + Group-DRO fusion loss
-- [FairGRPO for Clinical Reasoning](https://arxiv.org/abs/2510.19893) -- adaptive importance weighting in GRPO for demographic fairness
-- [GRPO Illustrated Breakdown](https://epichka.com/blog/2025/grpo/) -- objective function, clipped ratio, advantage normalization
-- [Qwen3-ASR GitHub Repository](https://github.com/QwenLM/Qwen3-ASR) -- model loading, inference API, finetuning directory
+# Architecture Research — v2.0 Attention Head Surgery
+
+**Domain:** Hallucination mitigation on Whisper-large-v3 via per-head attention analysis, decode ablation, VAD preprocessing, and selective head fine-tuning
+**Researched:** 2026-04-11
+**Confidence:** HIGH (grounded in existing pipeline contract + Calm-Whisper methodology)
+**Scope note:** This replaces v1.0 (GRPO) architecture. v1.0 LoRA training infrastructure at `scripts/training/` is NOT reused verbatim (target model changed from Qwen3-ASR to Whisper-large-v3), but its patterns (manifest-driven config, `outputs/<run>/adapter/`, evaluation bridge) ARE reused.
 
 ---
 
-*Architecture analysis: 2026-04-05*
+## 1. Integration Principle
+
+The existing pipeline is a **linear CSV-manifest data-flow pipeline** with five stages:
+
+```
+prepare_*.py → generate_perturbations.py → run_inference.py →
+compute_*_metrics.py → generate_*_plots.py
+```
+
+Every stage is a standalone script. Stages communicate only through files on disk (CSV manifests, prediction CSVs, analysis JSONs, PNG figures). The only "registry" coupling is the `MODEL_REGISTRY` dict inside `run_inference.py`.
+
+**v2.0 rule:** every new capability is a **new script** that slots into this pipeline, OR a **minimal extension** of `run_inference.py` via a new model key in `MODEL_REGISTRY`. We do NOT add config flags that reshape `run_inference.py`'s control flow. We do NOT invent new data contracts — we extend CSV schemas additively.
+
+**Why not a `--head_mask` flag on `run_inference.py`?**
+- Blows up argument matrix: `--head_mask`, `--beam_size`, `--repetition_penalty`, `--length_penalty`, `--no_repeat_ngram`, `--vad` etc. would all need to multiplex through one entry point.
+- Couples diagnostic experiments (20 sweeps over heads) with routine benchmarking.
+- Breaks the "one script = one purpose" convention of the existing 28 scripts.
+
+**Why not a single monolithic `run_head_experiments.py`?**
+- Couples diagnosis (per-head sweep), ablation (decode params), preprocessing (VAD), and training (head fine-tune) into one script — fights the stage-oriented contract.
+
+**Adopted approach:** three new inference-side scripts, one new training script, zero changes to `compute_*_metrics.py`, and one additive column on prediction CSVs (`experiment_tag`).
+
+---
+
+## 2. System Overview
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                      EXISTING PIPELINE (unchanged)                      │
+│  prepare_dataset.py  generate_perturbations.py  compute_fairness_*.py   │
+│  error_decomposition.py  whisper_hallucination_analysis.py              │
+│  generate_all_plots.py                                                  │
+└──────┬─────────────────────────┬──────────────────────────┬─────────────┘
+       │ reuse manifests          │ reuse prediction schema  │ reuse metrics
+       ▼                          ▼                          ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         v2.0 NEW SUBSYSTEM                               │
+│                                                                          │
+│  ┌───────────────────────────┐   ┌──────────────────────────────────┐  │
+│  │ INFERENCE SIDE            │   │ TRAINING SIDE                     │  │
+│  │                           │   │                                   │  │
+│  │ whisper_head_hooks.py     │   │ train_whisper_heads.py            │  │
+│  │  (shared lib — masking +  │   │  (selective head fine-tune,       │  │
+│  │   attention capture hooks)│   │   reuses LoRA/PEFT pattern from   │  │
+│  │         │                 │   │   v1.0, but trains subset of      │  │
+│  │         ▼                 │   │   decoder.layers[i].self_attn)    │  │
+│  │ run_head_masking_sweep.py │   │         │                         │  │
+│  │  (diagnosis loop over     │   │         ▼                         │  │
+│  │   all 20 heads, top-k     │   │  outputs/head-finetune/           │  │
+│  │   identification)         │   │   run_<tag>/                      │  │
+│  │                           │   │     adapter/ or state_dict.pt     │  │
+│  │ run_decode_ablation.py    │   │     config.json                   │  │
+│  │  (beam / rep pen /        │   │     wandb/                        │  │
+│  │   length pen / ngram)     │   │                                   │  │
+│  │                           │   │         │                         │  │
+│  │ apply_energy_vad.py       │   │         ▼                         │  │
+│  │  (preprocessing — writes  │   │  Register fine-tuned checkpoints  │  │
+│  │   new manifest + audio    │   │  as new MODEL_REGISTRY entries    │  │
+│  │   clips)                  │   │  → evaluated via run_inference.py │  │
+│  └────────────┬──────────────┘   └──────────────────────────────────┘  │
+│               │                                                          │
+│               ▼ (all four emit the same prediction CSV schema)           │
+│  outputs/head-surgery/<experiment_tag>/predictions_*.csv                 │
+│               │                                                          │
+└───────────────┼──────────────────────────────────────────────────────────┘
+                │
+                ▼  (existing metrics code, UNCHANGED)
+        compute_fairness_metrics.py  error_decomposition.py
+        whisper_hallucination_analysis.py → figures
+```
+
+---
+
+## 3. Component Responsibilities
+
+| Component | File | Responsibility | Integration Point |
+|-----------|------|----------------|-------------------|
+| Head hook library | `scripts/whisper_head_hooks.py` | Shared module: `attach_head_mask_hooks(model, layer_idx, head_idx)`, `capture_attention_weights(model)`, unhook helpers. Imported by all three inference scripts. | Consumed by `run_head_masking_sweep.py`, `run_decode_ablation.py`, `train_whisper_heads.py`. NOT a script. |
+| Per-head sweep | `scripts/run_head_masking_sweep.py` | Loads Whisper-large-v3 once, loops over all 20 decoder self-attention heads, masks one head at a time, runs inference on the 511-utterance Indian CV subset, writes one prediction CSV per mask condition. Emits `top_k_heads.json` summary. | Reads manifest from `outputs/manifests/cv_indian_511.csv`. Writes to `outputs/head-surgery/diagnosis/`. |
+| Decode ablation | `scripts/run_decode_ablation.py` | Loads Whisper-large-v3 once, loops over a grid of `{beam_size, repetition_penalty, length_penalty, no_repeat_ngram_size}`, writes one prediction CSV per grid cell. No head masking. | Same manifest input. Writes to `outputs/head-surgery/decode-ablation/`. |
+| Energy VAD preprocessing | `scripts/apply_energy_vad.py` | Reads an input audio manifest, computes frame-level RMS energy, trims low-energy regions (or splits into segments), writes new audio files + new manifest pointing to trimmed clips. | Slots **before** `run_inference.py` (not after). Writes `outputs/vad/<manifest_name>/` with new `audio_path` column. Composable with perturbation pipeline. |
+| Selective head fine-tune | `scripts/train_whisper_heads.py` | Loads Whisper-large-v3, freezes all params, unfreezes only the `q_proj`/`k_proj`/`v_proj`/`o_proj` slices of the identified top-k heads (or wraps them in a LoRA adapter restricted to those modules), trains on accent-diverse manifest, saves checkpoint + W&B logs. | Reads `top_k_heads.json` from diagnosis step. Writes to `outputs/head-finetune/run_<tag>/`. |
+| Fine-tuned model registration | `scripts/run_inference.py` (minimal edit) | Add entries like `"whisper-large-v3-hf-tuned": {..., "type": "whisper", "checkpoint": "outputs/head-finetune/run_<tag>"}`. `load_whisper()` gains an optional checkpoint path branch. | THE ONLY EDIT to existing code. ≤15 lines. |
+
+---
+
+## 4. Project Structure (new files only)
+
+```
+scripts/
+├── whisper_head_hooks.py              # NEW — shared hook library (no __main__)
+├── run_head_masking_sweep.py          # NEW — diagnosis driver
+├── run_decode_ablation.py             # NEW — decoding hyperparameter grid
+├── apply_energy_vad.py                # NEW — preprocessing, manifest-in/manifest-out
+├── train_whisper_heads.py             # NEW — selective head fine-tune
+└── run_inference.py                   # MODIFIED — add 1-3 MODEL_REGISTRY entries
+                                       #           and a checkpoint-path branch in
+                                       #           load_whisper()
+
+outputs/
+├── manifests/
+│   └── cv_indian_511.csv              # NEW — pre-filtered diagnosis subset
+├── head-surgery/
+│   ├── diagnosis/
+│   │   ├── predictions_whisper_large_v3_mask_L3H7.csv
+│   │   ├── predictions_whisper_large_v3_mask_L3H0.csv
+│   │   ├── ... (20 files)
+│   │   ├── predictions_whisper_large_v3_baseline.csv
+│   │   └── top_k_heads.json           # {"top_k": [{"layer":3,"head":7,"ins_reduction":0.62},...]}
+│   ├── decode-ablation/
+│   │   ├── predictions_whisper_large_v3_beam5_rep1.2_len1.0_ngram3.csv
+│   │   └── ablation_summary.json
+│   └── vad-eval/
+│       └── predictions_whisper_large_v3_vad_silence25pct.csv
+├── vad/
+│   └── cv_indian_511_vad/             # trimmed clips + new manifest
+│       ├── audio/*.wav
+│       └── manifest.csv
+└── head-finetune/
+    └── run_<tag>/
+        ├── adapter/                    # if LoRA-wrapped
+        ├── state_dict.pt               # if direct unfreeze
+        ├── config.json                 # {top_k_heads, lr, epochs, train_data, ...}
+        ├── wandb/
+        └── eval/                       # predictions CSVs under the fine-tuned model key
+```
+
+### Rationale
+
+- **`whisper_head_hooks.py` is a library, not a script.** Every piece of v2.0 code that touches decoder attention (masking, capture, fine-tune) needs the same hook mechanics. Centralizing avoids three copies of fragile `register_forward_pre_hook` logic.
+- **`outputs/head-surgery/` is a new subtree** disjoint from `outputs/commonvoice/` and `outputs/fairspeech/`. This keeps diagnosis artifacts from polluting the canonical benchmark results directory.
+- **Fine-tuned checkpoints live under `outputs/head-finetune/run_<tag>/`**, mirroring v1.0's `outputs/standard-lora/` convention so the evaluation bridge pattern transfers.
+- **The 511-utterance Indian-accent manifest is built once** (`outputs/manifests/cv_indian_511.csv`) and reused across all diagnosis + ablation + fine-tune-eval runs — single source of truth for "the hallucination probe set".
+
+---
+
+## 5. Key Architectural Patterns
+
+### Pattern 1: Hook library, not a model subclass
+
+**What:** `whisper_head_hooks.py` exposes `attach_head_mask_hooks(model, masks)` and `detach_hooks(handles)`. It registers `forward_pre_hook`s on `model.model.decoder.layers[i].self_attn` that zero out the corresponding head's `q_proj`/`o_proj` slice (or multiply attention weights by a mask in the `scaled_dot_product_attention` path).
+
+**When:** Always, for both diagnosis and fine-tune. Never subclass `WhisperForConditionalGeneration`.
+
+**Why:** HuggingFace model classes are brittle to subclass (many generation-path methods). Hooks are idempotent, removable, and do not require re-`to("cuda")`. Matches Calm-Whisper's reference implementation style.
+
+**Shape:**
+```python
+# whisper_head_hooks.py
+def attach_head_mask_hooks(model, masks):
+    """masks: list of (layer_idx, head_idx) to zero out in decoder self-attention."""
+    handles = []
+    for layer_idx, head_idx in masks:
+        attn = model.model.decoder.layers[layer_idx].self_attn
+        handles.append(attn.register_forward_pre_hook(_make_mask_hook(head_idx)))
+    return handles
+
+def detach_hooks(handles):
+    for h in handles:
+        h.remove()
+```
+
+**Trade-offs:**
+- Pro: Zero changes to Whisper class, removable per-utterance, composable with LoRA later.
+- Con: Tied to HF's current decoder attention module layout — breaks if `transformers` internal names change. Pin version in `pyproject.toml`.
+
+### Pattern 2: Load once, sweep many
+
+**What:** Each new inference script loads Whisper-large-v3 **once** in a single Python process, then loops over the experimental axis (head index, decode config, etc.), attaching/detaching hooks between runs. One prediction CSV per experiment cell.
+
+**When:** Diagnosis sweep (20 runs × 511 utts), decode ablation (~30-60 grid cells × 511 utts).
+
+**Why:** Whisper-large-v3 cold-load is ~30s; loading 20 times wastes ~10 minutes and VRAM fragmentation risks. Single-process matches how `run_inference.py` currently handles multi-perturbation runs via `--perturbations` comma-list.
+
+**Shape:**
+```python
+# run_head_masking_sweep.py
+loaded = load_whisper(args)  # from run_inference import load_whisper
+writer = None
+for layer_idx in range(N_DECODER_LAYERS):
+    for head_idx in range(N_HEADS_PER_LAYER):
+        tag = f"mask_L{layer_idx}H{head_idx}"
+        handles = attach_head_mask_hooks(loaded["model"], [(layer_idx, head_idx)])
+        writer = IncrementalCSVWriter(output_path(tag), df, ...)
+        infer_whisper(df, args, loaded, writer=writer)
+        detach_hooks(handles)
+# final baseline pass with no hooks
+infer_whisper(df, args, loaded, writer=baseline_writer)
+```
+
+**Reuse:** `load_whisper()` and `infer_whisper()` are already factored out of `run_inference.py` (lines 307-378) — we call them directly. No copy-paste.
+
+**Trade-offs:**
+- Pro: 20× faster than relaunching a subprocess per head.
+- Con: A crash mid-sweep loses the in-memory loop state but prediction CSVs written so far are intact (`IncrementalCSVWriter` appends on every batch).
+
+### Pattern 3: Additive CSV schema — `experiment_tag` column
+
+**What:** Existing `IncrementalCSVWriter` emits columns: `utterance_id, reference, hypothesis, hypothesis_raw, wer, num_hyp_words, num_ref_words, perturbation, gender, accent, age, model, generation, architecture`. We add **one** column: `experiment_tag` (e.g., `"mask_L3H7"`, `"beam5_rep1.2"`, `"vad_on"`, `"baseline"`).
+
+**When:** All v2.0 inference scripts set `experiment_tag`. Existing `run_inference.py` sets it to `"baseline"` (default value) or omits — both backwards compatible.
+
+**Why:** Downstream metrics scripts (`compute_fairness_metrics.py`, `error_decomposition.py`, `whisper_hallucination_analysis.py`) group by `model` and `perturbation`. Adding `experiment_tag` as an optional groupby key means:
+- Old prediction CSVs (without the column) still work (pandas treats missing column as NaN).
+- New scripts can slice by `(model, experiment_tag)` for diagnosis analysis.
+- `compute_*_metrics.py` need ZERO edits if we invoke them per-tag by filtering the CSV up front, OR a trivial edit to add an optional `--experiment_tag` filter flag.
+
+**Shape:**
+```python
+# whisper_head_hooks.py or extended IncrementalCSVWriter
+result_row["experiment_tag"] = self.experiment_tag  # e.g., "mask_L3H7"
+```
+
+**Trade-offs:**
+- Pro: Zero data-contract breakage, backwards compatible.
+- Con: Requires one-line edit to `IncrementalCSVWriter.__init__` and `_build_row`. Logged as a modification.
+
+### Pattern 4: VAD as manifest-transformer, not inference flag
+
+**What:** `apply_energy_vad.py` reads a manifest (e.g., `cv_indian_511.csv`), processes each audio file (trim silence via frame RMS threshold), writes processed clips to `outputs/vad/<name>/audio/`, writes a new manifest pointing to the processed paths, preserving all demographic columns.
+
+**When:** Whenever we want VAD-on evaluation. To interact with silence-injection: run VAD on the silence-injected perturbation output (the manifest that points into `perturbed_audio/silence_25pct/`).
+
+**Why:** VAD is a property of the **input audio**, not the model call. Putting it before inference means:
+- It composes with the existing perturbation matrix (any `perturbation × vad_state` cell is just one manifest).
+- `run_inference.py` needs zero knowledge of VAD — it reads the manifest and runs.
+- Testing VAD against silence-injection is trivial: `apply_energy_vad.py --manifest silence_25pct_manifest.csv → vad_silence25_manifest.csv → run_inference.py`.
+
+**Pipeline integration:**
+```
+prepare_dataset.py      → cv_indian_511.csv
+generate_perturbations.py → perturbed_audio/silence_25pct/*.wav (existing)
+apply_energy_vad.py     → outputs/vad/cv_indian_511_silence25_vad/manifest.csv  [NEW]
+run_inference.py --manifest outputs/vad/cv_indian_511_silence25_vad/manifest.csv
+                --model whisper-large-v3
+```
+
+**Trade-offs:**
+- Pro: Single-responsibility; VAD and inference stay decoupled; silence-injection × VAD matrix is a flat file product.
+- Con: Disk cost — N copies of the audio. Mitigated: diagnosis probe set is only 511 utts, trivial.
+
+### Pattern 5: Selective fine-tuning via module targeting, not weight surgery
+
+**What:** `train_whisper_heads.py` reads `top_k_heads.json`, constructs a set of target module names (e.g., `["model.decoder.layers.3.self_attn.q_proj", "model.decoder.layers.3.self_attn.o_proj", ...]`), then either:
+- (a) **Direct unfreeze:** `param.requires_grad = True` only for parameter indices corresponding to the target heads, OR
+- (b) **LoRA restricted:** use `peft.LoraConfig(target_modules=[...])` to wrap only the target projection matrices. The PEFT path is simpler but updates the entire projection, not just one head's slice. Option (a) is the faithful Calm-Whisper-style replication.
+
+**Recommended:** **Option (a) direct unfreeze with masked gradients** — zero out gradients on the non-targeted head slices in a hook. This matches the Calm-Whisper method literally.
+
+**Why reuse the v1.0 LoRA infra pattern (not the code):** v1.0's `scripts/training/train_standard_lora.py` is written for Qwen3-ASR-1.7B and PEFT target modules specific to that model. The **patterns** to reuse:
+- HuggingFace `Trainer` + `TrainingArguments` wrapper
+- Dataset/collator pattern (`data_loader.py`, `data_collator.py`)
+- W&B logging hooks
+- Checkpoint directory layout (`outputs/<name>/adapter/`)
+- VRAM budgeting helpers (`tune_vram.py`)
+
+The **code** should not be copy-pasted — it is model-specific and would drag Qwen3-ASR imports into Whisper training. Write a fresh `train_whisper_heads.py` that mimics the file layout and reuses pure helpers (W&B init, seed handling, `outputs/` convention).
+
+**Shape:**
+```python
+# train_whisper_heads.py (sketch)
+model = WhisperForConditionalGeneration.from_pretrained(...)
+for p in model.parameters():
+    p.requires_grad = False
+target_params = []
+for (layer_idx, head_idx) in top_k_heads:
+    attn = model.model.decoder.layers[layer_idx].self_attn
+    for proj in [attn.q_proj, attn.k_proj, attn.v_proj, attn.out_proj]:
+        proj.weight.requires_grad = True
+        target_params.append(proj.weight)
+# register grad hook that zeros non-head slices
+register_head_grad_mask(target_params, head_idx)
+Trainer(model, args, train_dataset, ...).train()
+```
+
+**Trade-offs:**
+- Pro: Trains only ~0.5% of params, tiny checkpoint, fast.
+- Con: Grad-masking hook must be correct or the whole projection drifts. Add a unit test in `validate_head_training.py` that checks non-target slices have ||Δw|| = 0 after one step.
+
+### Pattern 6: Fine-tuned models register as new MODEL_REGISTRY entries
+
+**What:** After a fine-tune run completes at `outputs/head-finetune/run_20260420_heads3/`, we add an entry to `MODEL_REGISTRY`:
+```python
+"whisper-large-v3-hf-tuned-v1": {
+    "hf_id": "openai/whisper-large-v3",
+    "checkpoint": "outputs/head-finetune/run_20260420_heads3",
+    "generation": 2,
+    "architecture": "Encoder-Decoder (head fine-tuned)",
+    "params": "1.5B",
+    "type": "whisper",
+},
+```
+
+`load_whisper()` gets one new branch: if `"checkpoint"` is set, load the base model then `model.load_state_dict(torch.load(ckpt))` (or PEFT adapter merge). Everything else — the entire existing evaluation, fairness metrics, and figure pipeline — Just Works.
+
+**Why:** This is the cheapest possible integration with the existing benchmark matrix. Fine-tuned models get evaluated across the same 12 perturbations × 2 datasets as baselines for direct comparison tables.
+
+**Trade-offs:**
+- Pro: Zero changes to `compute_fairness_metrics.py`, `error_decomposition.py`, `generate_all_plots.py`.
+- Con: `MODEL_REGISTRY` grows by 1-3 entries per fine-tune experiment. Acceptable — it already has 9 entries.
+
+---
+
+## 6. Data Flow
+
+### Diagnosis flow (per-head identification)
+
+```
+prepare_dataset.py                         [existing]
+    │
+    ▼
+cv_test_manifest.csv                       [existing]
+    │
+    ▼ (filter accent == "Indian English")
+outputs/manifests/cv_indian_511.csv        [NEW — one-time build]
+    │
+    ▼
+run_head_masking_sweep.py                  [NEW]
+  - loads whisper-large-v3 once
+  - for each (layer, head) in 20 heads:
+      attach mask hook → infer → detach
+  - writes 21 prediction CSVs + top_k_heads.json
+    │
+    ▼
+outputs/head-surgery/diagnosis/
+  ├── predictions_whisper_large_v3_baseline.csv
+  ├── predictions_whisper_large_v3_mask_L{0..N}H{0..M}.csv
+  └── top_k_heads.json
+    │
+    ▼
+compute_fairness_metrics.py / error_decomposition.py   [existing, unchanged]
+  - invoked per-tag, filtered via experiment_tag column
+  - produces insertion rate per mask condition
+    │
+    ▼
+generate_all_plots.py                      [existing, possibly one new figure]
+```
+
+### Decode ablation flow
+
+```
+outputs/manifests/cv_indian_511.csv
+    │
+    ▼
+run_decode_ablation.py                     [NEW]
+  - load whisper-large-v3 once
+  - for each (beam, rep_pen, len_pen, ngram) in grid:
+      override generation_config → infer
+  - writes N prediction CSVs
+    │
+    ▼
+outputs/head-surgery/decode-ablation/
+    │
+    ▼
+error_decomposition.py → ablation_summary.json  [existing]
+```
+
+### VAD + silence-injection flow
+
+```
+perturbed_audio/silence_25pct/*.wav         [existing]
+    │
+    ▼ (build manifest pointing to these)
+outputs/manifests/cv_indian_silence25.csv
+    │
+    ▼
+apply_energy_vad.py                         [NEW]
+    │
+    ▼
+outputs/vad/cv_indian_silence25_vad/
+  ├── audio/*.wav
+  └── manifest.csv
+    │
+    ▼
+run_inference.py --manifest outputs/vad/...   [existing]
+    │
+    ▼
+standard prediction CSV (experiment_tag="vad_silence25")
+    │
+    ▼
+compute_fairness_metrics.py                 [existing, unchanged]
+```
+
+### Fine-tune flow
+
+```
+top_k_heads.json  +  accent-diverse training manifest
+    │                           │
+    └───────────┬───────────────┘
+                ▼
+train_whisper_heads.py                      [NEW]
+  - freeze all, unfreeze + grad-mask target head slices
+  - HuggingFace Trainer loop
+  - W&B logging
+    │
+    ▼
+outputs/head-finetune/run_<tag>/
+  ├── state_dict.pt
+  ├── config.json (includes top_k_heads)
+  └── wandb/
+    │
+    ▼ (add entry to MODEL_REGISTRY in run_inference.py)
+    │
+    ▼
+run_inference.py --model whisper-large-v3-hf-tuned-v1   [existing, with one new branch]
+  - evaluated across the full 12 perturbations × 2 datasets
+    │
+    ▼
+compute_fairness_metrics.py                 [existing, unchanged]
+generate_all_plots.py                       [existing, unchanged]
+```
+
+---
+
+## 7. Integration Contract Summary
+
+| Existing stage | Role in v2.0 | Modified? |
+|----------------|--------------|-----------|
+| `prepare_dataset.py` | Source of CV/FS manifests | No |
+| `generate_perturbations.py` | Produces silence-injection audio for VAD interaction tests | No |
+| `run_inference.py` | Houses `load_whisper()`, `infer_whisper()`, `IncrementalCSVWriter`. Evaluates fine-tuned checkpoints. | **YES — 2 small edits**: (a) `IncrementalCSVWriter` adds `experiment_tag` column; (b) `load_whisper()` gains optional checkpoint-load branch; (c) `MODEL_REGISTRY` gains 1-3 fine-tuned entries. |
+| `compute_fairness_metrics.py` | Consumes prediction CSVs from any new script | No — but optionally gains `--experiment_tag` filter arg (trivial, additive) |
+| `compute_fairness_metrics_fs.py` | Same | No |
+| `error_decomposition.py` | Consumes prediction CSVs | No |
+| `whisper_hallucination_analysis.py` | Core analysis of insertion categorization — already does 95% of what we need for head-mask evaluation | No |
+| `generate_all_plots.py` | Produces figures | No (or adds one new figure func for head-mask bar chart) |
+| `validate_*.py` | Pre-flight validators | Add `validate_head_sweep.py` for the new script |
+| `scripts/training/*` | v1.0 GRPO infra (archived) | **Do NOT import or modify.** Reuse patterns by re-writing. |
+
+**Files touched in the existing codebase:** `run_inference.py` only. All other modifications are additive (new files).
+
+---
+
+## 8. Suggested Build Order
+
+The build order enforces the dependency graph: diagnosis must succeed before ablation matters; ablation must complete before fine-tuning targets are locked; fine-tuning must complete before evaluation comparison tables can be rendered.
+
+```
+Phase A — Infrastructure (pre-diagnosis)
+├── A1  whisper_head_hooks.py + unit tests
+│       (mask one head, verify attention output differs; detach, verify identity)
+├── A2  Build outputs/manifests/cv_indian_511.csv (one-off script or notebook)
+├── A3  Extend IncrementalCSVWriter with experiment_tag column (run_inference.py edit)
+└── A4  Smoke test: run_head_masking_sweep.py on 5 utterances × 2 heads
+
+Phase B — Diagnosis sweep
+├── B1  Full 20-head sweep on 511 Indian CV utterances (+ baseline)
+├── B2  Post-hoc analysis: insertion rate per mask → top_k_heads.json
+│       (reuse error_decomposition.py + a thin aggregation script)
+└── B3  Validation: Calm-Whisper-comparable "3/20 heads = 75% hallucinations" check
+
+Phase C — Decode ablation
+├── C1  run_decode_ablation.py grid over {beam, rep_pen, len_pen, ngram}
+├── C2  Analyze: does any decode config match head-masking's insertion reduction?
+└── C3  Decision point: is decode tuning sufficient, or does fine-tune add value?
+
+Phase D — VAD preprocessing
+├── D1  apply_energy_vad.py + unit test (RMS threshold sanity)
+├── D2  VAD on clean Indian-CV subset → does it affect WER?
+├── D3  VAD × silence-injection matrix (25/50/75%) — does VAD rescue silence-injection failures?
+
+Phase E — Selective head fine-tuning
+├── E1  train_whisper_heads.py skeleton + grad-masking unit test
+├── E2  VRAM tuning (reuse maximize-vram skill / tune_vram.py pattern)
+├── E3  Smoke train: 1 head, 100 steps, verify loss decreases
+├── E4  Full train with top_k_heads from Phase B
+└── E5  Register fine-tuned checkpoint → MODEL_REGISTRY entry
+
+Phase F — Full evaluation
+├── F1  Run fine-tuned checkpoint across 12 perturbations × 2 datasets
+│       (existing run_inference.py, no code changes needed here)
+├── F2  compute_fairness_metrics.py → comparison tables
+├── F3  whisper_hallucination_analysis.py → before/after insertion categorization
+└── F4  generate_all_plots.py → figures
+```
+
+**Critical dependency gates:**
+- B → C: If diagnosis doesn't identify clear culprit heads, re-examine mask implementation before running ablation.
+- B → E: `top_k_heads.json` is the input to training — E cannot start until B is complete and validated.
+- C ∥ D: Decode ablation and VAD are independent — can run in parallel.
+- E → F: Fine-tuned model cannot be evaluated until training + checkpoint registration complete.
+
+---
+
+## 9. Answers to Specific Integration Questions
+
+| Q | Answer |
+|---|--------|
+| **1. Per-head masking: wrap `run_inference.py`, standalone, or new CSV format?** | Standalone: `run_head_masking_sweep.py`. It IMPORTS `load_whisper` and `infer_whisper` from `run_inference.py` (they are already factored out) and wraps them with hook attach/detach. CSV format stays the same + one additive `experiment_tag` column. |
+| **2. Head diagnosis loop: one W&B run per head?** | One Python process, one script invocation, one W&B run. Internal loop over heads. Log per-head metrics as a step/axis. Data contract to "top-k identification": `top_k_heads.json` with ranked `[{layer, head, insertion_rate, delta_vs_baseline}]`. |
+| **3. Decoding strategy ablation: inside `run_inference.py` or new script?** | New script: `run_decode_ablation.py`. Same rationale as #1 — keeps argument surface small, single-purpose scripts. |
+| **4. Energy VAD: pre- or post-inference?** | **Pre-inference.** VAD is a property of the audio input. `apply_energy_vad.py` is a manifest-in → manifest-out transformer. This makes silence-injection × VAD a flat cross-product of manifests. |
+| **5. Selective head fine-tuning integration?** | New script: `train_whisper_heads.py`. Do NOT reuse v1.0 LoRA code (model-specific to Qwen3-ASR). DO reuse the v1.0 patterns: `outputs/<run>/` layout, W&B hooks, HF `Trainer`. Checkpoints at `outputs/head-finetune/run_<tag>/`. Registration back via new `MODEL_REGISTRY` entry + 1 new branch in `load_whisper()`. |
+| **6. Can existing `compute_*_metrics.py` handle new predictions?** | **Yes, unchanged.** Prediction CSV schema is compatible (additive `experiment_tag` column is nullable). If we want to group by head-mask condition in the same analysis run, add an optional `--experiment_tag` filter flag to `compute_fairness_metrics.py`. Trivial edit. `whisper_hallucination_analysis.py` already does insertion categorization — directly usable on mask-condition CSVs. |
+
+---
+
+## 10. Anti-Patterns to Avoid
+
+### Anti-Pattern 1: "Just add a `--head_mask` flag to `run_inference.py`"
+**Why wrong:** Bloats argument surface, couples diagnosis code with routine inference, forces every future inference run to carry dead code paths.
+**Do instead:** New script that imports reusable functions from `run_inference.py`.
+
+### Anti-Pattern 2: Subclass `WhisperForConditionalGeneration`
+**Why wrong:** Brittle to `transformers` library upgrades. Hooks on generation path are hard to override.
+**Do instead:** `forward_pre_hook` on specific decoder attention modules.
+
+### Anti-Pattern 3: Rebuild prediction CSV schema for head experiments
+**Why wrong:** Breaks every downstream `compute_*_metrics.py` script.
+**Do instead:** Additive `experiment_tag` column; backwards compatible.
+
+### Anti-Pattern 4: Copy-paste `train_standard_lora.py` and retarget Whisper
+**Why wrong:** File is 600+ lines full of Qwen3-ASR-specific imports (`qwen_asr`, `patch_outer_forward`, etc.). Adapting in place creates a zombie file.
+**Do instead:** Write fresh `train_whisper_heads.py`, mirror the structure, import only pure helpers.
+
+### Anti-Pattern 5: Run VAD inside `run_inference.py`
+**Why wrong:** VAD state becomes an invisible flag on every eval; breaks "audio on disk = ground truth input" contract.
+**Do instead:** VAD as a manifest transformer that writes new audio files.
+
+### Anti-Pattern 6: Subprocess-per-head for the 20-head sweep
+**Why wrong:** 20× cold-load of a 1.5B model (~10 min wasted) + VRAM fragmentation risk.
+**Do instead:** Single process, load once, loop in Python, attach/detach hooks per iteration.
+
+### Anti-Pattern 7: Fine-tune full decoder "to be safe"
+**Why wrong:** Defeats the entire Calm-Whisper thesis (targeted surgery on 3/20 heads). Also risks degrading non-Indian-accent WER.
+**Do instead:** Direct unfreeze + grad mask on `{layer_i, head_j}` slices only. Validate with a parameter-delta sanity check.
+
+---
+
+## 11. Sources
+
+- `scripts/run_inference.py` — `MODEL_REGISTRY`, `load_whisper()`, `infer_whisper()`, `IncrementalCSVWriter` at lines 27-91, 307-378, 148-210
+- `scripts/compute_fairness_metrics.py` — existing groupby-based metrics, no `experiment_tag` awareness yet
+- `scripts/error_decomposition.py` — existing insertion/substitution/deletion computation via `jiwer.process_words()`
+- `scripts/whisper_hallucination_analysis.py` — existing insertion extraction & categorization
+- `scripts/training/train_standard_lora.py` (archived) — v1.0 pattern template for HF Trainer + LoRA + W&B
+- `CLAUDE.md` — Architecture section ("Script-oriented pipeline: prepare → perturbation → inference → metrics → plots")
+- `.planning/PROJECT.md` — v2.0 milestone scope, Calm-Whisper methodology reference, 9.62% Indian-accent insertion baseline
+- `.planning/archive/v1.0-phases/ROADMAP.md` — archived GRPO infra not reused verbatim
+
+---
+*Architecture research for: v2.0 attention head surgery on Whisper-large-v3*
+*Researched: 2026-04-11*

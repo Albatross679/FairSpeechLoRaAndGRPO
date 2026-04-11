@@ -1,338 +1,628 @@
-# Domain Pitfalls
+# Pitfalls Research
 
-**Domain:** GRPO fairness-aware ASR fine-tuning (Qwen3-ASR-1.7B, LoRA, RTX A4000 16GB)
-**Researched:** 2026-04-05
+**Domain:** Attention-head surgery for hallucination mitigation on Whisper-large-v3 (ASR fairness)
+**Milestone:** v2.0 — CSE 5525 class project
+**Researched:** 2026-04-11
+**Confidence:** HIGH for HuggingFace integration pitfalls and decoding-stack confounds; MEDIUM for Calm-Whisper transferability and VAD-on-accent claims; LOW for "which head does what" without empirical verification
+**Legend:** [KNOWN] = cited from literature or source code; [LIKELY] = inferred from methodology; [PROJECT] = class-project scope trap
 
 ---
 
 ## Critical Pitfalls
 
-Mistakes that cause training failure, wasted GPU hours, or invalidated results.
+### Pitfall 1: `head_mask` silently ignored under SDPA/flash attention [KNOWN]
 
-### Pitfall 1: GRPO VRAM Memory Leak Leading to OOM
+**What goes wrong:**
+You write a clean per-head masking diagnosis loop using HuggingFace's native `decoder_head_mask` argument, run it on 20 heads × N layers, and get results that look plausible but are **completely fake** — every head "ablation" is identical to the baseline because the mask was dropped at the attention-backend boundary.
 
-**What goes wrong:** GRPO training VRAM usage increases monotonically with each training step, eventually crashing with OOM. This is a widely-reported bug across TRL, Unsloth, and veRL frameworks in 2025. On a 16GB RTX A4000 with a 1.7B model, there is essentially zero headroom -- even a slow leak (100MB over 500 steps) will crash training.
+**Why it happens:**
+HuggingFace's default `attn_implementation` for Whisper-large-v3 on any modern install is `"sdpa"` (torch scaled_dot_product_attention) or `"flash_attention_2"` when available. Both backends **do not support `head_mask`** and silently ignore it. The official docs say: *"The head_mask argument is ignored when using all attention implementations other than 'eager'. If you have a head_mask and want it to have effect, you need to load the model with `from_pretrained(model_id, attn_implementation='eager')`."* On some versions a warning is emitted; on others it is not.
 
-**Why it happens:** GRPO internally runs multiple forward passes per step: the policy model generates `num_generations` completions per prompt, then the reference model computes log-probs for KL penalty, then reward is computed. KV cache, intermediate tensors, and computation graphs accumulate across steps if not explicitly freed. Some frameworks retain references to old rollout tensors across steps.
+**How to avoid:**
+1. Load the model with `WhisperForConditionalGeneration.from_pretrained("openai/whisper-large-v3", attn_implementation="eager")`. Do not use `"sdpa"`, `"flash_attention_2"`, or `"auto"`.
+2. **Sanity check before diagnosis:** mask head #0 of layer 0 with a value of `0.0` and verify the decoded output changes versus baseline on at least 5 utterances. If it does not change, the mask is being ignored.
+3. Log `model.config._attn_implementation` immediately after load and assert it equals `"eager"`.
+4. Budget ~2-3x slower inference vs. SDPA — this is unavoidable with head_mask.
 
-**Consequences:** Training crashes after N steps with no checkpoint saved. Hours of GPU time wasted. Subtle: if training completes on small data but fails on full dataset, you only discover the leak at scale.
+**Warning signs:**
+- All 20 head masks produce identical WER to baseline (~9.62% Indian insertion rate unchanged).
+- No warning printed about SDPA fallback.
+- Inference speed suspiciously fast for head-masked runs.
 
-**Prevention:**
-1. Monitor VRAM every 50 steps with `torch.cuda.max_memory_allocated()` -- plot it. If non-flat, there is a leak.
-2. Force garbage collection between steps: `torch.cuda.empty_cache(); gc.collect()` after each training step.
-3. Use `batch_size=1` with `gradient_accumulation_steps=4` (not batch_size=4) to keep peak VRAM low.
-4. Set `max_completion_length` conservatively (e.g., 256 tokens for ASR transcriptions which are short).
-5. Use `num_generations=4` (not 8 or 16) -- each generation multiplies VRAM.
-6. Pin TRL version and test on 100 steps before committing to full runs.
-
-**Detection:** VRAM monitoring script that logs every N steps. If `max_memory_allocated` increases by >500MB over 200 steps, abort and investigate.
-
-**Phase:** Infrastructure setup (Phase 1). Must be validated before any real training runs.
-
-**Confidence:** HIGH -- multiple GitHub issues document this exact problem (TRL #2927, #3678; Unsloth #2470, #3512, #3864).
+**Phase to address:** Phase 1 (Diagnosis infra) — make the eager-attention assertion and the "zero a head, confirm output changes" sanity check a hard gate before any ranking loop runs.
 
 ---
 
-### Pitfall 2: Fairness Reward Hacking via Accuracy Collapse
+### Pitfall 2: `head_mask` not propagated through generation steps with KV cache [LIKELY/KNOWN]
 
-**What goes wrong:** The composite reward `R = (1-lambda)(1-WER) + lambda(-|WER_g - WER|)` can be maximized by making ALL groups equally bad. A model that outputs empty transcriptions for every group achieves perfect fairness (all WER gaps = 0) while having catastrophic accuracy (WER = 1.0). At moderate lambda values, the optimizer can find local optima where it degrades majority-group accuracy to match minority-group accuracy rather than lifting minority groups.
+**What goes wrong:**
+The `decoder_head_mask` works on the first decoder step but is not re-applied when KV cache is used for subsequent autoregressive steps. Your "masking" only affects token 1; tokens 2..T are produced by the unmasked model. Since Whisper decodes ~20-100 tokens per utterance, this is equivalent to ~95% of the hallucinated tokens being generated by the *unmasked* model.
 
-**Why it happens:** The fairness term rewards equality of WER, not low WER. Without sufficient weight on the accuracy term, the path of least resistance is leveling down. GRPO's group-relative advantage computation may amplify this: if a batch happens to contain mostly one demographic, the advantage signal is computed relative to that group's baseline, creating noisy gradient directions.
+**Why it happens:**
+`WhisperForConditionalGeneration.generate()` constructs KV-cached decoding loops that pass arguments through `prepare_inputs_for_generation`. Historically in transformers, `head_mask`/`decoder_head_mask` was passed on the *first* forward call but not threaded through every cached step. HuggingFace issues have repeatedly flagged that masking/attention arguments interact poorly with KV caching in `generate()`. Even when it is passed, the implementation subtly differs between "prefill" and "decode" phases.
 
-**Consequences:** Model appears to "improve" fairness during training (reward goes up) while WER degrades across the board. Only visible if you track per-group absolute WER alongside the composite reward.
+**How to avoid:**
+1. **Do not rely on the `decoder_head_mask` kwarg to `generate()`.** Instead, implement head masking via a **forward hook on the attention module** that zeros the selected head at every invocation (prefill + every decode step). A forward `pre_hook` on `WhisperAttention.forward` or a module-level monkey-patch that multiplies `attn_weights[:, head_idx, :, :] *= 0.0` after softmax is the robust pattern.
+2. Verify masking is active across the full sequence: mask a non-sentinel head and confirm that **token N** of the output also changed, not just token 1. Run `output_attentions=True` and inspect that attention from the target head is actually zero for all decoded positions.
+3. For KV-cached cross-attention: verify the cache is still recomputed or the hook is re-invoked — cross-attention cache is written once per layer then reused; a one-time mask will stick but a hook may not fire again for cross-attention. **Prefer self-attention targeting** (which is what Calm-Whisper does anyway).
 
-**Prevention:**
-1. Log per-group WER at every evaluation step, not just the composite reward. Plot absolute WER alongside fairness gap.
-2. Add a WER floor constraint: if WER > baseline_WER + 0.05, override the fairness bonus to zero. This prevents rewarding fairness improvements that come from degradation.
-3. Start lambda sweep from 0.0 and increase gradually (0.0, 0.1, 0.2, ..., 0.9). If WER degrades monotonically with lambda, the reward is encouraging collapse.
-4. Consider reformulating as `R = (1-WER) - lambda * max(0, |WER_g - WER| - tau)` with a tolerance threshold tau, so small fairness gaps are not penalized.
-5. Validate on held-out data after each checkpoint -- if held-out WER rises by >5% relative to baseline, that lambda point is degenerate.
+**Warning signs:**
+- Decoded text differs at position 1 but converges to baseline by position 5.
+- `output_attentions` shows zero in the masked head only for the first step.
+- Insertion rate reduction is suspiciously small compared to Calm-Whisper's reported >80% hallucination reduction.
 
-**Detection:** Divergence between composite reward (increasing) and absolute WER (also increasing or flat). Per-group WER converging toward the worst group's level rather than all groups improving.
-
-**Phase:** Reward design (Phase 2). Must be resolved before lambda sweep.
-
-**Confidence:** HIGH -- this is a well-documented failure mode in multi-objective RL and fairness-constrained optimization literature.
-
----
-
-### Pitfall 3: GRPO Produces Minimal ASR Improvement Due to Unique-Answer Problem
-
-**What goes wrong:** GRPO was designed for tasks with multiple valid outputs (reasoning, translation) where group-relative comparison is meaningful. ASR transcription has exactly ONE correct answer per utterance. When all `num_generations` outputs for a prompt are either correct or incorrect, the advantage computation yields near-zero gradients -- there is nothing to differentiate within the group.
-
-**Why it happens:** GRPO computes advantages by comparing rewards within a group of completions for the same prompt. If all completions get similar WER (e.g., all get the same transcription right or wrong), the normalized advantage is ~0 for all, producing no learning signal. This was explicitly noted in the GRPO-for-ASR paper (arxiv:2509.01939): "preliminary experiments with ASR obtained only minor improvements" compared to speech translation and spoken QA.
-
-**Consequences:** Training appears stable but produces negligible WER improvement. Lambda sweep shows a flat Pareto frontier because GRPO is not meaningfully optimizing the accuracy component.
-
-**Prevention:**
-1. Use a continuous WER reward (character-level or word-level edit distance), NOT binary correct/incorrect. This creates reward variance even when outputs are similar but not identical.
-2. Increase sampling temperature during generation to 0.7-1.0 to create diversity in completions. If temperature is too low, all completions converge to the same output.
-3. Use `num_generations >= 4` to ensure statistical variance in the group.
-4. Include diverse difficulty levels in each batch -- mix easy and hard utterances so at least some prompts have reward variance.
-5. Monitor the standard deviation of rewards within each group. If avg std < 0.01 for >50% of batches, GRPO is not getting useful signal.
-6. Consider supplementary rewards beyond WER: penalize hallucinations (output much longer than expected), reward partial correctness.
-
-**Detection:** Flat or near-zero advantage values across training. Reward std within groups near zero. WER improvement <1% relative after 500+ steps.
-
-**Phase:** GRPO implementation (Phase 2). Reward function design must account for this.
-
-**Confidence:** HIGH -- explicitly documented in published ASR-GRPO research.
+**Phase to address:** Phase 1 (Diagnosis infra) — implement masking via forward hooks, validate with `output_attentions=True` on every decoded step before ranking heads.
 
 ---
 
-### Pitfall 4: 16GB VRAM Budget Exhausted by GRPO's Multi-Model Architecture
+### Pitfall 3: Masking the wrong module — `out_proj` vs attention weights vs values [LIKELY]
 
-**What goes wrong:** GRPO needs the policy model, reference model, and reward computation simultaneously in VRAM. Even a 1.7B model in fp16 takes ~3.4GB. With LoRA adapters, optimizer states (Adam has 2x model-size states), KV cache for `num_generations` completions, and activation memory for backprop, 16GB fills completely.
+**What goes wrong:**
+Calm-Whisper's paper states "mask heads" without specifying the intervention point. You pick a plausible spot (e.g., zeroing `out_proj` weights for the head's slice) that is subtly wrong, and your head ranking does not match Calm-Whisper's #1/#6/#11 finding — not because your model is different but because your "masking" is doing something different from theirs.
 
-**Why it happens:** Naive GRPO implementation loads: policy model (~3.4GB) + reference model (~3.4GB) + LoRA optimizer states (~200MB) + KV cache (~1-2GB for 4 generations) + activations (~2-4GB with gradient checkpointing) + framework overhead (~1-2GB). Total: ~12-16GB before any batch processing. A single long utterance can push over the edge.
+**Why it happens:**
+Multi-head attention has four candidate intervention points, each with different semantics:
+1. **Zero attention weights per-head** (`attn_weights[:, h, :, :] = 0`) — head outputs become zero vector; its slice of the concatenated output is zero; `out_proj` receives zeros in columns `h*dh : (h+1)*dh`. **This is the standard "head ablation" interpretation and almost certainly what Calm-Whisper does.**
+2. **Zero value vectors per-head** (`V[:, h, :] = 0`) — mathematically equivalent to #1 for standard attention.
+3. **Zero `out_proj` columns** (`W_O[:, h*dh:(h+1)*dh] = 0`) — also equivalent to #1 but modifies weights persistently; dangerous if you forget to restore.
+4. **Zero post-softmax output head slice** (after `attn_weights @ V`, before `out_proj`) — equivalent to #1.
+5. **Zero `Q` or `K` per-head** — NOT equivalent; the head still contributes via numerical leakage and biases; **wrong**.
 
-**Consequences:** Either OOM immediately, or OOM on longer utterances (variable-length audio creates variable VRAM usage).
+**How to avoid:**
+1. Pick **option #1** (mask post-softmax attention weights per head) — this is the standard head-ablation interpretation used in Michel et al. 2019, Voita et al. 2019, and almost all head pruning literature. Implement via forward hook on `WhisperAttention`.
+2. **Validate equivalence:** for a single test head, implement two of {attn_weights zero, V zero, out_proj column zero} and confirm identical logits. If they diverge by more than 1e-5, your implementation has a bug (probably shape/indexing).
+3. **Never mask Q or K** — this does not ablate the head, it corrupts it.
+4. If modifying `out_proj` weights, use `torch.no_grad()` + `.clone()` saved-state pattern and restore after each head test. Prefer forward hooks over weight surgery to avoid state leakage.
 
-**Prevention:**
-1. **Merge reference model**: Use `ref_model=None` in TRL's GRPOTrainer -- it will use the initial policy weights as reference, avoiding a second model copy. The KL penalty is computed by storing the initial log-probs, not a separate model.
-2. **8-bit quantization**: Load the reference model (if separate) in 8-bit via bitsandbytes. Policy model stays in fp16 for gradient accuracy.
-3. **Gradient checkpointing**: Mandatory. Trades ~25% speed for ~40% VRAM savings on activations.
-4. **AdamW 8-bit optimizer** (bitsandbytes): 25-30% optimizer memory savings with negligible quality impact.
-5. **Cap sequence lengths**: ASR outputs are typically short. Set `max_completion_length=128` (sufficient for most utterances). Set `max_prompt_length=30s * 16kHz = 480000` samples, but process audio in chunks if needed.
-6. **Profile before training**: Run one forward+backward pass with `torch.cuda.memory_summary()` and verify peak < 14GB (leave 2GB headroom for spikes).
+**Warning signs:**
+- Head ranking is entirely noise — no single head dominates.
+- Masking "works" but gives bizarre outputs (not hallucinations disappearing, but gibberish).
+- Two different masking implementations give different rankings.
 
-**Detection:** Run `nvidia-smi` monitoring in background. Profile first batch. If peak > 14GB, reduce num_generations or sequence length before proceeding.
-
-**Phase:** Infrastructure setup (Phase 1). Non-negotiable prerequisite.
-
-**Confidence:** HIGH -- arithmetic on model sizes + verified VRAM reports from similar setups.
-
----
-
-## Moderate Pitfalls
-
-### Pitfall 5: FairLoRA Regularizer Does Not Transfer to ASR Domain
-
-**What goes wrong:** FairLoRA was designed for vision classification (ViT, DiNO, CLIP) where per-group loss variance maps directly to accuracy disparity. In ASR with CTC/attention-based decoding, per-group loss variance is confounded by utterance length, linguistic complexity, and acoustic conditions -- not just demographic bias. Applying FairLoRA's loss-variance regularizer to ASR may penalize legitimate difficulty differences rather than demographic bias.
-
-**Why it happens:** FairLoRA's regularizer `lambda * sum_g (L_g - L_mean)^2` assumes loss differences between groups reflect bias. In ASR, a group with longer utterances or more complex vocabulary will have higher loss even with zero bias. CTC loss specifically scales with input length, as documented in CTC-DRO (Bartelds et al., 2025).
-
-**Prevention:**
-1. Normalize per-group loss by utterance length before computing FairLoRA's variance penalty.
-2. Use WER-based fairness penalty (as in the GRPO reward) rather than raw loss variance, since WER is length-normalized.
-3. If implementing FairLoRA as a baseline, carefully document whether you use loss-based or WER-based variance, and explain the difference.
-4. Consider CTC-DRO's approach: input length-matched batching + smoothed group weight updates, which was specifically designed for ASR fairness.
-
-**Detection:** FairLoRA baseline shows fairness improvements on training loss but NOT on evaluation WER gaps. This signals the regularizer is optimizing a proxy, not the actual fairness objective.
-
-**Phase:** Baseline implementation (Phase 3). Must validate the fairness metric FairLoRA optimizes vs. what we evaluate.
-
-**Confidence:** MEDIUM -- FairLoRA has not been applied to ASR in published work. CTC-DRO documents exactly this loss-vs-metric mismatch.
+**Phase to address:** Phase 1 (Diagnosis infra) — write a unit test that masks head 0 via three methods and asserts logit equivalence before running the full sweep.
 
 ---
 
-### Pitfall 6: Group-DRO Collapses to Worst-Group Overfitting Without Strong Regularization
+### Pitfall 4: Cross-attention vs self-attention confusion [KNOWN]
 
-**What goes wrong:** Group-DRO minimizes worst-group loss, but in overparameterized neural networks (which 1.7B models are), the model can perfectly fit training data for all groups, making worst-group training loss vanish. At test time, the worst group may still perform poorly because DRO did not generalize. Alternatively, DRO overweights a small noisy group, causing the entire model to overfit to that group's idiosyncrasies.
+**What goes wrong:**
+You intend to replicate Calm-Whisper, which targets **decoder self-attention** heads (the ones attending to previously-decoded tokens), but your hook accidentally attaches to **decoder cross-attention** heads (the ones attending to encoder audio features). Cross-attention controls *what audio gets listened to*; self-attention controls *language-model priors and repetition loops*. Masking cross-attention will likely break transcription entirely (random gibberish) rather than reduce hallucinations.
 
-**Why it happens:** Sagawa et al. (2020) showed that naive Group-DRO on overparameterized networks requires significantly stronger L2 regularization than standard training (10-40 percentage point improvement when regularization is added). Without it, worst-group test accuracy can be worse than standard ERM. Additionally, group weight updates can become unstable when one group has very few samples.
+**Why it happens:**
+In HuggingFace's `WhisperDecoderLayer`, both self-attention and cross-attention (`encoder_attn`) are `WhisperAttention` instances — same class, same forward signature. If you iterate `model.model.decoder.layers[l].self_attn` vs `.encoder_attn`, it is one character difference. Additionally, `decoder_head_mask` and `cross_attn_head_mask` are two separate arguments in `generate()` and it is easy to pass the wrong one. Calm-Whisper's "20 heads" refers specifically to self-attention in Whisper-large-v3 (20 decoder heads × 32 layers = 640 heads total, but they look at per-head-index aggregated across layers, matching layer-indexed self-attention only).
 
-**Prevention:**
-1. Apply stronger L2 regularization than you would for standard LoRA training (2-5x the default weight_decay).
-2. Use early stopping based on worst-group validation WER, not average WER.
-3. Smooth group weight updates (exponential moving average with momentum 0.1) to prevent oscillation on small groups.
-4. Enforce minimum group weight: no group's weight should drop below 1/|G| * 0.1 to prevent ignoring any group.
-5. Length-normalize CTC loss before group aggregation (following CTC-DRO).
+**How to avoid:**
+1. Explicitly name the target module in code: `target = model.model.decoder.layers[layer_idx].self_attn` — and add a comment "NOT encoder_attn (cross-attn)".
+2. Do both diagnoses if time permits (self-attn and cross-attn sweeps). Self-attn should show the 3-of-20 pattern; cross-attn should catastrophically degrade WER when any head is masked.
+3. When using HF kwargs, prefer `decoder_head_mask` (self-attn) and never pass `cross_attn_head_mask` unless specifically testing cross-attention.
+4. Log the module name being hooked at each iteration so you can grep the run for `encoder_attn` and catch accidents.
 
-**Detection:** Worst-group training loss decreasing but worst-group validation WER increasing or flat. Group weights oscillating wildly between steps.
+**Warning signs:**
+- Masking any head causes massive WER regression (>50% WER) — you're probably ablating cross-attention.
+- Outputs become random tokens / non-English — cross-attn target.
+- Your "best head to mask" is layer 31, head 0 (unlikely to match Calm-Whisper's pattern).
 
-**Phase:** Baseline implementation (Phase 3).
-
-**Confidence:** HIGH -- Sagawa et al. ICLR 2020 + CTC-DRO 2025 both document this.
-
----
-
-### Pitfall 7: Demographic Group Imbalance Corrupts Fairness Reward Signal
-
-**What goes wrong:** Fair-Speech has ~26,470 utterances and Common Voice has ~16,400, but demographic groups within each dataset are highly imbalanced. If "African American" has 500 utterances and "White" has 8,000, the per-batch fairness reward will be computed over vastly different sample sizes. Small-group WER estimates are noisy, creating noisy fairness rewards that destabilize GRPO training.
-
-**Why it happens:** Mini-batch sampling for GRPO is typically uniform over utterances, not stratified by demographic group. A batch of 32 may contain 0-2 utterances from small groups, making per-group WER in that batch meaningless. The fairness term in the reward becomes dominated by sampling noise rather than actual demographic gaps.
-
-**Prevention:**
-1. **Stratified batch sampling**: Ensure each training batch contains minimum N samples per demographic group (e.g., N >= 8). If a group has fewer total samples than needed, oversample it.
-2. **Accumulate fairness signal**: Compute the fairness reward term over a rolling window of K batches (e.g., K=10) rather than per-batch, to smooth out sampling noise.
-3. **Document group sizes**: Before training, print the demographic distribution of both datasets. If any group has < 100 utterances, flag it as potentially unreliable.
-4. **Use MIN_GROUP_SIZE consistently**: The existing codebase uses MIN_GROUP_SIZE=50. Apply the same threshold during training data filtering.
-5. **Weight fairness term by group confidence**: Scale each group's contribution to the fairness reward by sqrt(n_g) to downweight estimates from small groups.
-
-**Detection:** High variance in fairness reward between consecutive batches (>2 std from mean). Groups with <50 samples in training set. Per-batch group counts frequently hitting 0 for any demographic.
-
-**Phase:** Data preparation + reward design (Phase 1-2).
-
-**Confidence:** HIGH -- basic statistics. The existing codebase already has MIN_GROUP_SIZE for evaluation; the same logic must apply to training.
+**Phase to address:** Phase 1 (Diagnosis infra) — naming convention + per-iteration log of hooked module path.
 
 ---
 
-### Pitfall 8: Entropy Collapse Kills GRPO Exploration
+### Pitfall 5: Calm-Whisper transferability assumption [KNOWN]
 
-**What goes wrong:** GRPO's clipping mechanism constrains low-probability tokens more than high-probability ones. Over training, the model becomes increasingly deterministic -- entropy collapses. Once entropy is low, all `num_generations` completions are identical, advantages are zero, and learning stops entirely.
+**What goes wrong:**
+You assume "3 of 20 heads cause 75% of hallucinations" transfers from Calm-Whisper's setup (non-speech UrbanSound audio → blank transcription) to your setup (Indian-accented speech → insertion errors). These are **different hallucination types**: Calm-Whisper targets *insertion of content where there is no speech*; you are targeting *insertion errors during actual speech*. The same heads may or may not be responsible. Worse, Calm-Whisper's head identification was done **on the same dataset they evaluated on** (UrbanSound → UrbanSound) with no held-out split, so their numbers may be optimistically biased.
 
-**Why it happens:** With symmetric clipping at epsilon=0.2, the probability ratio is clamped to [0.8, 1.2]. A token with p=0.01 can only increase to p=0.012 (20% increase), but a token with p=0.5 can increase to p=0.6 (20% increase = much larger absolute change). This systematically suppresses exploration of rare tokens, which is particularly harmful in ASR where rare words (names, technical terms) are disproportionately important for fairness.
+**Why it happens:**
+Class-project time pressure creates incentive to "just use heads #1/#6/#11" without verification. Literature transfer is the fastest-looking path.
 
-**Prevention:**
-1. Use asymmetric (DAPO-style) clipping: `epsilon_low=0.2, epsilon_high=0.28` to allow more exploration.
-2. Monitor entropy at every evaluation step. If entropy drops below 50% of initial value, training is collapsing.
-3. Add a small entropy bonus to the reward: `R += 0.01 * H(policy)`.
-4. Use token-level loss aggregation (not sample-level) to prevent length bias that compounds entropy collapse.
+**How to avoid:**
+1. **Treat Calm-Whisper's head IDs as a prior, not a conclusion.** Run a full per-head sweep on your Indian-accent data; report your own ranking.
+2. **If your ranking matches Calm-Whisper's (3 dominant heads, large overlap with #1/#6/#11):** cite it as independent replication and a strong finding.
+3. **If your ranking does NOT match:** this is also a publishable finding — "Calm-Whisper's heads do not transfer to accent-driven hallucination." Do not hide it.
+4. Explicitly state in PLAN.md that "Calm-Whisper head IDs are a hypothesis to test, not a given."
 
-**Detection:** Entropy plot showing monotonic decline. All `num_generations` outputs becoming identical (measure by average pairwise edit distance between completions).
+**Warning signs:**
+- "We used heads #1/#6/#11 from Calm-Whisper" appearing in any plan step *before* the diagnosis sweep has been run.
+- Head ranking strongly differs and the team wants to "override" it to match the paper.
 
-**Phase:** GRPO training loop (Phase 2).
-
-**Confidence:** HIGH -- documented in DAPO and Dr. GRPO papers (2025).
-
----
-
-### Pitfall 9: Evaluation Methodology Invalidated by Overlapping Train/Eval Demographics
-
-**What goes wrong:** If the same speakers appear in both training and evaluation sets (even if different utterances), fairness improvements may reflect speaker memorization rather than demographic generalization. Similarly, if Common Voice and Fair-Speech have overlapping speakers, cross-dataset evaluation is contaminated.
-
-**Why it happens:** Neither Common Voice nor Fair-Speech guarantee speaker-disjoint splits. Common Voice's validated/test splits may share speakers with the training partition. Fair-Speech's controlled prompts mean all speakers read similar content, making speaker-specific patterns easier to memorize.
-
-**Prevention:**
-1. Verify speaker-disjoint splits: ensure no speaker ID appears in both training and evaluation sets.
-2. Use Fair-Speech for evaluation only and Common Voice for training (or vice versa), creating a dataset-disjoint evaluation.
-3. Report results on both in-distribution (same dataset) and out-of-distribution (cross-dataset) evaluation.
-4. For Fair-Speech, verify that the controlled prompts do not create trivially memorizable patterns.
-
-**Detection:** Suspiciously large fairness improvements on in-distribution data that do not transfer to cross-dataset evaluation.
-
-**Phase:** Evaluation design (Phase 1 data preparation, Phase 4 evaluation).
-
-**Confidence:** MEDIUM -- depends on actual speaker overlap in the specific dataset versions used.
+**Phase to address:** Phase 1 (Diagnosis) — plan must explicitly run the full sweep and publish the ranking *before* any selective fine-tuning starts.
 
 ---
 
-### Pitfall 10: Lambda Sweep Produces Degenerate Pareto Frontier
+### Pitfall 6: Cherry-picking via same-split head identification and evaluation [KNOWN]
 
-**What goes wrong:** The Pareto frontier plot shows only 2-3 meaningful points because most lambda values produce either (a) negligible fairness change (low lambda) or (b) catastrophic accuracy loss (high lambda), with a very narrow band of useful lambda values.
+**What goes wrong:**
+You use all n=511 Indian-accent utterances to identify hallucination-driving heads, then report the insertion-rate reduction on the **same 511 utterances**. The reduction is real but inflated — a head that "reduces insertions on these 511" is partially memorized to this specific audio. Your class report claims a 60% insertion reduction that would be 20% on a held-out split.
 
-**Why it happens:** The fairness reward gradient is much steeper than the accuracy gradient at the boundary where they conflict. Small lambda changes produce large shifts in behavior. A linear sweep (0.0, 0.1, ..., 1.0) misses the interesting region.
+**Why it happens:**
+n=511 feels small (because it is) and the instinct is "use all the data for everything." Standard ML hygiene (train/val/test) gets skipped because it is not a "training" experiment in the usual sense.
 
-**Prevention:**
-1. Do a coarse sweep first (0.0, 0.1, 0.2, ..., 1.0), identify the transition zone, then do a fine sweep in that zone (e.g., 0.15, 0.175, 0.2, 0.225, 0.25).
-2. Use logarithmic spacing for lambda if the transition is near zero: (0.001, 0.01, 0.05, 0.1, 0.2, 0.5, 1.0).
-3. Plot intermediate checkpoints, not just final models -- a single training run may trace part of the frontier as lambda is held fixed but training progresses.
-4. Need minimum 5-6 non-dominated points for a convincing Pareto plot.
+**How to avoid:**
+1. **Split early:** 60/20/20 (≈306/102/103) or 50/25/25 with a fixed random seed. Call them `dev_diagnose`, `dev_rank`, `test_eval`.
+   - `dev_diagnose` (306 utts): run per-head masking sweep; compute ΔInsertionRate per head.
+   - `dev_rank` (102 utts): re-score top-K candidate heads from `dev_diagnose`; break ties; finalize the head set.
+   - `test_eval` (103 utts): **touched exactly once** — for the final reported number.
+2. **Do NOT touch `test_eval`** during diagnosis, decoding ablation, VAD tuning, or fine-tuning hyperparameter selection.
+3. Fix the split file (`indian_accent_splits.json`) and commit it before any experiments run.
+4. Report **both** "dev_diagnose" and "test_eval" insertion rates in the final writeup for honesty.
+5. Keep LibriSpeech test-clean and Fair-Speech as **held-out regression monitors** — they are already separate datasets.
 
-**Detection:** Fewer than 4 distinct points on the Pareto frontier. Most lambda values clustering at one of two extremes.
+**Warning signs:**
+- Only one "Indian accent" number reported.
+- The split file does not exist or is regenerated between runs.
+- The "final number" is measured on the same split used for head selection.
 
-**Phase:** Lambda sweep (Phase 3). But sweep strategy must be designed in Phase 2.
-
-**Confidence:** MEDIUM -- common in multi-objective optimization but severity depends on the specific reward landscape.
-
----
-
-## Minor Pitfalls
-
-### Pitfall 11: LoRA Rank Too High Wastes VRAM; Too Low Limits Expressiveness
-
-**What goes wrong:** With only 16GB VRAM, every MB matters. LoRA rank of 64 (common default) may be unnecessarily high for a 1.7B model doing ASR. But rank 4 may be too low to learn fairness-relevant adjustments.
-
-**Prevention:**
-1. Start with rank 16, alpha 32 (alpha = 2x rank is standard).
-2. Target `q_proj, k_proj, v_proj, o_proj` in decoder attention layers.
-3. Compute trainable parameter count: rank 16 on a 1.7B model is ~0.5-1% of parameters, well within the 1-2% target.
-4. If fairness improvement plateaus, try rank 32. If VRAM is tight, try rank 8.
-
-**Phase:** LoRA configuration (Phase 1).
-
-**Confidence:** HIGH -- standard LoRA practice.
+**Phase to address:** Phase 1 (Diagnosis infra) — split the 511 utterances into diagnose/rank/test BEFORE running the first sweep. Make the split file a Phase 1 deliverable.
 
 ---
 
-### Pitfall 12: Existing Codebase Hardcoded Paths Block Training Integration
+### Pitfall 7: Head-ranking noise at n=306 [LIKELY]
 
-**What goes wrong:** The existing 28 scripts have hardcoded absolute paths (`/users/PAS2030/srishti/...`) that will break when GRPO training scripts try to reuse data loading, metric computation, or evaluation functions.
+**What goes wrong:**
+With only ~306 utterances in the diagnose split, per-head insertion-rate differences are within bootstrap noise. A head with "Δ = -0.8%" and one with "Δ = -0.2%" may be statistically indistinguishable. You pick the top-3 by point estimate and three months later find that the ranking was mostly noise.
 
-**Prevention:**
-1. Before writing any GRPO code, extract shared utilities (WER computation, demographic grouping, data loading) into a `lib/` module with configurable paths.
-2. At minimum, create a `config.yaml` with all paths and have both old and new scripts read from it.
-3. This is already documented in CONCERNS.md -- address it as a prerequisite.
+**Why it happens:**
+Class-project time pressure discourages bootstrap confidence intervals. Point estimates feel definitive.
 
-**Phase:** Prerequisite (Phase 0 / infrastructure setup).
+**How to avoid:**
+1. **Bootstrap 1000x over utterances** for every head's insertion-rate delta. Report 95% CIs.
+2. Only call a head "hallucination-driving" if its 95% CI lower bound on Δ is negative (i.e., significantly reduces insertions).
+3. If the ranking is noisy, widen the candidate set (top-5 or top-8) and do a second sweep on `dev_rank` with bootstrap.
+4. Expected effect size: Calm-Whisper reported ~80% hallucination reduction from 3 heads on ~500 UrbanSound samples. If your top head shows Δ < 10% relative, suspect implementation bug before noise.
 
-**Confidence:** HIGH -- directly observed in codebase analysis.
+**Warning signs:**
+- Rankings change dramatically when you rerun with a different seed.
+- Top-3 heads differ between `dev_diagnose` and `dev_rank`.
+- Bootstrap 95% CIs cross zero for the "winning" heads.
 
----
-
-### Pitfall 13: Bootstrap CI Computation During Training Is Too Slow
-
-**What goes wrong:** The existing evaluation pipeline uses bootstrap confidence intervals (1000 resamples), which is appropriate for final evaluation but far too slow to run every N training steps as a monitoring signal.
-
-**Prevention:**
-1. Use a fast fairness proxy during training: simple max-min WER gap across groups (no bootstrap).
-2. Reserve full bootstrap CI evaluation for checkpointed models (every 500 steps or end of epoch).
-3. Log the fast proxy every 50 steps for monitoring, full evaluation every 500 steps.
-
-**Phase:** Training loop design (Phase 2).
-
-**Confidence:** HIGH -- computational cost is straightforward to estimate.
+**Phase to address:** Phase 1 (Diagnosis) — bootstrap CI computation is part of the ranking deliverable.
 
 ---
 
-### Pitfall 14: Mixed Precision (fp16) Instability with Small LoRA Gradients
+### Pitfall 8: Insertion-rate vs WER confounding [LIKELY]
 
-**What goes wrong:** LoRA adapters have small gradient magnitudes because they modify a small subspace. In fp16, these gradients can underflow to zero, causing dead adapters that never update.
+**What goes wrong:**
+A head you "mask to reduce insertions" actually just shifts errors from insertions to substitutions/deletions. Insertion rate drops 5 percentage points but WER stays the same or gets worse. You declare victory based on insertion rate, miss the WER regression, and submit a result that is a wash.
 
-**Prevention:**
-1. Use bf16 if supported (A4000 supports bf16). bf16 has larger dynamic range than fp16.
-2. If using fp16, use a gradient scaler (torch.cuda.amp.GradScaler) -- this is standard but easy to forget when implementing custom GRPO loops.
-3. Monitor LoRA adapter weight norms every 100 steps. If weights stop changing, gradients are underflowing.
+**Why it happens:**
+Insertion rate is the headline metric (because of the midterm finding), so you optimize for it. WER is treated as "secondary" and not checked every iteration.
 
-**Phase:** Training infrastructure (Phase 1-2).
+**How to avoid:**
+1. **Always report S, D, I decomposition together with WER** — for every masking experiment, every decoding ablation, every VAD config, every fine-tuning checkpoint.
+2. Define success as: **ΔInsertionRate < 0 AND ΔWER ≤ 0** (or ΔWER within a bootstrap-determined slack, e.g., 0.5 absolute WER points).
+3. Plot the Pareto frontier: insertion rate vs WER, across all masked-head configurations. The "right" head is one that moves down-left, not just left.
+4. Run the same metrics on LibriSpeech test-clean and Fair-Speech as regression monitors at each major step.
 
-**Confidence:** MEDIUM -- depends on gradient magnitudes in practice. A4000 (Ampere) supports bf16.
+**Warning signs:**
+- A "successful" head ablation shows insertion rate down 5% and WER up 3%.
+- Substitution rate climbs as insertion rate falls.
+- Repetition insertions drop but content insertions rise — masking did not mitigate hallucination, it shifted its form.
+
+**Phase to address:** Phase 1 (Diagnosis) and Phase 4 (Eval) — decomposed metrics as a hard requirement in every reporting step.
 
 ---
 
-## Phase-Specific Warnings
+### Pitfall 9: Whisper's decoding fallback confounds decoding ablation [KNOWN]
 
-| Phase Topic | Likely Pitfall | Mitigation |
-|-------------|---------------|------------|
-| Data preparation | Demographic group imbalance (#7) | Compute and log group distributions before any training. Implement stratified sampling. |
-| Data preparation | Train/eval speaker overlap (#9) | Verify speaker-disjoint splits upfront. |
-| Infrastructure setup | VRAM budget (#4) | Profile one forward+backward pass. Pin max sequence lengths. |
-| Infrastructure setup | VRAM memory leak (#1) | Monitor VRAM per step from first training run. |
-| Reward design | Fairness reward hacking (#2) | Add WER floor constraint. Log per-group absolute WER. |
-| Reward design | Unique-answer problem (#3) | Use continuous WER reward, increase temperature, monitor advantage std. |
-| GRPO training | Entropy collapse (#8) | Asymmetric clipping, entropy monitoring, entropy bonus. |
-| GRPO training | fp16 gradient underflow (#14) | Use bf16 on A4000. Monitor adapter weight norms. |
-| Lambda sweep | Degenerate frontier (#10) | Coarse-then-fine sweep strategy. Logarithmic spacing. |
-| Baseline: FairLoRA | Domain transfer failure (#5) | Length-normalize loss. Use WER-based variance. |
-| Baseline: Group-DRO | Worst-group overfitting (#6) | Strong regularization. Smooth group weights. Early stopping on worst-group val. |
-| Evaluation | Statistical validity with small groups (#7) | MIN_GROUP_SIZE threshold. Report group sizes alongside results. |
-| Codebase integration | Hardcoded paths (#12) | Extract shared config before writing GRPO code. |
+**What goes wrong:**
+You run a decoding-strategy ablation (beam size, repetition penalty, no-repeat n-gram, length penalty) and get noisy, seemingly random results. The reason: Whisper's `generate()` pipeline silently runs a **temperature fallback loop** — if `compression_ratio > threshold` or `avg_log_prob < threshold`, it re-runs the segment with temperature=0.2, 0.4, ..., 1.0. Your "beam_size=5" run may actually be executing at temperature 0.8 on half the utterances. Your ablation is not measuring what you think.
+
+**Why it happens:**
+Whisper's built-in temperature fallback and compression-ratio / log-prob thresholds are on by default in both `openai-whisper` and HuggingFace's `WhisperGenerationMixin`. They are specifically designed to catch repetition hallucinations — exactly what you're trying to study. So the effect is most pronounced on the failure cases you care about most.
+
+**How to avoid:**
+1. **Disable temperature fallback for ablation runs:** pass `temperature=0.0`, `num_beams=<your value>`, `do_sample=False`, and either set `compression_ratio_threshold=None` and `logprob_threshold=None` or explicitly `generation_config.compression_ratio_threshold = None`.
+2. Also disable `condition_on_previous_text` (or `condition_on_prev_tokens` in HF) — it leaks context across chunks and can cause cascading hallucinations that confound your per-utterance metrics.
+3. Re-verify after configuration: decode the same utterance twice; outputs should be **deterministic**. If they are not, the fallback is still firing or there is random sampling somewhere.
+4. Document the exact `GenerationConfig` used for each ablation run in the PLAN and log file.
+5. **Use Whisper's built-in fallback as its own ablation arm** ("with fallback" vs "without") so you can quantify how much of the improvement is from your intervention vs. the built-in safety net.
+
+**Warning signs:**
+- Same utterance, same seed, different outputs across runs.
+- Beam-size sweep shows non-monotonic or contradictory results.
+- `generation_config.temperature` is a tuple `(0.0, 0.2, 0.4, 0.6, 0.8, 1.0)` when you expected a scalar.
+- Some utterances are dramatically better than others with no apparent input feature to explain it.
+
+**Phase to address:** Phase 2 (Decoding ablation) — "freeze GenerationConfig + deterministic re-decode sanity check" must be a Phase 2 gate.
+
+---
+
+### Pitfall 10: Beam search × repetition penalty × no-repeat-ngram interaction [LIKELY]
+
+**What goes wrong:**
+You sweep `num_beams ∈ {1, 5, 10}`, `repetition_penalty ∈ {1.0, 1.1, 1.3}`, `no_repeat_ngram_size ∈ {0, 3, 5}`, and `length_penalty ∈ {0.5, 1.0, 1.5}`. That is 3^4 = 81 configurations × 511 utterances × ~5 seconds each = ~7 hours of GPU time. Worse: the parameters **interact non-additively** — `no_repeat_ngram_size=3` at `num_beams=10` gives a different result than summing the marginal effects. You cannot reason about them one at a time.
+
+**Why it happens:**
+Parameter sweeps feel like the "scientific" thing to do. But decoding parameters have known non-additive interactions, especially beam × repetition penalty.
+
+**How to avoid:**
+1. **Scope the ablation tight:** fix `num_beams=5` (Whisper's default for large models) and only sweep the two params most directly targeting repetition: `repetition_penalty` and `no_repeat_ngram_size`. This is a 3×3=9-cell grid, manageable.
+2. Run `num_beams=1` (greedy) and `num_beams=5` as two separate mini-grids rather than as a third sweep dimension.
+3. Use the `dev_diagnose` split for the grid; pick the best cell; validate on `dev_rank`; final number on `test_eval`.
+4. **Report only the 2D grid + two beam-size points** — not a full 81-cell table. Honesty about what you actually ran.
+5. If you are short on time, drop decoding ablation entirely — it is the least novel arm and will be dominated by the head-surgery intervention.
+
+**Warning signs:**
+- Ablation grid is >20 cells.
+- "Best config" from full sweep does not match best from one-at-a-time sweeps.
+- Total GPU time for decoding ablation exceeds the head-surgery diagnosis time.
+
+**Phase to address:** Phase 2 (Decoding ablation) — scope lock during plan review.
+
+---
+
+### Pitfall 11: Insertion-rate alone misses auto-collapsed repetition [LIKELY]
+
+**What goes wrong:**
+Whisper's temperature fallback (see Pitfall 9) and the HF pipeline's decoding post-processing will sometimes silently collapse obvious repetition loops ("the the the the") into a shortened output. Your insertion rate looks great, but the hallucination is still happening — it is just being masked by the decoder stack. Turn off the collapse, and the intervention no longer looks effective.
+
+**Why it happens:**
+Whisper's `compression_ratio_threshold=2.4` detects the compressed text "the the the..." as compressible and triggers rerun with higher temperature, which may produce a shorter (still wrong) output. The insertion count drops, but the model is not actually less hallucinatory.
+
+**How to avoid:**
+1. Report insertion rate **with Whisper's safety net disabled** (see Pitfall 9 mitigation) as the primary metric.
+2. Additionally report: **raw repetition count** (longest repeated n-gram, number of ≥3-token repeats), **compression ratio of output**, and **token-level duplication rate**.
+3. Classify insertions into repetition/syntactic/content (as the midterm did) for every run — if the intervention reduces syntactic/content insertions but leaves repetition unchanged, that is a weaker claim than "fixes hallucination."
+4. Cross-check: turn Whisper's fallback **on** and **off** with and without the intervention. If the intervention only helps when fallback is off, the fallback was doing the work.
+
+**Warning signs:**
+- Intervention reduces insertions but raw compression ratio of outputs is unchanged.
+- Intervention looks dramatic with fallback on, subtle with fallback off.
+- Longest repeated n-gram distribution is unchanged.
+
+**Phase to address:** Phase 2 (Decoding ablation) + Phase 4 (Evaluation) — report all three insertion subtypes plus a repetition-shape metric.
+
+---
+
+### Pitfall 12: Energy-VAD deletes soft-spoken accent speech [KNOWN]
+
+**What goes wrong:**
+You apply energy-based VAD as preprocessing to strip silent regions (which should reduce hallucination triggers). But energy-based VAD uses an absolute dBFS threshold that was tuned on one audio level. Soft-spoken speakers, low-volume recordings, and some accents (Indian accent speech on Common Voice has notoriously variable amplitude due to crowdsourced recording conditions) fall below threshold. The VAD deletes real speech, WER goes up on exactly the demographic you were trying to help.
+
+**Why it happens:**
+Energy thresholds do not adapt to speaker loudness. Common Voice recordings have ~15-30 dB variance across speakers. A threshold tuned for LibriSpeech (studio-quality) will over-trim half of Common Voice. WebRTC VAD, the most common "quick" choice, has only 50% true-positive rate at 5% false-positive rate — it misses 1 in 2 speech frames. Silero VAD is 4x better but still requires threshold tuning.
+
+**How to avoid:**
+1. **Do not use WebRTC VAD.** Use Silero VAD (open source, PyTorch, trained on 6000+ languages including accented English). Silero has 87.7% TPR at 5% FPR vs WebRTC's 50%.
+2. **Per-utterance amplitude normalization before VAD:** normalize peak or RMS to a fixed target (e.g., -20 dBFS) so the threshold applies consistently.
+3. **Verify on a held-out clean sample of Indian-accent utterances:** run VAD and measure how many seconds of speech are removed. If >5% of speech frames are deleted on clean audio, the VAD is too aggressive.
+4. **Measure WER delta on LibriSpeech + Indian-accent clean** (no perturbation) before and after VAD. If either goes up, VAD is hurting.
+5. Consider making VAD **conditional on perturbation detection** — only apply it when silence-injection is detected, not as a blanket preprocessing step.
+6. **The midterm finding** that silence-75% on Indian accent actually *improves* WER (19.2% → 14.5%) suggests that for Indian-accent + silence injection, deleting silences may not even be the right intervention. Investigate the mechanism before committing.
+
+**Warning signs:**
+- Indian-accent WER on clean audio goes up after adding VAD.
+- LibriSpeech test-clean WER degrades after VAD.
+- VAD deletes >5% of speech frames on clean recordings.
+- VAD "helps" silence-injection conditions but "hurts" clean — net fairness impact is zero or negative.
+
+**Phase to address:** Phase 3 (VAD) — (a) choose Silero not WebRTC, (b) validate on clean Indian-accent audio as a Phase 3 gate BEFORE testing on silence-injected conditions.
+
+---
+
+### Pitfall 13: VAD threshold overfit to silence-injection perturbation [LIKELY]
+
+**What goes wrong:**
+You tune the VAD threshold to minimize insertion rate under the 25/50/75% silence-injection perturbation. The best threshold is aggressive. You then apply it to clean audio and it deletes real speech. Conversely, if you tune on clean, it fails to catch silence-injected hallucinations. You cannot have both with a single static threshold.
+
+**Why it happens:**
+Silence injection is a synthetic, contrived perturbation — it produces long contiguous silent regions with clean abrupt boundaries. Real soft-spoken speech has noisy boundaries, short pauses, breaths. The two distributions are different enough that a single-threshold VAD cannot serve both.
+
+**How to avoid:**
+1. Tune VAD hyperparameters (threshold, min-silence-duration, speech-pad-ms) on a **mixed** dev set containing clean utterances AND silence-injected utterances in the ratio they appear in your eval.
+2. Use the more robust Silero VAD parameters (`min_silence_duration_ms`, `speech_pad_ms`, `threshold=0.5` default) rather than energy-only.
+3. Report VAD results **separately** for clean vs silence-injected conditions — do not collapse them into one number that hides the tradeoff.
+4. Accept that VAD may be a **clean-audio no-op** and only active under perturbation. This is OK and is the honest result.
+
+**Warning signs:**
+- VAD helps on silence-injection but regresses clean audio.
+- Threshold sweep gives a sharp optimum — likely overfit to one condition.
+- Single-number improvement masking per-condition tradeoff.
+
+**Phase to address:** Phase 3 (VAD) — split reporting by condition.
+
+---
+
+### Pitfall 14: Selective head fine-tuning collapses to identity or zero [LIKELY]
+
+**What goes wrong:**
+You unfreeze heads #1/#6/#11 and fine-tune on 511 Indian-accent utterances. With only these 3 heads trainable (≈ 3 × 64 × 1280 × 32 layers ≈ 8M params) and a small dataset, the heads converge to a degenerate solution — either near-identity (head output ≈ input bypass) or near-zero (head output ≈ 0, same as masking). Your "fine-tuned" model is equivalent to just masking those heads. Worse: it may be worse than masking because near-zero introduces small adversarial perturbations.
+
+**Why it happens:**
+Narrowly-scoped fine-tuning on small data with a small loss signal collapses to the nearest trivial solution. This is a known issue for low-rank and selective fine-tuning.
+
+**How to avoid:**
+1. **Regularize against collapse:** add an L2 penalty between current head weights and initial (pretrained) weights — `λ * ||W - W_init||²` with `λ` in 1e-4 to 1e-2 range. This keeps the head close to its original function while allowing adjustment.
+2. **Use LoRA on the heads** rather than full head fine-tuning. LoRA (rank=4 or 8) on `Q/K/V/out_proj` slices for the target heads injects only low-rank updates, which is much harder to collapse and is the standard practice.
+3. Compare post-FT head weights to pre-FT: compute `||W_ft - W_init||_F` and `cos_sim(W_ft, W_init)`. If either shows degenerate change (near-zero or huge), the FT collapsed.
+4. **Monitor on LibriSpeech test-clean every N steps**. If clean WER regresses, stop training — overfit or collapse.
+5. Calm-Whisper's recipe: LR=1e-6, only 5 epochs, small LR warmup — **extreme conservatism**. Match this.
+6. Use early stopping on `dev_rank` insertion rate with patience=2 epochs.
+
+**Warning signs:**
+- Head weights post-FT are mostly zero or mostly unchanged.
+- LibriSpeech WER climbs after epoch 1.
+- Insertion rate drops quickly then plateaus at the masking baseline (indicating collapse to masking).
+- Training loss → 0 in a few hundred steps.
+
+**Phase to address:** Phase 4 (Fine-tuning) — LoRA-on-heads + L2-to-init regularization + LibriSpeech monitoring as Phase 4 defaults.
+
+---
+
+### Pitfall 15: Catastrophic forgetting on other accents [KNOWN]
+
+**What goes wrong:**
+You fine-tune on 511 Indian-accent utterances. The model gets better on Indian accent but regresses on other Common Voice accents (Canadian, Australian, England, African, American) and on LibriSpeech test-clean. Your class project "fixes" Indian accent hallucination but makes the overall Whisper-large-v3 fairness worse. MMR (your headline metric) goes up, not down.
+
+**Why it happens:**
+Fine-tuning on a single demographic distribution shifts the model's language prior toward that distribution. Well-documented in ASR literature: MAS-LoRA paper (arXiv 2505.20006) explicitly shows that single-accent fine-tuning causes catastrophic forgetting on other accents; LoRA is slightly better than full FT but still regresses.
+
+**How to avoid:**
+1. **Mix in diverse training data:** even on a small budget, mix Indian-accent utterances with equal-count samples from other accents (Canadian, England, American) and LibriSpeech. Target 50/50 split: 256 Indian + 256 mixed other accents.
+2. **Use accent-diverse training data** as stated in v2.0 requirements — "selectively fine-tune on accent-diverse audio" — don't weaken this to "Indian only."
+3. **Evaluation gates:** before accepting a fine-tuned checkpoint, it MUST show: (a) Indian accent insertion ↓, (b) all other accents WER ≤ baseline + 0.5 pts, (c) LibriSpeech test-clean WER ≤ baseline + 0.5 pts. If any fails, reject the checkpoint.
+4. **Run MMR across all 6 accents** as a gate metric. If MMR worsens, intervention fails the fairness requirement regardless of Indian-accent improvement.
+5. **Experience replay** or **LoRA with low rank + weight decay** are known mitigations for catastrophic forgetting.
+
+**Warning signs:**
+- LibriSpeech test-clean WER goes up.
+- Canadian/England/American WER goes up.
+- Insertion rate on non-Indian accents changes significantly (either direction).
+- Overall MMR across 6 accents degrades.
+
+**Phase to address:** Phase 4 (Fine-tuning) — data composition and multi-accent eval gate must be enforced in the training script and the PLAN.
+
+---
+
+### Pitfall 16: Overfitting on n=511 [LIKELY]
+
+**What goes wrong:**
+With only 511 total utterances and 3 splits (≈306/102/103), the fine-tuning set after 50/50 mixing is ~256 Indian + 256 other = 512 total. Training a 1.5B parameter model (even with LoRA) on 512 utterances for >1 epoch is trivially overfittable. You hit perfect train-set WER by epoch 2, and the "generalization" is zero.
+
+**Why it happens:**
+The Indian-accent subset is a fixed size dictated by Common Voice 24. There is no more data without relabeling.
+
+**How to avoid:**
+1. **Use an extremely small number of epochs** (1-3 max, matching Calm-Whisper's 5).
+2. **Freeze almost everything:** only LoRA adapters on 3 specific heads, not full FT. Trainable params should be <0.1% of total.
+3. **Use external training data for the non-Indian side of the mix** — pull from LibriSpeech or other Common Voice accents; do not reuse your 511 anywhere in training if it will also be evaluated.
+4. **Do not train on `test_eval` ever.** Ideally do not train on `dev_rank` either — use only `dev_diagnose` for fine-tuning data.
+5. **Early stop on dev_rank insertion rate** with aggressive patience=1.
+6. Report train-split and dev-split metrics in every training log — if they diverge, stop.
+
+**Warning signs:**
+- Train-set insertion rate ≪ dev-set insertion rate after a few steps.
+- Best dev metric is at epoch 0 or 1 (meaning no improvement from training).
+- Train loss ≪ validation loss.
+
+**Phase to address:** Phase 4 (Fine-tuning) — LoRA-only config, early-stopping on dev_rank, explicit separation of train/dev/test.
+
+---
+
+### Pitfall 17: [PROJECT] Scope creep — attempting all 4 interventions shallowly
+
+**What goes wrong:**
+The v2.0 plan lists 4 interventions (masking diagnosis, decoding ablation, VAD, selective FT). You attempt all 4, finish none well, submit a class project with 4 half-done arms and no clear headline result. Alternatively: you nail #1 (diagnosis) with rigor and a solid writeup, skip #2 and #3, and do a small focused #4.
+
+**Why it happens:**
+Research proposals look stronger with more arms. Class-project execution favors depth over breadth. The two are in tension.
+
+**How to avoid:**
+1. **Declare a primary arm** in PROJECT.md and PLAN.md: "Arm 1 (diagnosis) is the required deliverable. Arms 2-4 are stretch."
+2. **Time-box the secondary arms:** "If diagnosis is not complete by week N, arms 2-4 are cut."
+3. **Prefer: rigorous diagnosis + small rigorous fine-tuning** over all 4 shallow.
+4. The diagnosis arm alone — per-head sweep with bootstrap CIs, hold-out evaluation, replication or refutation of Calm-Whisper's head IDs — is a complete class project and publishable in miniature.
+5. Decoding ablation (arm 2) is the weakest arm — decoding parameters are well-studied and novelty is low. Cut first under time pressure.
+6. VAD (arm 3) requires the silence-injection perturbed data which you already have from midterm; if it "comes for free" from existing infra, keep it; otherwise cut.
+
+**Warning signs:**
+- Week 2 and no single arm is >50% complete.
+- Team is switching between arms every day without finishing any.
+- PLAN.md has 4 parallel phases without dependency ordering.
+
+**Phase to address:** Roadmap ordering — Phase 1 (diagnosis) is blocking; Phase 4 (fine-tune) depends on Phase 1; Phases 2 and 3 are optional side quests.
+
+---
+
+### Pitfall 18: [PROJECT] No baseline re-run before intervention
+
+**What goes wrong:**
+You trust the midterm's 9.62% insertion rate number and start intervening without re-running the baseline. Three weeks later, your "reduction to 4%" is questioned because the midterm infra used different code (stale manifest, different GenerationConfig, different HF version). You cannot demonstrate improvement because you cannot reproduce the baseline.
+
+**Why it happens:**
+Baseline re-runs feel like "wasted time." The existing 216 runs feel authoritative. But the midterm codebase has drifted — new model versions, new HF releases, possibly different decoding defaults.
+
+**How to avoid:**
+1. **Phase 0 (or Phase 1 step 1): re-run Whisper-large-v3 on all 511 Indian-accent utterances with the current infrastructure.** Confirm you get 9.62% ± 0.5% insertion rate. If you do not, debug before proceeding.
+2. Also re-run LibriSpeech test-clean and Fair-Speech ethnicity groups with current infra — confirm midterm numbers reproduce within 0.5% absolute WER.
+3. Freeze the GenerationConfig: save `baseline_generation_config.json` with temperature, beam size, fallback thresholds, all decoding params. Every intervention uses this as its "disabled" baseline.
+4. Commit the baseline predictions CSV to git as a tag/checkpoint. All subsequent intervention results are diffs against this specific baseline file.
+5. If the baseline does NOT reproduce: that is a bug and Phase 1 cannot proceed until fixed. This is load-bearing.
+
+**Warning signs:**
+- Current infra gives 12% insertion rate instead of 9.62%.
+- Indian-accent baseline insertion rate differs by >1% absolute from midterm.
+- Team says "let's just use the old numbers" instead of rerunning.
+
+**Phase to address:** Phase 1 step 1 (baseline reproduction gate) — MUST be completed and verified before any head masking begins.
+
+---
+
+### Pitfall 19: [PROJECT] No fairness regression check — only measuring the target accent
+
+**What goes wrong:**
+You optimize Indian-accent insertion rate to zero. Meanwhile, other accents got worse. Because you only reported the target metric, the class writeup is misleading. During the presentation a reviewer asks "what happened to Canadian accent WER?" and you do not have the number.
+
+**Why it happens:**
+Class-project tunnel vision. The target is clear; the cost is not.
+
+**How to avoid:**
+1. **Every experiment — masking, decoding, VAD, fine-tuning — must report the full fairness table**: WER on all 6 Common Voice accents, LibriSpeech test-clean, Fair-Speech 7 ethnicity groups, MMR, and the insertion rate.
+2. Make the full table automatic via a shared reporting helper — do not rely on "remembering to check."
+3. Define acceptance gates: any intervention that degrades MMR or LibriSpeech WER by >0.5 points is rejected, even if Indian insertion rate improves.
+4. Plot a Pareto scatter (Indian insertion rate vs LibriSpeech WER) for every intervention — visualize the tradeoff.
+
+**Warning signs:**
+- Only the Indian-accent number is in the results section.
+- The MMR across accents is not reported post-intervention.
+- Results table has only one row.
+
+**Phase to address:** Phase 4 (Eval) — full fairness table is the required reporting format for every intervention.
+
+---
+
+## Technical Debt Patterns
+
+| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
+|----------|-------------------|----------------|-----------------|
+| Use `decoder_head_mask` kwarg without verifying attn_implementation | Saves 30 min of setup | All diagnosis results are invalid; need full rerun | **Never** (class project) |
+| Skip bootstrap CIs on head ranking | Saves compute + code | Top-3 heads may be noise; fine-tune on wrong heads | **Never** for n<1000 |
+| Reuse midterm baseline numbers without rerun | Saves 1 hour of inference | Cannot reproduce or validate deltas; writeup rejected | Only if infra is byte-identical (it is not) |
+| Single train/eval split (no held-out test) | Simpler code | Cherry-picking; inflated reported numbers | Only for preliminary exploration, never for final numbers |
+| WebRTC VAD for speed | 10x faster than Silero; zero install | Deletes 50% of soft-spoken speech; accent-specific failure | Only if compute-constrained AND validated on accented audio |
+| Full head fine-tuning vs LoRA | "More flexible" | Overfitting, collapse, catastrophic forgetting | Only with strong L2-to-init regularization and dataset >10k |
+| Train on all 511 utterances, report on same | Maximum training data | Test leakage, ungeneralizable claim | **Never** |
+| Ablate 4 arms in parallel | "Complete" project | Nothing finished well | Never for single-team class project |
+| Use HF `pipeline()` for inference | One-line setup | Hidden default GenerationConfig with fallback on; silent confound | Prototyping only; never for ablation runs |
+| Skip `eager` attention to keep inference fast | 2-3x speedup | `head_mask` silently ignored; all head-masking experiments fake | **Never** during diagnosis |
+
+---
+
+## Integration Gotchas
+
+| Integration | Common Mistake | Correct Approach |
+|-------------|----------------|------------------|
+| HuggingFace Whisper + head_mask | Using default `attn_implementation="sdpa"`; head_mask is silently dropped | Load with `attn_implementation="eager"`; sanity-check that masking head 0 changes outputs |
+| Whisper `generate()` + head_mask | Passing `decoder_head_mask` to `generate()` expecting it to apply every step | Use forward hook on `WhisperAttention.forward` that re-applies every call; verify via `output_attentions=True` on every step |
+| Whisper `generate()` + ablation study | Default GenerationConfig has temperature fallback + compression-ratio threshold → confounds ablation | Disable: `temperature=0.0`, `compression_ratio_threshold=None`, `logprob_threshold=None`, `condition_on_prev_tokens=False`; save frozen GenConfig JSON |
+| Whisper KV cache + hooks | Hook attaches to self-attn but cross-attn is cached once and never re-hooked | Target self-attention only; do not rely on hooks firing for cached cross-attn modules |
+| HF Whisper tokenizer + Common Voice | CV may have trailing whitespace, punctuation mismatches that inflate WER | Use Whisper's own normalizer (`BasicTextNormalizer` or `EnglishTextNormalizer` from `whisper_normalizer`) on both hyp and ref before scoring |
+| Multi-GPU / device placement | Forward hooks break when model is sharded across devices | Keep Whisper-large-v3 on a single GPU (1.5B fits in 16GB with fp16; plenty of room on the current 49GB GPU) |
+| Energy VAD + Common Voice amplitude | Fixed dBFS threshold fails on variable-amplitude crowdsourced recordings | Per-utterance peak/RMS normalize before VAD; prefer Silero VAD which is amplitude-robust |
+| LoRA on specific heads | Applying LoRA to entire Q/K/V/O matrices when intending only 3 heads | LoRA on slice: `W_Q[:, h*dh:(h+1)*dh]` — requires custom `peft`-style adapter or module surgery |
+| Whisper chunked long-form inference | Chunked inference (>30s audio) with masking hooks — hooks fire per-chunk; state may leak across chunks | Common Voice utterances are all <30s, so single-chunk — verify with `max(audio_duration)` assertion before diagnosis |
+| Insertion classification | Running token-diff without normalizing punctuation/case gives inflated insertion counts | Use Whisper normalizer on both sides before `jiwer.process_words` / error analysis |
+
+---
+
+## Performance Traps
+
+| Trap | Symptoms | Prevention | When It Breaks |
+|------|----------|------------|----------------|
+| Eager attention for ablation runs is slow | Per-head diagnosis takes 3x longer than expected | Budget 3x; batch utterances; reuse encoder features across head-mask variants | Diagnosis of 20 heads × 511 utts → ~3 GPU hours with eager, ~1 hour with SDPA (but SDPA is wrong) |
+| Re-encoding audio for every head test | Diagnosis loop recomputes encoder outputs 20x needlessly | Cache encoder outputs once per utterance; iterate heads on cached features | 20x speedup; makes diagnosis sweep feasible in an afternoon |
+| Recomputing baseline every experiment | Hours of duplicate inference | Save baseline predictions CSV; diff against cached baseline | Each duplicate baseline run is ~30 minutes |
+| Large ablation grid on decoding params | >80 cell sweeps | Scope to 3x3 grid + beam-size pair | Single decoding-param sweep can consume entire remaining time budget |
+| Forward hooks accumulate without removal | Memory grows, hooks fire multiple times | `hook.remove()` in a `try/finally`; or use context manager | After ~200 iterations, masking target is ambiguous |
+| KV cache not cleared between utterances | Cross-utterance context leak, inflated repetition | `past_key_values=None` for each new utterance; do not reuse `.generate()` state | First few utterances of new batch corrupted |
+
+---
+
+## "Looks Done But Isn't" Checklist
+
+- [ ] **Per-head masking sweep:** Did you set `attn_implementation="eager"`? Did you verify a single-head mask actually changes output for N>1 decoded tokens (not just token 1)? Did you confirm self-attn not cross-attn?
+- [ ] **Head ranking:** Do you have bootstrap 95% CIs on every Δ? Is the top-3 rank stable across two random-seed reruns? Did you evaluate on a held-out `test_eval` split?
+- [ ] **Decoding ablation:** Is `temperature=0.0` and `compression_ratio_threshold=None` during ablation? Did you verify deterministic outputs on a repeated decode? Is the GenerationConfig frozen in JSON and committed?
+- [ ] **VAD preprocessing:** Did you test on clean Indian-accent audio and confirm WER did not regress? Did you use Silero not WebRTC? Did you normalize audio amplitude pre-VAD?
+- [ ] **Selective fine-tuning:** Is it LoRA not full FT? L2-to-init regularization on? Training data mixed (Indian + other accents + LibriSpeech sample)? Early stopping on `dev_rank` insertion rate? Monitoring LibriSpeech test-clean every N steps? Config matches Calm-Whisper's conservative LR=1e-6 + ~5 epochs?
+- [ ] **Evaluation:** Full fairness table across 6 CV accents + 7 Fair-Speech ethnicity groups + LibriSpeech? MMR reported? All 3 insertion subtypes (repetition/syntactic/content) reported? `test_eval` touched exactly once?
+- [ ] **Baseline reproducibility:** Did you re-run Whisper-large-v3 baseline on current infra BEFORE any intervention? Does it match midterm's 9.62% ± 0.5%? Is the baseline predictions CSV committed?
+- [ ] **Calm-Whisper replication honesty:** Is your head ranking published regardless of whether it matches Calm-Whisper's #1/#6/#11? Do you cite replication or refutation explicitly?
+- [ ] **No training-data leakage:** Is `test_eval` untouched by training, by hyperparam selection, by head ranking, by VAD tuning?
+
+---
+
+## Recovery Strategies
+
+| Pitfall | Recovery Cost | Recovery Steps |
+|---------|---------------|----------------|
+| Used SDPA instead of eager → head_mask ignored | MEDIUM (rerun diagnosis) | Reload with `attn_implementation="eager"`; rerun per-head sweep (3 GPU hours); discard prior results |
+| Cross-attention masked instead of self-attention | LOW (rerun with corrected module path) | Fix target module in hook; rerun; note the bug in the log |
+| Head ranking is noise (overlapping CIs) | MEDIUM | Widen candidate set to top-5; get more bootstrap samples; if still noisy, report as "no significant head found" — honest negative result |
+| Fine-tuning caused catastrophic forgetting | HIGH | Discard checkpoint; restart with mixed training data + stronger L2-to-init; if still regressing, fall back to masking-only intervention |
+| Fine-tuning heads collapsed to identity | MEDIUM | Add L2-to-init penalty; lower LR further; switch from full FT to LoRA-rank-4 |
+| Cannot reproduce midterm baseline | HIGH | Diff current infra vs midterm code; pin HF / torch / whisper versions; rerun until baseline matches; delay downstream phases |
+| Test split accidentally touched during tuning | HIGH | Re-split from scratch with new seed; redo all selection steps; reserve a NEW `test_eval` and do not look at old results |
+| Decoding ablation results non-reproducible | MEDIUM | Disable temperature fallback; freeze GenerationConfig; rerun ablation; document in log |
+| VAD hurt clean-audio WER | LOW | Make VAD conditional on perturbation detection OR drop VAD arm entirely |
+| 4-arm scope creep with nothing finished | HIGH | Cut arms 2 and 3 immediately; focus remaining time on arms 1 and 4; document cut arms as future work |
+
+---
+
+## Pitfall-to-Phase Mapping
+
+| # | Pitfall | Prevention Phase | Verification |
+|---|---------|------------------|--------------|
+| 1 | `head_mask` silently ignored (SDPA) | Phase 1 (Diagnosis infra) | Assert `_attn_implementation == "eager"`; single-head sanity check changes output |
+| 2 | `head_mask` not applied during cached generation | Phase 1 (Diagnosis infra) | Forward-hook implementation; verify `output_attentions` shows zero on every decoded position |
+| 3 | Wrong module zeroed (Q/K vs attn weights) | Phase 1 (Diagnosis infra) | Unit test: three masking methods give identical logits |
+| 4 | Cross-attn vs self-attn confusion | Phase 1 (Diagnosis infra) | Named-target convention; per-iteration log of hooked module path |
+| 5 | Calm-Whisper head transferability | Phase 1 (Diagnosis) | Explicit full sweep before using any literature heads; publish own ranking honestly |
+| 6 | Cherry-picking via same-split selection | Phase 1 (Diagnosis infra) | Commit split file BEFORE first sweep; `test_eval` touched once |
+| 7 | Head ranking noise at n=306 | Phase 1 (Diagnosis) | Bootstrap 1000x; require 95% CI < 0 for candidate heads |
+| 8 | Insertion rate / WER confounding | Phase 1 + Phase 4 (Eval) | Always report S/D/I decomposed + WER; Pareto plot |
+| 9 | Whisper decoding fallback confounds ablation | Phase 2 (Decoding ablation) | Disable fallback; freeze GenConfig; deterministic re-decode check |
+| 10 | Beam × rep penalty × n-gram interaction | Phase 2 (Decoding ablation) | Scope to 2D grid + beam pair; time-box |
+| 11 | Insertion rate misses auto-collapsed repetition | Phase 2 + Phase 4 (Eval) | Report compression ratio, longest-n-gram-repeat, insertion subtypes |
+| 12 | Energy VAD deletes soft-spoken speech | Phase 3 (VAD) | Use Silero; validate on clean Indian-accent as Phase 3 gate |
+| 13 | VAD threshold overfit to silence injection | Phase 3 (VAD) | Tune on mixed clean+perturbed; report per-condition |
+| 14 | Head fine-tune collapse | Phase 4 (Fine-tuning) | LoRA-on-heads + L2-to-init; compare pre/post weight norms |
+| 15 | Catastrophic forgetting on other accents | Phase 4 (Fine-tuning) | Mixed training data; multi-accent + LibriSpeech gate |
+| 16 | Overfit on n=511 | Phase 4 (Fine-tuning) | LoRA only; ≤3 epochs; early stop on `dev_rank`; data hygiene |
+| 17 | Scope creep across 4 arms | Roadmap ordering | Declare primary arm (Phase 1); time-box secondaries |
+| 18 | No baseline rerun | Phase 0 / Phase 1 step 1 | Reproduce 9.62% ± 0.5% on current infra; commit baseline CSV |
+| 19 | No fairness regression check | Phase 4 (Eval) | Full fairness table automatic per experiment; MMR gate |
+
+---
+
+## Known vs Likely Pitfalls
+
+**[KNOWN] — cited from literature or source code:**
+1. SDPA ignores head_mask (HuggingFace docs)
+4. Self-attn vs cross-attn distinction (Whisper modeling code; Calm-Whisper paper scope)
+5. Calm-Whisper trained and evaluated on same UrbanSound set (their paper)
+9. Whisper temperature fallback / compression-ratio threshold confound (whisper/transcribe.py, HF docs)
+12. WebRTC VAD 50% TPR vs Silero 87.7% TPR on accented speech (Picovoice 2025 benchmark)
+15. Catastrophic forgetting in single-accent ASR FT (MAS-LoRA, arXiv 2505.20006)
+
+**[LIKELY] — inferred from methodology, unverified:**
+2. head_mask not threaded through KV-cached generate steps
+3. Wrong masking target (Q/K vs attn_weights)
+7. Head-ranking statistical noise at n=306
+8. Insertion/WER confounding
+10. Decoding param non-additivity
+11. Auto-collapsed repetition masking the real metric
+13. VAD threshold overfit to silence-injection
+14. Head fine-tune collapse to identity/zero
+16. Overfitting on n=511
+
+**[PROJECT] — class-project scope traps:**
+17. 4-arm scope creep
+18. No baseline rerun
+19. No fairness regression check
 
 ---
 
 ## Sources
 
-### GRPO Training
-- [GRPO++: Tricks for Making RL Actually Work](https://cameronrwolfe.substack.com/p/grpo-tricks) -- DAPO improvements, Dr. GRPO, entropy collapse, token-level loss
-- [GRPO VRAM Requirements For the GPU Poor](https://ghost.oxen.ai/grpo-vram-requirements-for-the-gpu-poor/) -- 16GB training feasibility, memory optimization
-- [TRL Issue #2927: GRPO memory usage](https://github.com/huggingface/trl/issues/2927) -- VRAM leak reports
-- [TRL Issue #3678: OOM on 20GB VRAM](https://github.com/huggingface/trl/issues/3678) -- Qwen + GRPO OOM
-- [Unsloth Issue #3864: VRAM increases per step](https://github.com/unslothai/unsloth/issues/3864) -- Memory leak documentation
+- Wang et al., 2025. "Calm-Whisper: Reduce Whisper Hallucination On Non-Speech By Calming Crazy Heads Down." Interspeech 2025. [arxiv.org/abs/2505.12969](https://arxiv.org/abs/2505.12969) · [isca-archive.org/interspeech_2025/wang25b](https://www.isca-archive.org/interspeech_2025/wang25b_interspeech.html) — methodology, 3-of-20 heads finding, LR=1e-6, same-dataset caveat, LibriSpeech ≤0.1% WER degradation benchmark
+- HuggingFace Transformers — Whisper model documentation. [huggingface.co/docs/transformers/model_doc/whisper](https://huggingface.co/docs/transformers/model_doc/whisper) — `decoder_head_mask` and `cross_attn_head_mask` kwargs, `attn_implementation="eager"` requirement, `EncoderDecoderCache` structure
+- HuggingFace Transformers GitHub — Whisper modeling source. [github.com/huggingface/transformers/.../modeling_whisper.py](https://github.com/huggingface/transformers/blob/main/src/transformers/models/whisper/modeling_whisper.py) — `WhisperAttention` class, `WhisperDecoderLayer` self_attn vs encoder_attn structure
+- HuggingFace Transformers Attention Backends documentation. [huggingface.co/docs/transformers/attention_interface](https://huggingface.co/docs/transformers/en/attention_interface) — SDPA ignores head_mask; eager-attention fallback
+- HuggingFace KV Cache best practices. [huggingface.co/docs/transformers/kv_cache](https://huggingface.co/docs/transformers/v4.47.1/kv_cache) — cache structure, cross-attention cache write-once behavior
+- OpenAI Whisper — transcribe.py source. [github.com/openai/whisper/.../transcribe.py](https://github.com/openai/whisper/blob/main/whisper/transcribe.py) — temperature fallback logic, `compression_ratio_threshold=2.4`, `logprob_threshold`, `no_speech_threshold`, `condition_on_previous_text` defaults
+- Whisper GitHub Discussion #679 — "A possible solution to Whisper hallucination." [github.com/openai/whisper/discussions/679](https://github.com/openai/whisper/discussions/679) — community evidence on repetition loops and fallback behavior
+- Whisper GitHub Discussion #2420 — "Add compression_ratio_hallucination_threshold." [github.com/openai/whisper/discussions/2420](https://github.com/openai/whisper/discussions/2420) — evidence that fallback obscures hallucination metrics
+- Memo AI blog — "Solutions to Repeated Output Issues with Whisper." [memo.ac/blog/whisper-hallucinations](https://memo.ac/blog/whisper-hallucinations) — `condition_on_previous_text` failure mode
+- Picovoice 2025 VAD benchmark — "Choosing the Best Voice Activity Detection." [picovoice.ai/blog/best-voice-activity-detection-vad-2025/](https://picovoice.ai/blog/best-voice-activity-detection-vad-2025/) — WebRTC 50% TPR vs Silero 87.7% TPR at 5% FPR
+- Silero VAD — PyTorch Hub model. [pytorch.org/hub/snakers4_silero-vad_vad/](https://pytorch.org/hub/snakers4_silero-vad_vad/) — 6000+ language training, amplitude-robust speech detection
+- MAS-LoRA — "Mixture of LoRA Experts for Low-Resourced Multi-Accent ASR." [arxiv.org/abs/2505.20006](https://arxiv.org/html/2505.20006) — catastrophic forgetting in single-accent fine-tuning, LoRA vs full FT regression on LibriSpeech
+- "Analyzing Mitigation Strategies for Catastrophic Forgetting in End-to-End Training of Spoken Language Models." [arxiv.org/html/2505.17496](https://arxiv.org/html/2505.17496) — experience replay as the most effective mitigation
+- "Pruning as Regularization: Sensitivity-Aware One-Shot Pruning in ASR." [arxiv.org/pdf/2511.08092](https://arxiv.org/pdf/2511.08092) — decoder self-attention tolerates sparsification; encoder attention is fragile
+- HuggingFace Whisper attention mask issue #32228. [github.com/huggingface/transformers/issues/32228](https://github.com/huggingface/transformers/issues/32228) — evidence of attention-mask propagation gaps in `generate()`
+- Whisper Long-Form Transcription blog (Yoad Snapir). [medium.com/@yoad/whisper-long-form-transcription-1924c94a9b86](https://medium.com/@yoad/whisper-long-form-transcription-1924c94a9b86) — chunked vs sequential inference; 30-sec window semantics
+- Midterm report: "Do LLM Decoders Listen Fairly?" (Ginjala & Wen, CSE 5525, 2026) — `/workspace/project/llm-asr-fairness-midterm.pdf` §3.2, §4.2 — 9.62% Indian-accent insertion rate baseline, 43/48/9 repetition/syntactic/content breakdown, non-monotonic scaling, Calm-Whisper citation
 
-### GRPO for ASR
-- [Group Relative Policy Optimization for Speech Recognition](https://arxiv.org/pdf/2509.01939) -- Limited ASR improvement, unique-answer problem
-- [Advancing Speech Understanding with GRPO](https://arxiv.org/pdf/2509.16990) -- GRPO for speech-aware LMs
-
-### Fairness and ASR
-- [CTC-DRO: Robust Optimization for Reducing Language Disparities](https://arxiv.org/abs/2502.01777) -- Group-DRO failures in ASR, CTC loss scaling
-- [FairLoRA: Bias Mitigation in Vision Models](https://arxiv.org/html/2410.17358) -- Regularizer formula, domain-specific limitations
-- [ASR-FAIRBENCH: Measuring and Benchmarking Equity](https://arxiv.org/html/2505.11572) -- Fairness evaluation methodology
-- [Fairness in ASR Isn't One-Size-Fits-All](https://aclanthology.org/2025.findings-emnlp.1044.pdf) -- Metric selection
-
-### Group-DRO
-- [Distributionally Robust Neural Networks for Group Shifts](https://arxiv.org/abs/1911.08731) -- Regularization requirement (Sagawa et al., 2020)
-
-### Reward Hacking
-- [MO-GRPO: Mitigating Reward Hacking on Multi-Objective Problems](https://arxiv.org/html/2509.22047) -- Multi-objective reward hacking in GRPO
-- [Reward Shaping to Mitigate Reward Hacking in RLHF](https://arxiv.org/abs/2502.18770) -- Bounded rewards, PAR approach
+---
+*Pitfalls research for: Attention-head surgery hallucination mitigation on Whisper-large-v3*
+*Researched: 2026-04-11*
+*Confidence: HIGH for HuggingFace integration pitfalls (#1–4, #9), MEDIUM for statistical and training-dynamics pitfalls (#6–8, #14–16), LOW for direct transferability claims (#5, #11)*

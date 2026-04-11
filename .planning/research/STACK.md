@@ -1,268 +1,218 @@
-# Technology Stack: GRPO Fairness-Aware ASR Fine-Tuning
+# Technology Stack — v2.0 Attention Head Surgery
 
-**Project:** GRPO Fairness-Aware ASR Fine-Tuning for Qwen3-ASR-1.7B
-**Researched:** 2026-04-05
-**Hardware Constraint:** Single NVIDIA RTX A4000 (16 GB VRAM)
+**Project:** LLM-ASR Fairness v2.0 — Hallucination Mitigation via Attention Head Surgery
+**Target model:** Whisper-large-v3 (1.5B params; 32 decoder layers × 20 self-attention heads = 640 head positions)
+**Reference:** Calm-Whisper (Wang et al., Interspeech 2025, arXiv 2505.12969)
+**Researched:** 2026-04-11
+**Overall confidence:** HIGH
 
 ## Executive Decision
 
-**Use a custom GRPO training loop built on PyTorch + PEFT, not TRL's GRPOTrainer.** TRL's GRPOTrainer is designed for text-only LLMs (prompt-in, text-out). Qwen3-ASR-1.7B is an encoder-decoder audio model (audio-in, text-out) with a non-standard `generate()` interface requiring audio features as input. Forcing it into TRL's text-centric API would require extensive monkey-patching of generation, tokenization, and data collation. A custom ~200-line GRPO loop using the well-documented algorithm (generate completions, compute rewards, normalize advantages, clipped surrogate loss) is cleaner, more debuggable, and fully under your control for the fairness reward.
+**Use native PyTorch forward hooks on `WhisperAttention.out_proj` for per-head masking** (stable across transformers 4.x/5.x), OR pin `transformers<5` to use the built-in `decoder_head_mask` API. **Prefer hooks** — they survive future transformers upgrades and also support the per-head fine-tuning phase via `register_hook` on `.weight` gradients.
 
-**Confidence: HIGH** — TRL docs confirm text/conversation format assumptions; Qwen3-ASR uses audio feature input that does not fit this API.
+## Critical Finding: `decoder_head_mask` removed in transformers v5
 
----
+Verified by reading `modeling_whisper.py` directly across 6 transformers releases:
 
-## Recommended Stack
+| transformers | `layer_head_mask` refs | `decoder_head_mask` refs |
+|---|---|---|
+| v4.44.0 | 26 | 6 |
+| v4.46.0 | 26 | 6 |
+| v4.48.0 | 26 | 6 |
+| v4.50.0 | 26 | 6 |
+| v4.55.0 | 17 | 5 |
+| v4.56.0 | 17 | 5 |
+| main (~v5.5.3) | **0** | **0** |
 
-### Core Training Framework
+In v5, `WhisperAttention.forward` was refactored to `**kwargs: Unpack[FlashAttentionKwargs]` and `layer_head_mask` was dropped. `WhisperDecoder.forward` no longer threads `head_mask` through. A fresh `pip install transformers` today would **silently ignore** any `decoder_head_mask` kwarg passed to `generate()`.
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| PyTorch | 2.2+ (match existing) | Training loop, autograd, GPU compute | Already in stack; custom GRPO loop needs raw autograd control | HIGH |
-| PEFT | 0.18.x (latest stable) | LoRA adapter injection and management | HuggingFace standard for parameter-efficient fine-tuning; seamless integration with any `nn.Module`; manages adapter save/load/merge | HIGH |
-| bitsandbytes | 0.45+ | 4-bit NF4 quantization of frozen base weights (QLoRA) | Cuts base model memory from ~3.4 GB (FP16) to ~0.85 GB, critical for 16 GB VRAM budget | HIGH |
-| Transformers | 4.48+ (match existing) | Model loading, tokenizer, `from_pretrained()` | Already in stack; PEFT and bitsandbytes hook into Transformers models | HIGH |
-| Accelerate | 1.3+ | Mixed-precision context, gradient accumulation helpers | Lightweight; avoids manual `torch.cuda.amp` boilerplate | MEDIUM |
+**`pyproject.toml` currently has `transformers>=4.44` with no upper bound** — this is a latent bug for this milestone.
 
-### LoRA Configuration (PEFT)
+## Two Viable Implementation Paths
 
-| Parameter | Value | Rationale |
-|-----------|-------|-----------|
-| `r` (rank) | 16 | Standard for 1-2B models; 8 is too constrained for fairness signal, 32 adds memory for marginal gain |
-| `lora_alpha` | 32 | Alpha = 2r is the standard scaling convention |
-| `lora_dropout` | 0.05 | Mild regularization; matches ASR LoRA literature (CoVoGER EMNLP 2025) |
-| `target_modules` | `["q_proj", "k_proj", "v_proj", "o_proj"]` on LLM decoder only | Freeze entire AuT encoder (300M params) + projector; train only decoder attention. This is where linguistic/fairness bias lives |
-| `task_type` | `CAUSAL_LM` | Qwen3-1.7B decoder is causal LM |
-| `modules_to_save` | `[]` (none) | Keep projector frozen; LoRA on decoder attention is sufficient for fairness intervention |
-
-**Trainable parameters estimate:** ~3.5M out of ~2B total (~0.17%), well within memory budget.
-
-**Confidence: HIGH** for PEFT/LoRA approach. **MEDIUM** for exact target modules — the official Qwen3-ASR-Finetuning repo provides an SFT script but no LoRA config. The decoder attention targets follow Qwen3 LoRA conventions from Qwen documentation and the CoVoGER paper (r=8, alpha=16 on Qwen2.5).
-
-### Quantization (QLoRA Path)
-
-| Technology | Config | Purpose |
-|------------|--------|---------|
-| bitsandbytes | `load_in_4bit=True`, `bnb_4bit_quant_type="nf4"`, `bnb_4bit_compute_dtype=torch.bfloat16` | Quantize frozen LLM decoder weights to 4-bit NF4. Compute remains in BF16 for numerical stability |
-
-### Reward Computation
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| jiwer | existing | WER computation per utterance | Already in stack; needed for accuracy component of reward |
-| NumPy | existing | Group-level fairness metric aggregation | Already in stack; fast vectorized mean/std across demographic groups |
-
-No new libraries needed. The composite reward `R = (1-lambda)(1-WER) + lambda(-|WER_g - WER_mean|)` is computed from jiwer WER scores grouped by demographic labels already in the CSV manifests.
-
-### Data Pipeline
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| datasets (HF) | existing | Load Fair-Speech and Common Voice 24 | Already in stack; handles audio column, demographic metadata |
-| torchaudio | existing | Audio loading, resampling to 16kHz | Already in stack |
-| soundfile | existing | Audio I/O fallback | Already in stack |
-
-### Experiment Tracking and Baselines
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| wandb | 0.19+ | Training curves, Pareto frontier logging, hyperparameter tracking | Standard for ML experiment tracking; free for academic use; better than TensorBoard for comparing lambda sweep runs | MEDIUM |
-| CSV logging | built-in | Fallback metric logging | Matches existing pipeline pattern (CSV manifests as data contracts) |
-
-### Visualization
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| Matplotlib | existing | Pareto frontier plots, training curves | Already in stack |
-| Seaborn | existing | Fairness metric heatmaps | Already in stack |
-
----
-
-## VRAM Budget Analysis (16 GB RTX A4000)
-
-### Option A: QLoRA (Recommended)
-
-| Component | VRAM (GB) | Notes |
-|-----------|-----------|-------|
-| AuT encoder (300M, FP16, frozen) | ~0.6 | Frozen, no gradients stored |
-| Projector (frozen, FP16) | ~0.05 | Small linear layer |
-| LLM decoder (1.7B, NF4 quantized, frozen) | ~0.85 | 4-bit NF4 via bitsandbytes |
-| LoRA adapters (3.5M params, BF16) | ~0.007 | Negligible |
-| LoRA gradients + optimizer states (AdamW 8-bit) | ~0.03 | 8-bit AdamW via bitsandbytes cuts optimizer memory ~2x |
-| Activations / gradient checkpointing | ~2-4 | Depends on sequence length; gradient checkpointing keeps this bounded |
-| KV cache for G=4 completions per prompt | ~1-3 | 4 completions x ~200 tokens each; this is the GRPO-specific cost |
-| Audio features (batch of Fbank) | ~0.2 | 128-dim Fbank at 12.5 Hz, small |
-| PyTorch CUDA overhead | ~1.0 | Allocator fragmentation, kernels |
-| **Total estimated** | **~6-10 GB** | **Fits comfortably in 16 GB** |
-
-**Headroom: ~6-10 GB free.** This allows G=4 completions per prompt (the GRPO group size), batch_size=2-4, and max_completion_length up to ~300 tokens.
-
-### Option B: FP16 LoRA (Without Quantization)
-
-| Component | VRAM (GB) | Notes |
-|-----------|-----------|-------|
-| AuT encoder (300M, FP16, frozen) | ~0.6 | Same |
-| Projector (frozen, FP16) | ~0.05 | Same |
-| LLM decoder (1.7B, FP16, frozen) | ~3.4 | Full precision frozen weights |
-| LoRA adapters + gradients + optimizer | ~0.07 | Still small |
-| Activations / gradient checkpointing | ~2-4 | Same |
-| KV cache for G=4 completions | ~1-3 | Same |
-| Audio features + CUDA overhead | ~1.2 | Same |
-| **Total estimated** | **~8-12 GB** | **Fits but tighter** |
-
-**Headroom: ~4-8 GB free.** Still feasible. May need G=2 or smaller batch if sequences are long.
-
-### Recommendation
-
-**Start with Option B (FP16 LoRA)** for simplicity — avoids bitsandbytes quantization complexity and potential numerical issues. The 1.7B decoder in FP16 is only 3.4 GB. Fall back to Option A (QLoRA) only if you hit OOM with G=4 and batch_size=2.
-
-**Confidence: MEDIUM** — These are calculated estimates, not measured. Actual VRAM depends on Qwen3-ASR's specific memory allocation patterns, which are not documented. The estimates are conservative (high-side) to account for unknowns.
-
-### Critical GRPO Memory Parameters
-
-| Parameter | Recommended | Impact |
-|-----------|-------------|--------|
-| `num_generations` (G) | 4 | Each generation multiplies KV cache. Start at 4, reduce to 2 if OOM |
-| `max_completion_length` | 200 tokens | ASR transcriptions are short; 200 tokens covers most utterances |
-| `per_device_batch_size` | 2 | With G=4, effective batch = 8 completions per step |
-| `gradient_accumulation_steps` | 8 | Effective batch = 16 prompts = 64 completions. Sufficient for stable GRPO advantage estimation |
-| `gradient_checkpointing` | True | Essential — trades ~30% speed for ~50% activation memory reduction |
-
----
-
-## What NOT to Use
-
-### TRL GRPOTrainer — Do NOT use for this project
-**Why not:** TRL's GRPOTrainer expects text prompts and text completions. It calls `model.generate()` with tokenized text input. Qwen3-ASR requires audio features (Fbank) as encoder input and produces text output. The data collation, generation, and log-probability computation all assume text-in/text-out. Adapting it would require subclassing and overriding `_generate_and_score_completions`, `_get_per_token_logps`, and the data collator — essentially rewriting the trainer. A clean custom loop is less code and more maintainable.
-
-**What to do instead:** Write a custom GRPO training loop (~200 lines) that:
-1. Loads audio, runs encoder to get features
-2. Generates G completions per audio sample using the decoder
-3. Computes per-completion WER and fairness reward
-4. Normalizes advantages within each group
-5. Computes clipped surrogate policy gradient loss on decoder log-probs
-6. Updates only LoRA parameters
-
-### OpenRLHF — Do NOT use
-**Why not:** Designed for large-scale multi-GPU RLHF with Ray. Massive overkill for single-GPU LoRA training of a 1.7B model. Heavy dependency footprint, complex setup, no ASR support.
-
-### Unsloth — Do NOT use (despite memory benefits)
-**Why not:** Unsloth provides excellent memory optimization for GRPO (up to 8x reduction), but it only supports standard text LLMs. Qwen3-ASR is not in Unsloth's supported model list. The audio encoder + projector + decoder architecture is incompatible with Unsloth's kernel optimizations.
-
-### loralib — Do NOT use
-**Why not:** The original LoRA library by Microsoft. PEFT supersedes it with better HuggingFace integration, more methods, active maintenance (0.18.x vs loralib's last update in 2023), and automatic `target_modules` resolution.
-
-### DeepSpeed — Do NOT use (single GPU)
-**Why not:** DeepSpeed ZeRO is for multi-GPU memory sharding. On a single GPU, it adds overhead without benefit. Standard PyTorch + gradient checkpointing is sufficient.
-
-### Full Fine-Tuning — Do NOT use
-**Why not:** 1.7B decoder + 300M encoder = 2B parameters. Full fine-tuning requires ~24 GB VRAM minimum (model + gradients + optimizer states in FP16). Exceeds 16 GB A4000. LoRA reduces trainable params to ~3.5M.
-
----
-
-## Alternatives Considered
-
-| Category | Recommended | Alternative | Why Not Alternative |
-|----------|-------------|-------------|---------------------|
-| GRPO framework | Custom PyTorch loop | TRL GRPOTrainer | Text-only API; Qwen3-ASR is audio-in model |
-| LoRA library | PEFT 0.18.x | loralib | Unmaintained; worse HF integration |
-| RL framework | Custom GRPO | OpenRLHF | Overkill for single-GPU; no ASR support |
-| Memory optimization | bitsandbytes QLoRA (fallback) | Unsloth | No Qwen3-ASR support |
-| Experiment tracking | wandb | TensorBoard | wandb better for parallel lambda sweeps |
-| Optimizer | AdamW (torch or 8-bit bnb) | SGD | AdamW is standard for transformer LoRA; adaptive LR crucial for RL stability |
-
----
-
-## Installation
-
-```bash
-# New dependencies (add to existing environment)
-pip install peft>=0.18.0
-pip install bitsandbytes>=0.45.0  # only if using QLoRA path
-pip install wandb>=0.19.0         # optional, for experiment tracking
-
-# Already in environment (verify versions)
-# torch >= 2.2.0
-# transformers >= 4.48.0
-# torchaudio
-# jiwer
-# datasets
-# numpy, pandas, matplotlib, seaborn
-```
-
-No new heavy frameworks. Three pip packages maximum (peft, bitsandbytes, wandb). The GRPO algorithm is implemented in project code, not imported from a library.
-
----
-
-## Key Implementation Notes
-
-### GRPO Algorithm (Custom Implementation)
-
-The GRPO algorithm is well-documented and straightforward to implement:
+### Path A — Pin `transformers<5` and use `decoder_head_mask`
 
 ```python
-# Pseudocode for one training step
-for batch in dataloader:
-    audio, labels, demographics = batch
-    
-    # 1. Generate G completions per audio sample
-    with torch.no_grad():
-        encoder_out = model.encoder(audio)  # frozen
-        completions = [model.decoder.generate(encoder_out) for _ in range(G)]
-    
-    # 2. Compute rewards
-    wers = [compute_wer(comp, ref) for comp in completions]
-    fairness = compute_fairness_penalty(wers, demographics)
-    rewards = (1-lam) * (1 - wers) + lam * fairness
-    
-    # 3. Normalize advantages within group
-    advantages = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
-    
-    # 4. Compute policy gradient with clipping
-    logprobs = model.decoder.forward(encoder_out, completions)  # with LoRA
-    old_logprobs = logprobs.detach()  # or from reference model
-    ratio = (logprobs - old_logprobs).exp()
-    clipped = torch.clamp(ratio, 1-eps, 1+eps)
-    loss = -torch.min(ratio * advantages, clipped * advantages).mean()
-    
-    # 5. Update LoRA parameters only
-    loss.backward()
-    optimizer.step()
+# Whisper-large-v3: 32 layers × 20 heads; mask head 7 in layer 3
+mask = torch.ones(model.config.decoder_layers, model.config.decoder_attention_heads)
+mask[3, 7] = 0.0
+pred_ids = model.generate(features, decoder_head_mask=mask.to(device), ...)
 ```
 
-### Qwen3-ASR Architecture Specifics
+**How it works (v4.44 source, line ≈538):** `attn_weights = layer_head_mask.view(1, -1, 1, 1) * attn_weights` — multiplies post-softmax attention weights by mask. Canonical "mask a head" operation and matches Calm-Whisper methodology.
 
-- **AuT encoder** (300M params): Processes 128-dim Fbank features at 12.5 Hz with 8x downsampling. Uses FlashAttention with dynamic 1-8s windows.
-- **Projector**: Linear layer aligning encoder output to decoder input space.
-- **LLM decoder** (Qwen3-1.7B): Standard causal LM with 1024 hidden dim, 16 attention heads.
-- **LoRA targets**: Apply LoRA to decoder attention only (`q_proj`, `k_proj`, `v_proj`, `o_proj`). Encoder and projector stay frozen — the fairness intervention targets the decoder's language modeling bias, not acoustic features.
+**Caveat:** Providing `decoder_head_mask` auto-disables SDPA and falls back to eager attention:
+> "WhisperModel is using WhisperSdpaAttention, but torch.nn.functional.scaled_dot_product_attention does not support output_attentions=True or layer_head_mask not None. Falling back to the manual attention"
 
-### Reference Policy for KL
+For the 511-utterance diagnosis sweep this is fine. Must explicitly set `attn_implementation="eager"` in `from_pretrained` to avoid silent fallback bugs.
 
-For GRPO on a 1.7B model with LoRA, the reference policy is the frozen base decoder (without LoRA adapters). PEFT makes this trivial: `model.disable_adapter_layers()` gives the reference policy, `model.enable_adapter_layers()` gives the current policy. No need to load a second copy of the model.
+### Path B — Forward hooks on `out_proj` (RECOMMENDED)
 
-**Confidence: HIGH** — PEFT documentation confirms `disable_adapter_layers()` API.
+Architecture-stable across transformers 4.x and 5.x. Zero version pin needed.
 
----
+```python
+def pre_hook(head_idx, num_heads):
+    def hook(module, args):
+        x = args[0]  # (bsz, tgt, embed)
+        bsz, tgt, embed = x.shape
+        head_dim = embed // num_heads
+        x = x.clone().view(bsz, tgt, num_heads, head_dim)
+        x[:, :, head_idx, :] = 0.0
+        return (x.view(bsz, tgt, embed),)
+    return hook
+
+layer = model.model.decoder.layers[layer_idx]
+handle = layer.self_attn.out_proj.register_forward_pre_hook(
+    pre_hook(head_idx, layer.self_attn.num_heads)
+)
+```
+
+**Why this is algebraically correct:** `out_proj` is `Linear(embed_dim, embed_dim)` equivalent to `sum_h (W_h @ head_h)`. Zeroing `head_h` at `out_proj` input removes its contribution exactly. Hooking *after* `self_attn` is wrong because `out_proj` already mixed the heads.
+
+**Stability:** `self.num_heads`, `self.head_dim`, and `self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)` are identical in transformers v4.44 and main (v5). Hooks survive upgrades.
+
+## Per-Head Fine-Tuning
+
+**No library** (PEFT, TransformerLens, nnsight, transformers itself) provides "train only head K of layer L" as a first-class API. Calm-Whisper's description ("freeze everything except heads 1, 6, 11") is a manual PyTorch operation.
+
+**No public Calm-Whisper code:** Exhaustive search of arXiv 2505.12969, ISCA Interspeech 2025 (`wang25b_interspeech`), author affiliations, and Semantic Scholar turned up zero code repositories. Re-implement; ~200 lines total.
+
+### Recommended Technique — Gradient Masking Hooks
+
+`q_proj`, `k_proj`, `v_proj` rows `[h*head_dim : (h+1)*head_dim]` are head `h`. `out_proj` columns are the same slices. `requires_grad` cannot be set per-slice, so mask gradients:
+
+```python
+def grad_mask_hook(trainable_head_idxs, num_heads, head_dim, is_row_slice):
+    def hook(grad):
+        mask = torch.zeros_like(grad)
+        for h in trainable_head_idxs:
+            if is_row_slice:  # q/k/v_proj: heads are rows
+                mask[h*head_dim:(h+1)*head_dim, :] = 1.0
+            else:  # out_proj: heads are columns
+                mask[:, h*head_dim:(h+1)*head_dim] = 1.0
+        return grad * mask
+    return hook
+
+for layer_idx, heads in trainable_heads_per_layer.items():
+    sa = model.model.decoder.layers[layer_idx].self_attn
+    sa.q_proj.weight.register_hook(grad_mask_hook(heads, sa.num_heads, sa.head_dim, True))
+    sa.k_proj.weight.register_hook(grad_mask_hook(heads, sa.num_heads, sa.head_dim, True))
+    sa.v_proj.weight.register_hook(grad_mask_hook(heads, sa.num_heads, sa.head_dim, True))
+    sa.out_proj.weight.register_hook(grad_mask_hook(heads, sa.num_heads, sa.head_dim, False))
+
+# Freeze everything else, unfreeze only the relevant projection weights
+for p in model.parameters(): p.requires_grad = False
+for layer_idx in trainable_heads_per_layer:
+    for proj in ["q_proj","k_proj","v_proj","out_proj"]:
+        getattr(model.model.decoder.layers[layer_idx].self_attn, proj).weight.requires_grad = True
+```
+
+**Validation contract:** after one optimizer step, assert `||Δw||==0` for all non-trained head slices. This MUST be a unit test.
+
+**Note on LoRA per-head:** PEFT's `target_modules` applies LoRA to the entire `nn.Linear`, not per-head. No per-head rank allocation in any released PEFT version.
+
+## Interpretability Libraries — None Usable
+
+| Library | Version | Whisper support | Verdict |
+|---|---|---|---|
+| **TransformerLens** | 2.18.0 | NOT supported (verified: 237 models in `OFFICIAL_MODEL_NAMES`, zero whisper). Hard-coded for GPT-style decoder-only. | Do not use |
+| **nnsight** | 0.6.3 | Wraps any `nn.Module` but adds trace/envoy abstraction over raw hooks. | Not needed |
+| **captum** | 0.8.0 | Feature attribution (IG, LRP), not head ablation. | Wrong tool |
+
+**Recommendation:** Raw `torch.nn.Module.register_forward_pre_hook` + `register_hook` on `.weight`. Zero new dependencies for per-head analysis and fine-tuning.
+
+## VAD Library Selection
+
+| Library | Version | Approach | Accuracy (TPR @ 5% FPR) | Verdict |
+|---|---|---|---|---|
+| **silero-vad** | 6.2.1 | PyTorch DNN | **87.7%** | **Recommended** |
+| **webrtcvad-wheels** | 2.0.14 | GMM (C) | 50% | Too noisy for silence-injection use case |
+| **pyannote-audio** | — | PyTorch DNN | Highest, but GPU-required, slow on short files | Overkill |
+| **speechbrain VAD** | — | PyTorch DNN | Heavier dep, worse DX | Not chosen |
+
+**Pick: silero-vad 6.2.1.** webrtcvad's 50% TPR would silently pass through injected silence in the perturbation experiments, defeating the VAD ablation. Install via `pip install silero-vad==6.2.1` (preferred over `torch.hub.load` for reproducibility).
+
+## Recommended `pyproject.toml` Changes
+
+```toml
+dependencies = [
+    # --- CHANGED ---
+    "transformers>=4.48,<5.0",  # v5 removed layer_head_mask; pin <5 OR rely on hook-based Path B
+    # --- NEW ---
+    "silero-vad>=6.2,<7.0",     # DNN VAD for silence-injection preprocessing ablation
+]
+```
+
+**Total v2.0 stack delta:** one new package (silero-vad) + one version pin change. Everything else uses `torch`, `transformers`, and `peft` already in the project.
+
+## Rejected Additions (Explicit)
+
+| Package | Reason |
+|---|---|
+| TransformerLens | No Whisper support |
+| nnsight | Adds abstraction layer over raw hooks for no benefit |
+| captum | Feature attribution, not head ablation |
+| whisper-flash-attention | FA2 disables head_mask path entirely |
+| pyannote-audio (for VAD) | GPU-hungry, slow on short utterances, overkill |
+| webrtcvad | 50% TPR too low for silence-injection regime |
+| bitsandbytes 4-bit | Whisper-large-v3 (1.5B) fits in FP16 with 49 GB available |
+| TRL | v2.0 is supervised FT of head slices, no RL |
+
+## Integration with Existing `run_inference.py`
+
+Three minimal modifications to `scripts/run_inference.py`:
+
+1. **`load_whisper` (~line 307):** Force eager attention:
+   ```python
+   model = WhisperForConditionalGeneration.from_pretrained(
+       hf_id,
+       torch_dtype=torch.float16 if "cuda" in args.device else torch.float32,
+       attn_implementation="eager",   # REQUIRED for layer_head_mask; SDPA silently ignores it
+   ).to(args.device).eval()
+   ```
+
+2. **`infer_whisper` (~line 324):** Accept optional `decoder_head_mask` kwarg:
+   ```python
+   gen_kwargs = dict(max_new_tokens=440, language="en", task="transcribe")
+   if loaded.get("decoder_head_mask") is not None:
+       gen_kwargs["decoder_head_mask"] = loaded["decoder_head_mask"]
+   pred_ids = model.generate(features, **gen_kwargs)
+   ```
+
+3. **New file `scripts/head_analysis.py`** (or `scripts/run_head_masking_sweep.py` per ARCHITECTURE.md): Thin wrapper that sweeps masks over 20×32=640 positions, calls `infer_whisper` once per mask, writes results CSV compatible with existing `compute_*_metrics.py`.
+
+Per-head fine-tuning needs a **separate new script** `scripts/training/finetune_heads.py` (not supported by existing training scripts).
+
+## Gaps and Open Questions
+
+1. **Whisper-large-v3 layer×head geometry:** 32 layers × 20 heads = 640 positions. PROJECT.md's "20 heads" is per-layer. Calm-Whisper masks "heads 1, 6, 11" in each layer → 3 × 32 = 96 trainable slices. Diagnosis sweep of all 640 is ~5 min/sweep × 511 utterances on a 49 GB GPU — feasible but ARCHITECTURE phase should decide if per-layer or flat sweep.
+2. **`generate()` threading `decoder_head_mask` through cached KV steps:** Not explicitly documented in any transformers version. **Smoke test required at phase start** — pass a zero-mask on one head and verify output differs from unmasked at decoded position > 1 (not just position 1).
+3. **VAD threshold tuning:** silero-vad default threshold is 0.5. Per-severity tuning (25/50/75% injection) may be needed.
+4. **Accent-diverse fine-tuning data:** PROJECT.md says "accent-diverse audio" but constraint is "cannot collect new labeled data." Presumably reuses CV24 training split with accent labels. Data-prep concern, not stack.
+
+## Confidence Assessment
+
+| Area | Level | Reason |
+|---|---|---|
+| `decoder_head_mask` in v4.x | HIGH | Source-verified across 6 versions |
+| `decoder_head_mask` removed in v5 | HIGH | Grep on main branch: zero hits |
+| SDPA fallback with head_mask | HIGH | Direct quote from v4.44 source |
+| `out_proj` pre-hook correctness | HIGH | Algebraic; `num_heads`/`head_dim`/`out_proj` stable |
+| Gradient masking technique | HIGH | Standard PyTorch; validation test covers it |
+| silero-vad pick | HIGH | Picovoice 2025, pyannote #604, py-webrtcvad #68 corroborate |
+| No TransformerLens Whisper | HIGH | Source-verified model list |
+| Calm-Whisper no public code | HIGH | Exhaustive search returned nothing |
+| PEFT lacks per-head | HIGH | `target_modules` operates on whole `nn.Linear` |
 
 ## Sources
 
-### Official Documentation (HIGH confidence)
-- [TRL GRPO Trainer docs](https://huggingface.co/docs/trl/main/en/grpo_trainer) — confirmed text-only API, custom reward function interface
-- [TRL v1.0.0 release](https://pypi.org/project/trl/) — latest version, March 2026
-- [PEFT GitHub](https://github.com/huggingface/peft) — v0.18.1, January 2026
-- [Qwen3-ASR Technical Report](https://arxiv.org/html/2601.21337v1) — architecture details (AuT 300M + Qwen3-1.7B decoder)
-- [Qwen3-ASR GitHub](https://github.com/QwenLM/Qwen3-ASR) — finetuning directory with SFT script
-- [Qwen LoRA Fine-tuning docs](https://www.mintlify.com/QwenLM/Qwen/finetuning/lora) — LoRA configuration for Qwen models
-- [bitsandbytes GitHub](https://github.com/bitsandbytes-foundation/bitsandbytes) — 4-bit quantization
-
-### Research Papers (HIGH confidence)
-- [GRPO for Speech Recognition (ASRU 2025)](https://arxiv.org/abs/2509.01939) — up to 18.4% relative WER improvement with GRPO on ASR
-- [Advancing Speech Understanding with GRPO](https://arxiv.org/abs/2509.16990) — GRPO applied to speech-aware LMs
-- [CoVoGER (EMNLP 2025)](https://aclanthology.org/2025.emnlp-main.320.pdf) — LoRA config for Qwen2.5 ASR (r=8, alpha=16)
-- [RL for LLM-based ASR and TTS](https://arxiv.org/pdf/2509.18569) — 5.3% relative WER improvement
-
-### Community/Blog Sources (MEDIUM confidence)
-- [GRPO VRAM Requirements article](https://ghost.oxen.ai/grpo-vram-requirements-for-the-gpu-poor/) — memory estimation for GRPO training
-- [Modal VRAM estimation](https://modal.com/blog/how-much-vram-need-fine-tuning) — general VRAM calculation methodology
-- [Qwen3-ASR fine-tuning issue #68](https://github.com/QwenLM/Qwen3-ASR/issues/68) — community discussion on fine-tuning challenges
+- Calm-Whisper: https://arxiv.org/abs/2505.12969
+- Calm-Whisper ISCA: https://www.isca-archive.org/interspeech_2025/wang25b_interspeech.html
+- HuggingFace Whisper docs: https://huggingface.co/docs/transformers/model_doc/whisper
+- transformers v4.44 Whisper source: https://github.com/huggingface/transformers/blob/v4.44.0/src/transformers/models/whisper/modeling_whisper.py
+- transformers main Whisper source: https://github.com/huggingface/transformers/blob/main/src/transformers/models/whisper/modeling_whisper.py
+- TransformerLens model list: https://github.com/TransformerLensOrg/TransformerLens/blob/main/transformer_lens/loading_from_pretrained.py
+- nnsight 0.6 docs: https://nnsight.net/notebooks/tutorials/get_started/walkthrough/
+- silero-vad: https://github.com/snakers4/silero-vad
+- Picovoice VAD benchmark 2025: https://picovoice.ai/blog/best-voice-activity-detection-vad-2025/
+- HF transformers #27044 (head pruning): https://github.com/huggingface/transformers/issues/27044

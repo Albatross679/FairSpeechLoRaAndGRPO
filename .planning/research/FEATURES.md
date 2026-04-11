@@ -1,149 +1,234 @@
-# Feature Landscape
+# Feature Landscape — v2.0 Attention Head Surgery
 
-**Domain:** GRPO fairness-aware ASR fine-tuning pipeline
-**Researched:** 2026-04-05
+**Domain:** Whisper-large-v3 decoder attention-head-level hallucination mitigation for accent fairness
+**Researched:** 2026-04-11
+**Confidence:** HIGH for Calm-Whisper protocol and decoding-ablation literature; MEDIUM for accent-targeted (vs non-speech-targeted) adaptation of the method; MEDIUM for selective-fine-tuning training-signal choices
+**Scope note:** This file covers ONLY the v2.0 intervention. It supersedes the prior v1.0 GRPO FEATURES.md content that lived at this path.
+
+## Context (one paragraph)
+
+Midterm (§3.2) identifies Whisper-large-v3 as a worst-case Indian-accent hallucinator: 9.62% insertion rate on the 511-utterance Indian-accent CV24 subset; 50.7% of errors are insertions; insertion breakdown 43% repetition / 48% syntactic / 9% content. Non-monotonic with scale (small 3.22% -> medium 1.53% -> large-v3 9.62%); Gen-3 LLM-decoder models all <3.1%. Midterm §4.2 proposes a four-pronged v2.0 follow-up: per-head masking diagnosis, decoding ablation, energy-based VAD under silence injection, and selective head fine-tuning. The reference paper is Calm-Whisper (Wang et al., Interspeech 2025), which found that 3 of 20 decoder self-attention heads cause >75% of non-speech hallucinations and that fine-tuning only those heads with empty-label noise data yields an 80% reduction with <0.1% WER regression on LibriSpeech.
+
+## Calm-Whisper protocol — exact facts (HIGH confidence, arxiv 2505.12969)
+
+These numbers anchor all "is this feature faithful to the reference" checks. They are quoted from the paper, not paraphrased.
+
+| Item | Value | Source |
+|------|-------|--------|
+| Total decoder self-attention heads (per layer) in Whisper-large-v3 | 20 | Calm-Whisper §Methods |
+| Decoder layers in Whisper-large-v3 | 32 | Whisper-large-v3 spec |
+| Heads identified as "crazy" after diagnosis | #1, #6, #11 | Calm-Whisper |
+| Diagnosis procedure | Mask one head at a time (independent, NOT accumulated), measure hallucination rate | Calm-Whisper |
+| Hallucination metric for diagnosis | Utterance-level binary: `hallucination_rate = N(len(transcription)>0) / N_total` on non-speech audio | Calm-Whisper |
+| Diagnosis dataset | UrbanSound8k (non-speech) | Calm-Whisper |
+| Training signal for fine-tuning | Cross-entropy toward empty string on pure-noise audio | Calm-Whisper |
+| Training data | AudioSet (11,753 non-speech clips) + DEMAND + MUSAN, 105 h total | Calm-Whisper |
+| Learning rate | 1e-6, ~15% warmup | Calm-Whisper |
+| Batch size | 128 | Calm-Whisper |
+| Optimal epochs | 5 | Calm-Whisper |
+| Whisper params frozen | All except heads #1/#6/#11 in every decoder layer | Calm-Whisper |
+| Main result | >80% reduction in non-speech hallucination; <0.1% WER degradation on LibriSpeech test-clean/test-other | Calm-Whisper |
+| Decoding strategy ablation in Calm-Whisper | NONE — paper does not test beam/repetition/n-gram | Calm-Whisper |
+
+**Critical adaptation caveat:** Calm-Whisper targets _non-speech_ hallucination (empty audio should yield empty output). v2.0 targets _accent_ hallucination (Indian-accent speech should yield correct, non-looped transcription). The diagnosis metric, training signal, and training data all need adaptation. The protocol (per-head independent masking + selective fine-tuning of identified heads) transfers; the metric, dataset, and loss do NOT transfer one-for-one.
 
 ## Table Stakes
 
-Features the pipeline must have to produce valid, publishable results. Missing any of these means the experiment cannot run or the paper lacks credibility.
+Features without which the milestone cannot credibly report results or cite Calm-Whisper.
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| GRPO training loop with composite reward | Core contribution of the paper; without it there is no experiment | High | Must generate G candidate outputs per input, score each with R = (1-lambda)(1-WER) + lambda(-\|WER_g - WER\|), compute group-relative advantages, update policy with clipped surrogate loss. Reference: arxiv 2509.01939 validates GRPO for ASR with up to 18.4% relative WER improvement. |
-| WER-based reward computation | WER is the standard ASR metric; reward must be computed per-sample at training time | Medium | Use JiWER (already in pipeline) to compute WER on each candidate output. Negated WER (-WER) is the accuracy reward. Must normalize by reference word count. |
-| Fairness reward term per demographic group | The entire thesis depends on penalizing demographic disparity during training | Medium | For each training batch, compute group-mean WER, then per-sample penalty -\|WER_g - WER_mean\|. Requires demographic labels available at training time, which both Fair-Speech and CV24 provide. |
-| Lambda sweep (Pareto frontier) | Central experimental result; traces accuracy-fairness tradeoff | Low | Train separate models at lambda in {0, 0.1, 0.25, 0.5, 0.75, 1.0} (or similar grid). Each is an independent training run. Low complexity per run but high total compute. |
-| LoRA adapter on decoder (frozen encoder) | 16GB VRAM constraint makes full fine-tuning infeasible; LoRA is standard for parameter-efficient fine-tuning of LLM-ASR models | Medium | Freeze Qwen3-ASR encoder, apply LoRA to decoder/LLM layers. Target rank 8-64 (start with 16). The GRPO-for-ASR paper freezes the acoustic encoder and updates projection + LLM; LoRA constrains this further. |
-| Standard LoRA baseline (lambda=0) | Control condition; proves GRPO adds value beyond vanilla fine-tuning | Low | Identical to GRPO pipeline with lambda=0 (no fairness reward). Effectively supervised fine-tuning via RL with pure accuracy reward. |
-| FairLoRA baseline | Comparison method from the vision fairness literature adapted to ASR | Medium | Loss = L_standard + lambda * Var(L_g across groups). Minimizes variance of per-group losses. Implementation: compute group-stratified losses each batch, add variance penalty. Reference: arxiv 2410.17358. No existing ASR implementation -- must adapt from vision. |
-| Group-DRO baseline | Standard fairness optimization method; reviewers will expect it | Medium | Maintain per-group weights, upweight worst-performing group each step. Use CTC-DRO variant's smoothing insight (exponential moving average on group weights) to prevent oscillation. Reference implementation: github.com/kohpangwei/group_DRO (vision) and github.com/Bartelds/ctc-dro (speech). Since Qwen3-ASR uses cross-entropy not CTC, adapt vanilla Group-DRO with smoothed weights. |
-| ICASSP 2026 fairness-prompted baseline | Specific comparison target from the project requirements | Medium | Combined loss: L_total = lambda_e * L_ERM + lambda_s * L_SD + lambda_d * L_DRO + lambda_i * L_IRM. Reference: arxiv 2510.18374. Must implement Spectral Decoupling (penalize squared logit magnitude), Group-DRO component, and IRM (invariant risk minimization). Default hyperparams from paper: lambda_e=1, lambda_d=1, lambda_s=0.06, lambda_i=0.01. |
-| Evaluation on Fair-Speech and Common Voice 24 | Both datasets already prepared; evaluation on both is required for paper completeness | Low | Reuse existing inference + metrics pipeline (Stage 3-4 in current architecture). Run each trained adapter through run_inference.py, then compute_fairness_metrics.py. |
-| Fairness metrics: max-min ratio, gap%, std, bootstrap CIs | Already implemented in pipeline; must be applied to all trained models | Low | Existing compute_fairness_metrics.py handles this. Just run on new prediction CSVs. |
-| Pareto frontier visualization | Core figure of the paper; plots accuracy vs. fairness for all methods | Low | Plot (mean_WER, fairness_metric) for each method/lambda. Existing visualization pipeline can be extended. Use matplotlib scatter + Pareto front line. |
-| Ethnicity and accent demographic axes | Project requires both; ethnicity is primary gap (203%), accent adds breadth | Low | Both axes have labels in Fair-Speech and CV24 manifests. Fairness reward and evaluation must stratify by both independently. |
+| # | Feature | Why Required | Complexity | Dependencies |
+|---|---------|--------------|------------|--------------|
+| T1 | **Per-head attention masking hook on Whisper decoder self-attention** | Foundational primitive. Without a way to zero/mask a single head at a given layer, none of the diagnosis or intervention work is possible. Should be a PyTorch forward hook on `model.model.decoder.layers[L].self_attn` that multiplies head `h` contributions by 0 before the output projection. Must be layer-scoped and head-scoped independently. | MEDIUM | — |
+| T2 | **Single-head masking diagnosis sweep (20 heads × 32 layers = 640 conditions)** | Faithful replication of Calm-Whisper's protocol adapted to accent. Run inference on the 511-utterance Indian-accent CV24 subset 641 times (baseline + 640 masked). Whisper-large-v3 inference on 511 utterances is ~10 minutes on a single GPU; full sweep = ~4 days unbatched, hours if parallelized at the layer level. | HIGH (compute), MEDIUM (code) | T1 |
+| T3 | **Accent-adapted "driving-ness" metric** | Calm-Whisper's binary hallucination rate (non-empty transcription on non-speech) does not apply. v2.0 must instead rank heads by their effect on: (a) insertion rate on the 511 Indian-accent utterances (primary), (b) repetition-only insertion rate (to match the "looping" literature), and (c) WER delta on a non-Indian CV24 accent bucket (regression guard). A head qualifies as "hallucination-driving" iff masking it **reduces** insertion rate by ≥ some threshold **without** degrading non-target WER beyond a budget. Threshold TBD by the REQUIREMENTS author. | MEDIUM | T2, existing `classify_insertions.py` |
+| T4 | **Use existing insertion classifier to split repetition / syntactic / content** | Midterm already shows 43% / 48% / 9% split on large-v3. Without the split, cannot tell whether head surgery fixes the "loop" heads or the "semantic" heads. This code exists in `scripts/compute_insertion_metrics.py` (or equivalent — reuse, don't rebuild). | LOW | existing code |
+| T5 | **Decoding-strategy ablation baseline grid** | Reviewer question: "Couldn't you just turn on `repetition_penalty=1.3`?" — must be answered with numbers, not hand-waving. Reference paper (arxiv 2501.11378) already shows beam-1 beats beam-5 on hallucination (19.5% → 37.4%). Ablation grid: beam ∈ {1, 5}, repetition_penalty ∈ {1.0, 1.1, 1.3}, no_repeat_ngram_size ∈ {0, 3, 5}, temperature fallback on/off. 2×3×3×2 = 36 configs × 511 utterances = manageable. | MEDIUM | existing `run_inference.py` |
+| T6 | **Evaluation standard report set** | For the class project writeup, need: per-accent insertion rate (6 CV24 groups) × {baseline, masked, fine-tuned}, overall WER on CV24 + Fair-Speech + LibriSpeech test-clean (regression guard), MMR (max/min ratio) before/after, insertion breakdown repetition/syntactic/content before/after, per-head "driving-ness" ranking table. This is the "table of numbers" the downstream REQUIREMENTS author needs to scope. | MEDIUM | T2, T4, T5, existing metrics pipeline |
+| T7 | **Reuse existing 216-run baseline matrix** | Midterm already computed WER, MMR, insertion rate, and insertion breakdown for Whisper-small/medium/large-v3 + all Gen-3 models × 12 perturbation conditions × 2 datasets. v2.0 must NOT re-run these; it must read them as the "before" column in every comparison table. Cost: zero if the CSVs are still on disk; days if they were lost. | LOW | existing CSVs |
+| T8 | **Energy-based VAD preprocessing on silence-injected audio (25/50/75%)** | Directly asked for in midterm §4.2. Must implement an energy-threshold VAD (simple: RMS frames above a dB floor) as a pre-Whisper pass that strips injected silence. Evaluate delta in insertion rate on the existing silence-injection perturbation manifests. "Energy-based" specifically — no Silero dependency required (though Silero is the community default, see differentiator D3). | LOW | existing silence perturbation manifests |
+| T9 | **Reproducibility: frozen seeds, frozen model revision hash, frozen CV24 subset IDs** | 9.62% is a small-number finding on n=511. Any comparison must use the same 511 utterances, same Whisper-large-v3 checkpoint hash, same tokenizer, same `generate()` config apart from the one variable being ablated. Without this, noise will swamp the signal. | LOW | — |
 
 ## Differentiators
 
-Features that strengthen the paper's contribution but are not strictly required for the pipeline to function. These distinguish the work from a straightforward application of GRPO.
+Optional but valuable features that strengthen the class project without bloating scope.
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Dr. GRPO / DAPO modifications | Standard GRPO has known issues: length bias and advantage normalization instability. Dr. GRPO removes std normalization in advantage computation; DAPO removes KL divergence and adds token-level gradients. Both are validated improvements from arxiv 2509.01939. | Medium | Implement as configurable options: `--grpo-variant {standard, dr_grpo, dapo}`. Dr. GRPO is the safer bet (simpler change, validated for ASR). |
-| Multiple reward functions (WER, exact match, edit distance) | The GRPO-ASR paper found WER rewards best overall but exact match better for clean data. Showing reward function ablation strengthens the paper. | Low | Already computing WER; exact match is trivial (binary). Total edit distance is unnormalized WER numerator. Add as config option. |
-| Beam search vs. multinomial sampling for GRPO generation | GRPO-ASR paper found beam search better for noisy data, multinomial better for clean. Ablation adds depth to analysis. | Low | Both decoding strategies supported by Qwen3-ASR. Configure in generation step of GRPO loop. |
-| Perturbation robustness evaluation | Existing pipeline already has 12 perturbation conditions. Showing GRPO-fairness models maintain robustness under noise/reverb is a strong result. | Low | Reuse generate_perturbations.py + inference pipeline. Just run each adapter through perturbed conditions. High value, very low marginal cost. |
-| Error decomposition by demographic group | Existing error_decomposition.py breaks errors into sub/ins/del. Showing GRPO reduces specific error types for disadvantaged groups adds interpretability. | Low | Already built. Run on new prediction CSVs. |
-| Adaptive lambda scheduling | Instead of fixed lambda, anneal from 0 to target lambda during training (accuracy-first, then fairness). Motivated by curriculum learning: model first learns to transcribe, then learns to be fair. | Medium | Not validated in literature for this specific setting. Novel contribution potential but risky. Implement as optional: `--lambda-schedule {fixed, linear_warmup, cosine}`. |
-| Per-group WER tracking during training (not just evaluation) | Live monitoring of demographic gaps during training enables early stopping if a run diverges. Also produces training dynamics plots for the paper. | Medium | Log per-group WER every N steps on a held-out validation set. Adds compute overhead but provides rich analysis. |
-| Statistical significance testing across methods | Mann-Whitney U or paired bootstrap tests between GRPO and each baseline. Reviewers expect significance tests. | Low | Existing pipeline has bootstrap CIs. Extend with pairwise comparisons. |
-| Hyperparameter sensitivity analysis for GRPO | Show that results are robust to group size G, learning rate, beta (KL coefficient). Standard in RL papers. | Medium | Run 2-3 values of each key hyperparameter. Adds compute but strengthens claims. Reference: GRPO-ASR paper tested G in {6, 10} with "insignificant" impact. |
+| # | Feature | Value | Complexity | Dependencies |
+|---|---------|-------|------------|--------------|
+| D1 | **Selective fine-tuning of identified hallucination-driving heads** | The "surgery" half of the Calm-Whisper story. After diagnosis (T2, T3) ranks heads, unfreeze the top-k (k ∈ {1, 3, 5}) and fine-tune with a loss adapted to accent hallucination (see D1a/D1b/D1c for options). Calm-Whisper proves the recipe works for non-speech; v2.0 would be the first public adaptation to accent. **This is a differentiator, not a table stake, because** the diagnosis alone (T2+T3) is a complete, citable contribution — "we localize the accent-hallucination heads in Whisper-large-v3" — and fine-tuning can be deferred if compute or time runs short. | HIGH | T1, T2, T3, compute budget |
+| D1a | **Training signal option A: MLE on clean Indian-accent audio** | Standard cross-entropy fine-tuning on a held-out slice of Indian-accent CV24 utterances (NOT the 511-eval subset). Simplest. Directly analogous to Calm-Whisper's "target heads + clean labels", just with speech instead of empty strings. Risk: the model already handles most Indian-accent audio correctly — MLE on correctly-handled samples provides no gradient for the hallucination case. | MEDIUM | D1, held-out Indian-accent split |
+| D1b | **Training signal option B: contrastive / un-hallucination loss on repetition-hallucinated samples** | Build a small dataset of Whisper-large-v3's own hallucinated outputs on the diagnosis subset (inputs where the baseline inserts repetition loops), pair with the correct transcripts, and train the unfrozen heads to assign higher probability to the correct transcript than to the hallucinated one. Closer in spirit to Calm-Whisper's "train the bad heads to output the right thing on the bad inputs". Data is automatic (no new labels). | HIGH | D1, T2, T3 |
+| D1c | **Training signal option C: RL with insertion-rate reward** | GRPO-style or similar, with reward = `-insertion_rate` or `-repetition_count`. Reuses the v1.0 GRPO infrastructure that is currently paused. Highest complexity; lowest marginal benefit relative to D1a/D1b for a class project. Listed for completeness; not recommended for v2.0 scope. | HIGH | D1, v1.0 GRPO code |
+| D2 | **Accumulated / greedy head masking** | Calm-Whisper uses independent single-head masking. A stronger diagnosis protocol: mask the worst head, re-measure, mask the next worst on top, etc. Captures interactions (e.g., if heads #1 and #6 redundantly cause loops, independent masking understates the gain from masking both). Expensive: up to 20*19/2 second-order plus iterative cost. Scope only if T2 finishes early and interaction is suspected. | HIGH | T2 |
+| D3 | **Silero VAD comparison baseline (T8 companion)** | Compare energy-based VAD (T8) against SileroVAD on the same silence-injection conditions. Literature (arxiv 2501.11378) shows SileroVAD reduces detected hallucinations to 0.2% vs WebRTC's 12.5-15.4%. Lets v2.0 report "our simple energy VAD matches / trails / beats the SOTA VAD by X points" — strong sentence for the writeup. | LOW | T8 |
+| D4 | **Cross-accent head overlap analysis** | Run T2's diagnosis independently on each CV24 accent group (not just Indian). Question answered: are the hallucination-driving heads _accent-specific_ (different heads for different accents) or _hallucination-generic_ (same heads regardless of accent)? This is a genuinely novel question — Calm-Whisper only tested non-speech. Strong differentiator, but cost = N_accents × 640 inference runs. | HIGH | T2 |
+| D5 | **Layer-selective vs all-layers fine-tuning ablation** | Calm-Whisper fine-tunes heads #1/#6/#11 in _every_ decoder layer. Ablation: does fine-tuning only the top-K _layer-head_ pairs (from T2's ranking) work as well as fine-tuning those head indices across all 32 layers? Informative for understanding whether hallucination is localized in specific layers or is a "head-index property". | MEDIUM | D1 |
+| D6 | **Decoding-strategy + head-masking interaction** | After T5 and T2, cross: does `repetition_penalty=1.1 AND mask head #H` improve over the sum of each intervention alone? Cheap (a few extra configs) if both grids are already computed. Answers the reviewer question "is head surgery additive with cheap decoder tricks?" | LOW | T2, T5 |
+| D7 | **Publication-quality per-head heatmap** | Visualization: 32×20 grid where cell (L, h) color-encodes the insertion-rate delta when masking head h at layer L. Calm-Whisper prints a table; a heatmap would be visually stronger for the class project report. | LOW | T2 |
 
 ## Anti-Features
 
-Features to deliberately NOT build. Building these would waste time, add complexity without value, or violate project constraints.
+Things that are tempting, look rigorous, and would wreck the scope.
 
-| Anti-Feature | Why Avoid | What to Do Instead |
-|--------------|-----------|-------------------|
-| Full fine-tuning (no LoRA) | 16GB VRAM makes this infeasible. Even if possible, it would not be a fair comparison since baselines also use parameter-efficient methods. | Use LoRA consistently across all methods. Rank 8-64. |
-| PPO with separate value model | GRPO's entire advantage is eliminating the critic/value model. PPO would double memory requirements and negate the compute efficiency argument. | Use GRPO which estimates advantages from group-relative rewards. |
-| Custom GRPO training framework from scratch | TRL library has GRPOTrainer. Writing from scratch risks bugs and wastes time. However, TRL's GRPOTrainer is designed for text LLMs, not audio. | Use TRL as reference architecture but implement a custom training loop that handles audio inputs. Borrow the clipped surrogate loss and advantage computation; customize the generation and reward steps for ASR. |
-| Intersectional fairness (ethnicity x accent x gender) | Explicitly out of scope per PROJECT.md. Group sizes become too small for meaningful statistics. | Evaluate ethnicity and accent axes independently. Note intersectional analysis as future work. |
-| Group-specific LoRA adapters (one adapter per demographic) | Explicitly deferred in PROJECT.md. Fundamentally different approach (personalization vs. fairness). Multiplies parameter count and inference complexity. | Single shared adapter that performs well across all groups -- that is the fairness goal. |
-| Real-time / streaming inference | Not relevant for a research pipeline evaluating on fixed test sets. Adds massive complexity. | Batch offline inference, which is what the existing pipeline does. |
-| Curriculum learning over demographic groups | Ordering training data by demographic difficulty is theoretically interesting but unvalidated for this setting. Risk of introducing confounders. Recent literature (2025) shows reverse curricula sometimes outperform easy-to-hard, making the design space ambiguous. | Fixed random sampling with demographic-balanced batches. If time permits, test as ablation under Differentiators (adaptive lambda scheduling is the simpler version of this idea). |
-| Multi-task learning (ASR + fairness classification) | Auxiliary fairness classification heads add architectural complexity. The reward-based approach (GRPO) already encodes fairness signal without auxiliary tasks. | Keep the architecture clean: single ASR objective, fairness enters only through the reward function. |
-| Automated hyperparameter optimization (Optuna, Ray Tune) | Compute budget is too limited for HPO sweeps. The lambda sweep itself is already 6+ training runs. | Manual hyperparameter selection based on GRPO-ASR paper defaults. Grid search only for lambda. |
-| Web UI or interactive dashboard | Research pipeline, not a product. | CLI scripts + matplotlib figures, consistent with existing pipeline. |
+| # | Anti-Feature | Why Tempting | Why To Avoid | Do Instead |
+|---|--------------|--------------|--------------|------------|
+| A1 | **Activation patching** (swap activations between clean and hallucinated runs) | It is the canonical mechanistic-interpretability tool (Beyond Transcription, arxiv 2508.15882) and sounds more sophisticated than masking. | Requires paired clean/corrupt inputs with aligned tokenization, careful hook management across multiple forward passes, and far more code than masking. Calm-Whisper got SOTA-level findings with plain masking. For a class project, masking is sufficient and defensible. | Stick to T1/T2 single-head masking. Mention activation patching in the writeup as future work. |
+| A2 | **Fine-tuning the _entire_ decoder or the _entire_ model** | Biggest hammer; would definitely reduce hallucination. | (a) Defeats the point — the contribution is targeted surgery, not retraining. (b) Will regress WER on non-target accents. (c) Eats VRAM unnecessarily. (d) Calm-Whisper explicitly freezes everything except the crazy heads. | D1 (selective head fine-tuning only). |
+| A3 | **Adding more datasets** (GigaSpeech, Artie bias corpus, AfricanAccentsEnglish, etc.) | Bigger N feels more rigorous. | v2.0 already has 3 datasets (CV24, Fair-Speech, LibriSpeech) and 216 baseline runs in the CSV matrix. Adding datasets means new prep scripts, new demographic label schemas, new manifest validation. Scope killer. | Use only the existing datasets. Report on the existing subgroups. |
+| A4 | **Running the head sweep on Whisper-small AND -medium AND -large-v3** | Comparison across scale would be cute given the midterm's non-monotonic finding. | 3× the compute. The midterm's finding (large-v3 hallucinates, small/medium do not) _is_ the reason v2.0 only targets large-v3. Re-running on small/medium answers a different, less interesting question. | Large-v3 only. Mention scale behavior in the intro by citing the midterm. |
+| A5 | **Building a new insertion classifier** | The existing midterm classifier is string-heuristic based; a learned classifier would be more accurate. | Out of scope. The 43/48/9 split is already the "source of truth" for this project. Rebuilding it mid-milestone would invalidate comparisons to the midterm baseline. | Reuse existing `classify_insertions.py`. If issues found, document as a limitation. |
+| A6 | **Fairness metric innovation** (new metrics beyond WER / insertion-rate / MMR) | Novel metric = paper-worthy. | v2.0 is a class project writeup, not a metrics paper. MMR, per-group WER, insertion rate, and insertion-type breakdown are sufficient and already wired into the existing pipeline. | Reuse existing fairness metrics from midterm. |
+| A7 | **LoRA on the unfrozen heads instead of direct parameter updates** | LoRA is the default in 2026; feels "modern". | Calm-Whisper uses direct parameter updates on 3 heads × 32 layers = a tiny parameter count (~0.3% of model). LoRA adds rank hyperparameters and more code for zero benefit at this scale. v1.0's LoRA infrastructure is validated but is the wrong tool here. | Direct param updates on the identified heads (D1). Freeze everything else via `requires_grad=False`. |
+| A8 | **Custom training loop when HF Trainer would do** | "More control" over the training step. | Calm-Whisper's recipe (CE loss, LR 1e-6, warmup, batch 128, 5 epochs) is vanilla HF Trainer territory. Writing a custom loop = bug surface. | Use `transformers.Trainer` with a custom `compute_loss` only if D1b/D1c is chosen. Otherwise the default is fine. |
+| A9 | **GRPO reward engineering revival inside v2.0** | v1.0 already has GRPO plumbing; tempting to reuse. | v1.0 was paused for a reason (scope). Pulling GRPO back in defeats the pivot. Mentioned as D1c only for completeness; strongly recommend NOT selecting it. | Keep v1.0 archived. D1a or D1b. |
+| A10 | **Chunked long-form inference experiments** | Real-world Whisper use is long-form; could show "our fix transfers". | CV24 is short-form utterance data; the 511-utterance subset is already short. Long-form changes the decoding dynamic (temperature fallback, condition-on-previous-text) and is a different experiment. | Stay on the utterance-level CV24 subset. Mention long-form as future work. |
 
 ## Feature Dependencies
 
 ```
-LoRA adapter integration
-  |
-  +---> Standard LoRA baseline (lambda=0)
-  |
-  +---> GRPO training loop
-  |       |
-  |       +---> WER-based reward computation
-  |       |
-  |       +---> Fairness reward term
-  |       |       |
-  |       |       +---> Lambda sweep (Pareto frontier)
-  |       |
-  |       +---> [Optional] Dr. GRPO / DAPO modifications
-  |       |
-  |       +---> [Optional] Multiple reward functions
-  |       |
-  |       +---> [Optional] Beam search vs. multinomial sampling
-  |
-  +---> FairLoRA baseline (independent of GRPO)
-  |
-  +---> Group-DRO baseline (independent of GRPO)
-  |
-  +---> ICASSP fairness-prompted baseline (independent of GRPO)
+T7 (reuse 216-run baseline CSVs)
+    └─ provides "before" column for all comparisons
 
-Evaluation (reuses existing pipeline):
-  All trained adapters
-    |
-    +---> Inference on Fair-Speech + CV24
-    |       |
-    |       +---> Fairness metrics computation
-    |       |
-    |       +---> Pareto frontier visualization
-    |       |
-    |       +---> [Optional] Perturbation robustness evaluation
-    |       |
-    |       +---> [Optional] Error decomposition
-    |       |
-    |       +---> [Optional] Statistical significance testing
-    |
-    +---> [Optional] Per-group WER tracking during training
+T1 (per-head masking hook)
+    ├──> T2 (640-cell diagnosis sweep)
+    │       ├──> T3 (driving-ness metric)
+    │       │       └──> T6 (evaluation report)
+    │       │               └──> downstream REQUIREMENTS
+    │       ├──> D2 (accumulated masking)
+    │       ├──> D4 (cross-accent head overlap)
+    │       ├──> D7 (heatmap viz)
+    │       └──> D1 (selective fine-tuning)
+    │               ├──> D1a (MLE training signal)
+    │               ├──> D1b (contrastive training signal)
+    │               ├──> D1c (RL training signal)   [not recommended]
+    │               ├──> D5 (layer-selective vs all-layers ablation)
+    │               └──> T6 (post-fine-tuning numbers in evaluation report)
+    └──> (standalone) head-masking inference = ablation baseline for T5
+
+T4 (insertion classifier reuse)
+    └──> feeds T3 (repetition-only metric) and T6 (breakdown)
+
+T5 (decoding-strategy ablation)
+    ├──> T6 (decoding column in evaluation report)
+    └──> D6 (decoding × masking interaction)  [requires T2 also]
+
+T8 (energy-based VAD)
+    ├──> T6 (silence-condition column in evaluation report)
+    └──> D3 (Silero comparison)
+
+T9 (frozen seeds/hash/subset IDs)
+    └──> precondition for EVERYTHING measured; must be fixed before T2 starts
+
+Conflicts:
+    D1c (RL signal) ─conflicts─> scope (pulls v1.0 GRPO back in — see A9)
+    A2 (full fine-tune) ─conflicts─> D1 (selective fine-tune)
 ```
 
-## MVP Recommendation
+### Ordering implications for REQUIREMENTS author
 
-**Phase 1 -- Core pipeline (must complete first):**
-1. LoRA adapter integration for Qwen3-ASR-1.7B (all methods depend on this)
-2. GRPO training loop with composite reward (core contribution)
-3. Standard LoRA baseline (lambda=0, simplest comparison)
+1. **T1 and T9 first** — masking hook + frozen reproducibility contract. Without these, any measurement made later is invalidated.
+2. **T5 and T8 are independent of the main diagnosis path** and can run in parallel waves. They use the existing `run_inference.py` with different config flags; no new infra.
+3. **T2 is the long pole.** Budget it explicitly. 640 conditions × Whisper-large-v3 inference on 511 utterances is the compute anchor of the milestone.
+4. **T3 depends on T2 and T4**, both of which must be done.
+5. **T6 (the evaluation report) is a sink** that aggregates T2, T3, T4, T5, T7, T8, and D1 if chosen.
+6. **D1 cannot start before T2+T3 identify the target heads.** Hard gate.
+7. **T8 can be scoped down to "energy-based VAD only, no Silero" if D3 is dropped.** This keeps the silence-injection arm of the milestone small.
 
-**Phase 2 -- Baselines (can parallelize across team members):**
-4. FairLoRA baseline
-5. Group-DRO baseline
-6. ICASSP fairness-prompted baseline
+## MVP Definition
 
-**Phase 3 -- Evaluation and Pareto frontier:**
-7. Lambda sweep (6+ GRPO runs at different lambda values)
-8. Evaluation on both datasets with fairness metrics
-9. Pareto frontier visualization
+### Minimum Credible Milestone (must-ship)
 
-**Phase 4 -- Strengthen (if time permits):**
-10. Dr. GRPO variant (strongest differentiator for lowest effort)
-11. Perturbation robustness evaluation (near-zero cost, reuses pipeline)
-12. Statistical significance testing
+These must all ship for the v2.0 writeup to be defensible:
 
-**Defer:** Adaptive lambda scheduling, hyperparameter sensitivity, curriculum approaches. These are interesting but risky given compute and time constraints.
+- [ ] **T1** per-head masking hook
+- [ ] **T2** 640-cell diagnosis sweep on the 511 Indian-accent CV24 utterances
+- [ ] **T3** accent-adapted driving-ness metric that produces a ranked head list
+- [ ] **T4** reuse of existing insertion classifier for the 43/48/9 breakdown
+- [ ] **T5** decoding-strategy ablation grid (36 configs)
+- [ ] **T6** evaluation report with before/after numbers on the standard set
+- [ ] **T7** reuse of 216-run baseline CSVs as "before" column
+- [ ] **T8** energy-based VAD on the existing silence-injection perturbation manifests
+- [ ] **T9** frozen seeds, checkpoint hash, and utterance ID list
 
-**Critical path:** LoRA integration -> GRPO loop -> lambda sweep -> evaluation -> Pareto plot. Baselines can proceed in parallel once LoRA integration is done.
+At this scope, the milestone has: (a) a citable diagnosis contribution, (b) a principled decoding-strategy baseline that reviewers will ask about, (c) the VAD arm from midterm §4.2, and (d) the "before column" is free. Calm-Whisper is cited as methodology; no claim of fine-tuning results is made.
 
-## Baseline Implementation Reference
+### Stretch (add if diagnosis finishes on time)
 
-| Baseline | Reference Paper | Reference Code | Adaptation Needed |
-|----------|----------------|---------------|-------------------|
-| Standard LoRA | N/A (standard practice) | HuggingFace PEFT | Minimal -- apply to Qwen3-ASR decoder layers |
-| FairLoRA | arxiv 2410.17358 (vision) | No public code found | Significant -- adapt from vision classification to ASR sequence generation. Core idea (variance of group losses) transfers directly. |
-| Group-DRO | Sagawa et al. 2020 (arxiv 1911.08731) | github.com/kohpangwei/group_DRO | Moderate -- vanilla Group-DRO is well-understood. Adapt loss weighting to cross-entropy ASR loss. Consider CTC-DRO smoothing insights (github.com/Bartelds/ctc-dro). |
-| ICASSP fairness-prompted | arxiv 2510.18374 | No public code found | Significant -- must implement SD + Group-DRO + IRM combined loss. Individual components are well-documented but combination requires careful tuning. |
+- [ ] **D1 + D1a** (selective fine-tuning with MLE signal) — turns the diagnosis into an intervention and matches the full Calm-Whisper loop
+- [ ] **D7** per-head heatmap for the writeup
+- [ ] **D3** Silero VAD comparison — cheap if T8 already exists
+- [ ] **D6** decoding × masking interaction — cheap if both T2 and T5 exist
+
+### Explicit Non-Goals for v2.0 (deferred to v2.1 or future work)
+
+- [ ] **D1b / D1c** — alternative training signals (contrastive, RL)
+- [ ] **D2** — accumulated / greedy head masking
+- [ ] **D4** — cross-accent head overlap analysis
+- [ ] **D5** — layer-selective vs all-layers fine-tuning ablation
+- [ ] Activation patching (A1)
+- [ ] Any new datasets (A3)
+- [ ] Any other Whisper model size (A4)
+
+## Feature Prioritization Matrix
+
+| Feature | Delivers to the writeup | Compute cost | Engineering cost | Priority |
+|---------|-------------------------|--------------|------------------|----------|
+| T1  per-head masking hook | Enables everything | LOW | MEDIUM | P1 |
+| T2  640-cell diagnosis sweep | Core contribution | HIGH | LOW (loop on T1) | P1 |
+| T3  accent-adapted metric | Turns T2 into findings | LOW | MEDIUM | P1 |
+| T4  reuse insertion classifier | Free breakdown numbers | LOW | LOW | P1 |
+| T5  decoding-strategy ablation | Answers reviewer Q#1 | MEDIUM | LOW | P1 |
+| T6  evaluation report | The artifact | LOW | MEDIUM | P1 |
+| T7  reuse 216 baseline runs | Free "before" column | ZERO | LOW | P1 |
+| T8  energy-based VAD | Answers midterm §4.2 | LOW | LOW | P1 |
+| T9  frozen reproducibility | Guardrail | ZERO | LOW | P1 |
+| D1  selective head fine-tune | Turns diagnosis into intervention | HIGH | HIGH | P2 |
+| D1a MLE signal | Simplest path if D1 chosen | MEDIUM | LOW | P2 |
+| D7  per-head heatmap | Writeup polish | ZERO | LOW | P2 |
+| D3  Silero VAD comparison | "our simple VAD is competitive" line | LOW | LOW | P2 |
+| D6  decoding × masking interaction | Bonus reviewer answer | LOW | LOW | P2 |
+| D2  accumulated masking | Stronger diagnosis | HIGH | MEDIUM | P3 |
+| D4  cross-accent head overlap | Novel question | HIGH | LOW | P3 |
+| D5  layer vs head-index ablation | Methodological depth | MEDIUM | LOW | P3 |
+| D1b contrastive signal | Better loss than D1a | MEDIUM | HIGH | P3 |
+| D1c RL signal | Pulls v1.0 back in | HIGH | HIGH | DROP |
+
+## Literature Feature Matrix
+
+How the relevant papers handle the v2.0 feature set. "—" = not addressed.
+
+| Feature | Calm-Whisper (Interspeech 2025) | Investigation of Whisper Hallucinations (arxiv 2501.11378) | Listen Like a Teacher (arxiv 2511.14219) | Beyond Transcription (AAAI 2026, arxiv 2508.15882) | v2.0 plan |
+|---------|---------|---------|---------|---------|-----------|
+| Per-head masking diagnosis | Yes — 20 heads, independent, non-speech binary metric | — | — | Uses activation patching + ablation across 32 layers | T1 + T2, adapted to accent |
+| Heads-per-layer scope | All 32 layers | — | — | All 32 layers | All 32 layers |
+| Diagnosis metric | Utterance-level binary on UrbanSound8k | Detected-hallucination rate + WER | — | Per-layer component effect | Insertion-rate delta + repetition-only delta on CV24 Indian-accent |
+| Decoding ablation | None | Beam 1/3/5, silence threshold | — | — | T5 (beam, rep penalty, n-gram, temp fallback) |
+| VAD preprocessing | None | WebRTC, SileroVAD | — | — | T8 (energy) + D3 (Silero) |
+| Selective head fine-tuning | Yes — heads #1/#6/#11, CE on empty strings | — | Adaptive layer attention + KD (different approach) | — | D1 (stretch), adapted to speech labels |
+| Training data | 105 h non-speech (AudioSet + DEMAND + MUSAN) | — | — | — | Held-out Indian-accent CV24 split |
+| Reported gain | >80% non-speech hallucination reduction, <0.1% LibriSpeech WER regression | SileroVAD: 0.2% hallucination vs WebRTC 12.5% | — | — | Target TBD by REQUIREMENTS |
+
+## Open Questions for the REQUIREMENTS Author
+
+1. **Masking threshold for T3:** what insertion-rate reduction (absolute? relative? bootstrap-significant?) qualifies a head as "driving"? Calm-Whisper used raw rate drop on a binary metric; accent is continuous. **Unknown** — needs a decision in REQUIREMENTS.
+2. **Regression budget for T3:** how much WER degradation on a non-Indian accent group is acceptable when masking a head? Calm-Whisper accepted <0.1% on LibriSpeech. v2.0 equivalent TBD.
+3. **Fine-tuning (D1) in or out of MVP?** The template above places D1 as stretch. If the class project deadline is tight, ship T1-T9 only and cite Calm-Whisper as the "what-if". If there is room, D1+D1a is the natural extension.
+4. **Parallelization of T2:** is the 640-cell sweep run serially (safe, ~days) or in a layer-parallel data-parallel fashion (faster, more bug surface)? Has implications for the infra phase.
+5. **Which CV24 non-Indian group is the regression guard?** England and US have the largest n; midterm already shows England's WER quadruples under 75% silence so it may be a poor guard. Needs picking.
 
 ## Sources
 
-- [GRPO for Speech Recognition](https://arxiv.org/html/2509.01939v1) -- Primary reference for GRPO-ASR implementation
-- [FairLoRA: Fairness-Regularized LoRA](https://arxiv.org/html/2410.17358v1) -- FairLoRA method for vision, to be adapted
-- [Fairness-Prompted Finetuning for ASR](https://arxiv.org/html/2510.18374) -- ICASSP baseline (SD + DRO + IRM)
-- [CTC-DRO: Robust Optimization for Speech](https://arxiv.org/abs/2502.01777) -- Group-DRO adaptation for speech; code at [GitHub](https://github.com/Bartelds/ctc-dro)
-- [Group-DRO Reference Implementation](https://github.com/kohpangwei/group_DRO) -- Original Group-DRO code (vision)
-- [TRL GRPOTrainer](https://huggingface.co/learn/cookbook/en/fine_tuning_llm_grpo_trl) -- HuggingFace GRPO reference for LLMs
-- [Controllable Pareto Trade-off](https://arxiv.org/abs/2509.13651) -- Multi-objective fairness-accuracy optimization
-- [ASR-FAIRBENCH](https://www.isca-archive.org/interspeech_2025/rai25_interspeech.pdf) -- Fairness evaluation framework for ASR (Interspeech 2025)
-- [Qwen3-ASR Technical Report](https://arxiv.org/html/2601.21337v2) -- Model architecture and training details
+- [Calm-Whisper: Reduce Whisper Hallucination On Non-Speech By Calming Crazy Heads Down (arxiv)](https://arxiv.org/abs/2505.12969) — HIGH confidence primary source for diagnosis protocol, head identity, fine-tuning recipe
+- [Calm-Whisper ISCA archive (Interspeech 2025)](https://www.isca-archive.org/interspeech_2025/wang25b_interspeech.html)
+- [Calm-Whisper HTML full-text](https://arxiv.org/html/2505.12969v1)
+- [Investigation of Whisper ASR Hallucinations Induced by Non-Speech Audio (arxiv 2501.11378)](https://arxiv.org/html/2501.11378v1) — HIGH confidence for beam-size numbers (beam 1: 19.5% / beam 5: up to 37.4% hallucination) and VAD numbers (SileroVAD 0.2% vs WebRTC 12.5-15.4%)
+- [Beyond Transcription: Mechanistic Interpretability in ASR (arxiv 2508.15882, AAAI 2026)](https://arxiv.org/html/2508.15882) — MEDIUM confidence context for activation patching as an alternative to masking; cited in A1
+- [Listen Like a Teacher: Mitigating Whisper Hallucinations using Adaptive Layer Attention and Knowledge Distillation (arxiv 2511.14219)](https://arxiv.org/abs/2511.14219) — LOW confidence, extension of Calm-Whisper line; not central to v2.0
+- [Whisper-CD: Contrastive Decoding (arxiv 2603.06193)](https://arxiv.org/html/2603.06193) — MEDIUM confidence for alternative decoding strategy reported to reduce WER by up to 24.3pp on CORAAL; cited as A10-adjacent future work
+- [Silero VAD (github)](https://github.com/snakers4/silero-vad) — MEDIUM confidence; the community default for the D3 comparison
+- [A possible solution to Whisper hallucination (openai/whisper discussion #679)](https://github.com/openai/whisper/discussions/679) — LOW confidence community discussion cited for rep-penalty folklore only
+- `llm-asr-fairness-midterm.pdf` §3.2 (9.62% finding, 43/48/9 breakdown), §4.2 (proposed v2.0 methodology) — HIGH confidence (authoritative for this project)
+- `.planning/PROJECT.md` — HIGH confidence (authoritative for scope)
+
+---
+*Features research for: Whisper-large-v3 attention-head-surgery accent hallucination mitigation, v2.0 milestone*
+*Researched: 2026-04-11*
