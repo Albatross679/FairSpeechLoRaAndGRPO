@@ -1,0 +1,126 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fairspeech-lora-grpo"
+version = "0.1.0"
+description = "Fairness analysis and LoRA/GRPO fine-tuning for ASR models (wav2vec2, Whisper, Qwen3-ASR) across demographic subgroups."
+readme = "project-overview.html"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Qifan Wen", email = "qifan_wen@outlook.com" },
+]
+keywords = ["asr", "fairness", "lora", "grpo", "speech-recognition", "nlp"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# Core dependencies used across the pipeline scripts under scripts/ and
+# scripts/training/. Heavy GPU/runtime-specific stacks (torch, torchaudio)
+# are pinned loosely — install a CUDA-matched build manually for training.
+dependencies = [
+    # Deep learning core
+    "torch>=2.2",
+    "torchaudio>=2.2",
+    "transformers>=4.44",
+    "peft>=0.11",
+    "accelerate>=0.33",
+    "datasets>=2.19",
+    "safetensors>=0.4",
+
+    # ASR-specific
+    "openai-whisper>=20231117",   # provides whisper.normalizers.EnglishTextNormalizer
+    "jiwer>=3.0",
+    "soundfile>=0.12",
+    "librosa>=0.10",
+
+    # Scientific / data
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "scipy>=1.11",
+    "scikit-learn>=1.4",
+
+    # Plotting
+    "matplotlib>=3.8",
+    "seaborn>=0.13",
+
+    # Experiment tracking & HPO
+    "wandb>=0.17",
+    "optuna>=3.6",
+
+    # Utilities
+    "tqdm>=4.66",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# GRPO / RL fine-tuning stack
+grpo = [
+    "trl>=0.9",
+    "bitsandbytes>=0.43",
+]
+
+# Developer tooling
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.5",
+    "black>=24.0",
+    "ipython>=8.20",
+]
+
+# Everything (convenience target)
+all = [
+    "fairspeech-lora-grpo[grpo,dev]",
+]
+
+[project.urls]
+Homepage = "https://github.com/Albatross679"
+Repository = "https://github.com/Albatross679"
+
+# ---------------------------------------------------------------------------
+# setuptools: the project is script-oriented (no installable package yet).
+# We expose `scripts/training/` as the `scripts.training` namespace so that
+# `from scripts.training.data_loader import ASRFairnessDataset` keeps working
+# when the project is installed editable (`pip install -e .`).
+# ---------------------------------------------------------------------------
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["scripts*"]
+exclude = ["autoresearch*", "outputs*", "datasets*", "docs*", "tests*"]
+namespaces = true
+
+# ---------------------------------------------------------------------------
+# Tooling
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = [
+    "autoresearch",
+    "outputs",
+    "datasets",
+    "docs",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]  # long lines tolerated in scripts
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+addopts = "-ra"

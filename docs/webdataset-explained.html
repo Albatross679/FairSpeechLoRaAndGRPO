@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WebDataset Explained — Simple Terms</title>
+<style>
+  html { font-size: 62.5%; }
+  body {
+    font-family: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    font-size: 1.7rem;
+    line-height: 1.618;
+    color: #4a4a4a;
+    background: #f5f4f0;
+    margin: 0;
+    padding: 0;
+  }
+  .page-wrapper {
+    display: flex;
+    max-width: 80em;
+    margin: 0 auto;
+    align-items: flex-start;
+  }
+  aside.sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    max-height: 100vh;
+    overflow-y: auto;
+    background: #f0efeb;
+    padding: 1.8em 1.2em 2em 1.5em;
+    font-size: 1em;
+    border-right: 1px solid #e2ddd6;
+  }
+  aside.sidebar strong {
+    display: block;
+    font-size: 1.15em;
+    color: #3a3a3a;
+    border-bottom: 2px solid #7c3043;
+    padding-bottom: 0.4em;
+    margin-bottom: 0.8em;
+  }
+  aside.sidebar ul { list-style: none; padding: 0; margin: 0; }
+  aside.sidebar li { margin: 0.25em 0; }
+  aside.sidebar a {
+    display: block;
+    padding: 0.3em 0.6em;
+    color: #4a4a4a;
+    text-decoration: none;
+    border-radius: 4px;
+    transition: background 0.15s, color 0.15s;
+  }
+  aside.sidebar a:hover { background: #ebe7e3; color: #7c3043; }
+  aside.sidebar a.active {
+    background: #ebe7e3;
+    color: #7c3043;
+    font-weight: 700;
+    border-left: 3px solid #7c3043;
+    padding-left: calc(0.6em - 3px);
+  }
+  .main-content {
+    flex: 1;
+    max-width: 56em;
+    padding: 13px 2em 2em 2.5em;
+    min-width: 0;
+  }
+  h1 { font-size: 2em; color: #3a3a3a; margin: 0.4em 0 0.15em 0; line-height: 1.2; }
+  p.subtitle { color: #7c3043; font-style: italic; font-size: 1.1em; margin: 0 0 1em 0; }
+  hr { border: none; border-top: 1px solid #d9c9c2; margin: 1.4em 0; }
+  h2 { font-size: 1.7em; color: #3a3a3a; border-bottom: 2px solid #7c3043; padding-bottom: 0.25em; margin: 1.8em 0 0.7em 0; }
+  h3 { font-size: 1.45em; color: #3a3a3a; margin: 1.4em 0 0.5em 0; }
+  h4 { font-size: 1.25em; color: #3a3a3a; margin: 1em 0 0.4em 0; }
+  p { margin: 0.6em 0; }
+  a { color: #7c3043; text-decoration: none; }
+  a:hover { color: #a3415a; text-decoration: underline; }
+  a:visited { color: #5c2233; }
+  strong { color: #3a3a3a; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92em;
+    margin: 1.2em 0;
+    border-top: 2px solid #7c3043;
+    border-bottom: 2px solid #7c3043;
+  }
+  thead th {
+    padding: 0.6em 0.8em;
+    text-align: left;
+    font-weight: 700;
+    color: #3a3a3a;
+    background: #f0efeb;
+    border-bottom: 3px solid #7c3043;
+  }
+  tbody td { padding: 0.55em 0.8em; border-bottom: 1px solid #ddd; vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #f5eaed; }
+  tr.highlight { background: #f5eaed; }
+  tr.highlight td { font-weight: 700; }
+
+  .callout {
+    border-left: 4px solid #7c3043;
+    background: #f1f1f1;
+    padding: 1em 1.2em;
+    margin: 1.4em 0;
+    border-radius: 0 6px 6px 0;
+  }
+  .callout.warning { border-left-color: #d4a017; background: #fdf8e8; }
+  .callout.danger { border-left-color: #c0392b; background: #fdf0ef; }
+  .callout.success { border-left-color: #27ae60; background: #edf9f1; }
+  .callout strong { color: #3a3a3a; }
+
+  pre.code-block {
+    background: #faf9f7;
+    border: 1px solid #ddd;
+    border-left: 3px solid #7c3043;
+    border-radius: 4px;
+    padding: 1.2em 1.5em;
+    margin: 1.2em 0;
+    overflow-x: auto;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.85em;
+    line-height: 1.65;
+    color: #3a3a3a;
+  }
+  pre.code-block code { display: block; }
+  pre.code-block .comment { color: #998; font-style: italic; }
+
+  .compare-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1em;
+    margin: 1.4em 0;
+  }
+  .compare-card {
+    background: #faf9f7;
+    border: 1px solid #d9c9c2;
+    border-left: 3px solid #7c3043;
+    border-radius: 4px;
+    padding: 1em 1.1em;
+  }
+  .compare-card h4 { margin: 0 0 0.4em 0; font-size: 1.05em; color: #7c3043; }
+  .compare-card p { margin: 0.25em 0; font-size: 0.95em; line-height: 1.55; }
+  .compare-card .tag {
+    display: inline-block;
+    font-size: 0.78em;
+    color: #7c3043;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 0.4em;
+  }
+
+  nav#toc { display: none; }
+  footer {
+    margin-top: 3em;
+    padding-top: 1.2em;
+    border-top: 1px solid #d9c9c2;
+    font-size: 0.9em;
+    color: #7a7a7a;
+  }
+
+  @media (max-width: 900px) {
+    .page-wrapper { flex-direction: column; }
+    aside.sidebar { display: none; }
+    .main-content { padding: 1em 1.2em; max-width: 100%; }
+    nav#toc {
+      display: block;
+      background: #f0efeb;
+      padding: 1em 1.2em;
+      border-left: 3px solid #7c3043;
+      margin: 1em 0 1.5em 0;
+      border-radius: 0 6px 6px 0;
+    }
+    nav#toc ul { margin: 0.3em 0 0 1em; padding: 0; }
+  }
+  @media (max-width: 684px) { body { font-size: 1.35rem; } }
+  @media (max-width: 382px) { body { font-size: 1.2rem; } }
+
+  @media print {
+    aside.sidebar { display: none; }
+    .main-content { max-width: 100%; padding: 0; }
+    body { background: #fff; color: #000; }
+    a { color: #000; text-decoration: underline; }
+  }
+</style>
+</head>
+<body>
+<div class="page-wrapper">
+
+  <aside class="sidebar" id="sidebar-toc">
+    <strong>Contents</strong>
+    <ul>
+      <li><a href="#problem">The Problem</a></li>
+      <li><a href="#idea">Core Idea</a></li>
+      <li><a href="#grouping">Grouping Samples</a></li>
+      <li><a href="#shards">Shards &amp; Parallelism</a></li>
+      <li><a href="#pre-decode">Pre-Decode Trick</a></li>
+      <li><a href="#pytorch">Plugging Into PyTorch</a></li>
+      <li><a href="#vs-folders">vs. Folder-of-Files</a></li>
+      <li><a href="#our-case">Why This Fixes 45%</a></li>
+      <li><a href="#gotchas">Gotchas</a></li>
+    </ul>
+  </aside>
+
+  <div class="main-content">
+    <h1>WebDataset, Explained Simply</h1>
+    <p class="subtitle">What it is, why it's fast, and why it fixes the 45% GPU-util ceiling on this host</p>
+    <hr>
+
+    <nav id="toc">
+      <strong>Table of Contents</strong>
+      <ul>
+        <li><a href="#problem">1. The Problem</a></li>
+        <li><a href="#idea">2. Core Idea</a></li>
+        <li><a href="#grouping">3. Grouping Samples</a></li>
+        <li><a href="#shards">4. Shards &amp; Parallelism</a></li>
+        <li><a href="#pre-decode">5. Pre-Decode Trick</a></li>
+        <li><a href="#pytorch">6. Plugging Into PyTorch</a></li>
+        <li><a href="#vs-folders">7. vs. Folder-of-Files</a></li>
+        <li><a href="#our-case">8. Why This Fixes 45%</a></li>
+        <li><a href="#gotchas">9. Gotchas</a></li>
+      </ul>
+    </nav>
+
+    <div class="callout">
+      <strong>One-sentence version:</strong> WebDataset stores your training samples inside plain <em>tar</em> files that PyTorch streams through in order, instead of opening millions of tiny files one by one. Sequential reading is dramatically faster than random reading, especially for audio and image datasets.
+    </div>
+
+    <h2 id="problem">1. The Problem It Solves</h2>
+    <p>A normal ASR dataset looks like this on disk:</p>
+
+<pre class="code-block"><code>common_voice/clips/
+├── clip_000001.mp3
+├── clip_000002.mp3
+├── clip_000003.mp3
+├── ...
+└── clip_2200000.mp3                  <span class="comment"># 2.2 million tiny files</span></code></pre>
+
+    <p>When the PyTorch <strong>DataLoader</strong> asks for a random batch, it has to:</p>
+    <ol>
+      <li>Look up a random clip's path from the manifest.</li>
+      <li>Open that file (an OS system call).</li>
+      <li>Read it off the disk (a random-access seek).</li>
+      <li>Decode the MP3 to a waveform.</li>
+      <li>Resample / pad / extract features.</li>
+      <li>Repeat for every sample in the batch — across many workers.</li>
+    </ol>
+
+    <p>Each of those steps is cheap on its own. But multiplied by millions of files and repeated every epoch, the disk becomes the bottleneck. The GPU ends up <strong>waiting</strong> for data to arrive, which shows up as low GPU utilization (e.g. our 45% ceiling).</p>
+
+    <div class="callout warning">
+      <strong>Symptom:</strong> <code>nvidia-smi</code> shows GPU-Util bouncing between 20% and 60% even though VRAM is full and the model is fine. That's almost always a data-loading bottleneck.
+    </div>
+
+    <h2 id="idea">2. The Core Idea</h2>
+    <p>WebDataset replaces "millions of tiny files" with "a few big tar archives".</p>
+
+<pre class="code-block"><code>webdataset_cv25/
+├── shard-00000.tar                   <span class="comment"># 10k clips inside</span>
+├── shard-00001.tar                   <span class="comment"># next 10k clips</span>
+├── shard-00002.tar
+├── ...
+└── shard-00219.tar                   <span class="comment"># 2.2M total, 220 shards</span></code></pre>
+
+    <p>Each <code>.tar</code> file is just a standard Unix tar archive — nothing exotic. You can open it with <code>tar -tf</code> and see the files inside.</p>
+
+    <p>The trick is <strong>how PyTorch reads it</strong>: instead of jumping around the disk picking random files, the worker opens <em>one</em> tar and streams it from front to back. That's a single continuous disk read, which is the fastest thing a disk (or network filesystem) can do.</p>
+
+    <h2 id="grouping">3. How Samples Are Grouped Inside a Tar</h2>
+    <p>WebDataset has one convention: <strong>files that share a filename prefix belong to the same sample</strong>. The extension tells you what each part is.</p>
+
+<pre class="code-block"><code>shard-00000.tar contents:
+
+clip_000001.flac                     <span class="comment"># audio waveform</span>
+clip_000001.txt                      <span class="comment"># transcript</span>
+clip_000001.json                     <span class="comment"># metadata (speaker, accent, duration)</span>
+
+clip_000002.flac
+clip_000002.txt
+clip_000002.json
+
+clip_000003.flac
+clip_000003.txt
+clip_000003.json
+...</code></pre>
+
+    <p>When WebDataset reads the tar, it groups every file with the same prefix (<code>clip_000001</code>) into a single Python dict:</p>
+
+    <table>
+      <thead>
+        <tr><th>Key</th><th>Value</th><th>Comes From</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>flac</code></td><td>raw audio bytes</td><td><code>clip_000001.flac</code></td></tr>
+        <tr><td><code>txt</code></td><td>transcript string</td><td><code>clip_000001.txt</code></td></tr>
+        <tr><td><code>json</code></td><td>metadata dict</td><td><code>clip_000001.json</code></td></tr>
+        <tr><td><code>__key__</code></td><td><code>"clip_000001"</code></td><td>the prefix itself</td></tr>
+      </tbody>
+    </table>
+
+    <p>That's the whole format. No special index, no database, no schema file. Just tar + naming convention.</p>
+
+    <h2 id="shards">4. Shards and Parallelism</h2>
+    <p>Splitting the dataset into many tar files (called <strong>shards</strong>) is what makes WebDataset scale:</p>
+
+    <div class="compare-grid">
+      <div class="compare-card">
+        <span class="tag">Why multiple shards</span>
+        <h4>Parallel workers</h4>
+        <p>Each DataLoader worker grabs its own shard and streams it independently. 8 workers = 8 tar files being read at once.</p>
+      </div>
+      <div class="compare-card">
+        <span class="tag">Why not one huge tar</span>
+        <h4>Shuffling</h4>
+        <p>You can shuffle the <em>list of shards</em> each epoch, then shuffle samples inside a buffer. Cheap randomness without random seeks.</p>
+      </div>
+      <div class="compare-card">
+        <span class="tag">Why not a million tars</span>
+        <h4>Overhead</h4>
+        <p>Opening a tar has a cost. Aim for shards of ~1 GB (~10k samples) so the cost of opening is amortized over lots of reads.</p>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Rule of thumb:</strong> 1 GB per shard, one shard per worker per few seconds of training. For our 84 GB CommonVoice-25, that's ~80–200 shards.
+    </div>
+
+    <h2 id="pre-decode">5. The "Pre-Decode" Trick (Option 1)</h2>
+    <p>Here's where the real speedup comes from — and it's the piece that matters for the 45% util ceiling.</p>
+
+    <p>A normal tar of audio stores the <strong>raw MP3/FLAC bytes</strong>. That means every time training reads a sample, it still has to:</p>
+    <ol>
+      <li>Decompress the MP3 (CPU-heavy).</li>
+      <li>Resample to 16 kHz.</li>
+      <li>Convert to a tensor.</li>
+    </ol>
+
+    <p>On this host, MP3 decode is what's actually saturating the CPU workers — not disk I/O. That's why GPU util is stuck at 45%.</p>
+
+    <p><strong>Pre-decoding</strong> means doing all that expensive CPU work <em>once</em>, offline, and storing the result inside the tar as a ready-to-use numpy/torch tensor:</p>
+
+    <table>
+      <thead>
+        <tr><th></th><th>Normal WebDataset</th><th>Pre-Decoded WebDataset</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>File inside tar</strong></td>
+          <td><code>clip_000001.mp3</code></td>
+          <td><code>clip_000001.pth</code> (or <code>.npy</code>)</td>
+        </tr>
+        <tr>
+          <td><strong>Worker does</strong></td>
+          <td>read bytes → decode → resample → tensor</td>
+          <td>read bytes → <code>torch.load</code></td>
+        </tr>
+        <tr>
+          <td><strong>CPU cost per sample</strong></td>
+          <td>~30–80 ms</td>
+          <td>~1–3 ms</td>
+        </tr>
+        <tr>
+          <td><strong>Disk size</strong></td>
+          <td>smaller (compressed audio)</td>
+          <td>larger (raw float16/int16)</td>
+        </tr>
+        <tr class="highlight">
+          <td><strong>GPU util expected</strong></td>
+          <td>45% (our current ceiling)</td>
+          <td>85–95%</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout success">
+      <strong>The trade:</strong> you spend disk space and one-time preprocessing wall-clock to permanently remove the CPU decode bottleneck. For a dataset that will be iterated over many epochs across many training runs, this pays back quickly.
+    </div>
+
+    <h3>What the pre-decoded shard looks like</h3>
+
+<pre class="code-block"><code>shard-00000.tar contents (pre-decoded):
+
+clip_000001.pth                      <span class="comment"># int16 waveform tensor @ 16 kHz</span>
+clip_000001.txt                      <span class="comment"># transcript</span>
+clip_000001.json                     <span class="comment"># {"speaker":"f01","dur":3.21,...}</span>
+
+clip_000002.pth
+clip_000002.txt
+clip_000002.json
+...</code></pre>
+
+    <p>The worker just does <code>torch.load(bytes)</code> — no librosa, no soundfile, no resampling.</p>
+
+    <h2 id="pytorch">6. Plugging Into PyTorch</h2>
+    <p>From training code's perspective, WebDataset looks exactly like any other <code>IterableDataset</code>. You hand the DataLoader a list of shard URLs (local paths, S3, HTTP — it doesn't matter) and it streams samples. The existing training loop doesn't change.</p>
+
+    <p>The whole pipeline is expressed as a chain: <strong>pick shards → open tar → group by key → decode each field → shuffle in a buffer → batch</strong>. Each step is a generator, so there's no loading everything into RAM.</p>
+
+    <h2 id="vs-folders">7. Quick Comparison vs. Folder-of-Files</h2>
+
+    <table>
+      <thead>
+        <tr><th>Aspect</th><th>Folder of files (current)</th><th>WebDataset (pre-decoded)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Disk access pattern</td><td>random seeks, 1 per sample</td><td>sequential streaming</td></tr>
+        <tr><td>Syscalls per sample</td><td>~3–5 (open, stat, read, close)</td><td>~0 (amortized across shard)</td></tr>
+        <tr><td>CPU per sample</td><td>decode + resample</td><td>single <code>torch.load</code></td></tr>
+        <tr><td>Inode pressure</td><td>2.2M files on filesystem</td><td>~200 files</td></tr>
+        <tr><td>Works over network</td><td>painful (NFS stat storms)</td><td>excellent (streams a tar)</td></tr>
+        <tr><td>Random access by ID</td><td>trivial</td><td>not supported (streaming only)</td></tr>
+        <tr><td>Shuffle quality</td><td>perfect</td><td>approximate (shard + buffer shuffle)</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="our-case">8. Why This Specifically Fixes the 45% Ceiling</h2>
+    <p>Our current symptom: GPU sits at ~45% util, VRAM is full, model forward/backward is fine, but throughput is half what the card should deliver. Profiling traced it to <strong>CPU-bound MP3 decoding in the dataloader workers</strong>. Adding more workers doesn't help once the CPUs are already saturated.</p>
+
+    <p>Pre-decoded WebDataset kills both halves of the problem in one move:</p>
+
+    <div class="compare-grid">
+      <div class="compare-card">
+        <span class="tag">Half one</span>
+        <h4>Disk → sequential</h4>
+        <p>Streaming a tar is much friendlier to local SSDs and especially to any network-mounted storage. No seek churn.</p>
+      </div>
+      <div class="compare-card">
+        <span class="tag">Half two</span>
+        <h4>CPU → near zero</h4>
+        <p>Decoding is done once, offline. Workers only memcpy tensors into GPU-pinned buffers. CPU stops being the bottleneck.</p>
+      </div>
+      <div class="compare-card">
+        <span class="tag">Result</span>
+        <h4>GPU saturates</h4>
+        <p>With the data pipeline out of the way, whatever is left (model FLOPs) becomes the limit — which is what we actually want to pay for.</p>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Why it's worth doing now, not later:</strong> every future training phase on this host pays the same 2× wall-clock tax if this stays unfixed. One phase of infrastructure work eliminates that tax for every run after it.
+    </div>
+
+    <h2 id="gotchas">9. Things to Watch Out For</h2>
+
+    <table>
+      <thead>
+        <tr><th>Gotcha</th><th>What to do</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Disk space</strong> — pre-decoded int16 audio is bigger than compressed MP3.</td>
+          <td>Budget ~3–5× the original dataset size. For CommonVoice-25 (84 GB MP3), expect 250–400 GB pre-decoded.</td>
+        </tr>
+        <tr>
+          <td><strong>Shuffle quality</strong> — WebDataset can only shuffle within a buffer, not globally.</td>
+          <td>Use a large shuffle buffer (10k+) and shuffle the shard list each epoch. Good enough for SGD in practice.</td>
+        </tr>
+        <tr>
+          <td><strong>Variable-length audio</strong> — you can't just stack tensors of different lengths.</td>
+          <td>Keep the waveform as a 1-D tensor; do padding / bucketing in the collate function like before.</td>
+        </tr>
+        <tr>
+          <td><strong>Data versioning</strong> — regenerating shards after a manifest change is expensive.</td>
+          <td>Name shard directories by content hash or date. Treat them as immutable artifacts checked into Backblaze B2.</td>
+        </tr>
+        <tr>
+          <td><strong>Random access by sample ID</strong> — WebDataset is streaming-only.</td>
+          <td>Keep the original folder-of-files around for evaluation / debugging lookups. Only training uses shards.</td>
+        </tr>
+        <tr>
+          <td><strong>Resumability mid-epoch</strong> — streaming makes exact resume tricky.</td>
+          <td>Use epoch-aligned checkpoints, or accept that resume starts from the top of the next epoch.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>TL;DR</h2>
+    <div class="callout success">
+      <strong>WebDataset = tar files + naming convention.</strong> Reading one big tar sequentially is much faster than opening a million tiny files randomly. <strong>Pre-decoding</strong> also moves the MP3→tensor work out of the training hot path and into a one-time offline step, which is what actually removes our 45% GPU-util ceiling on this host. The format itself is simple — no database, no index, just tar + filename prefixes.
+    </div>
+
+    <footer>
+      <p><small>Last updated: 2026-04-10 · Context: planned as Option 1 fix for the 45% GPU-util dataloader bottleneck observed across phases 3.x; to be added as a new plan in phases 4+.</small></p>
+    </footer>
+  </div><!-- /.main-content -->
+
+</div><!-- /.page-wrapper -->
+
+<script>
+(function() {
+  var sidebarLinks = document.querySelectorAll('#sidebar-toc a');
+  var sections = [];
+  sidebarLinks.forEach(function(link) {
+    var id = link.getAttribute('href').slice(1);
+    var el = document.getElementById(id);
+    if (el) sections.push({ id: id, el: el, link: link });
+  });
+  function onScroll() {
+    var scrollY = window.scrollY + 80;
+    var current = null;
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].el.offsetTop <= scrollY) current = sections[i];
+    }
+    sidebarLinks.forEach(function(l) { l.classList.remove('active'); });
+    if (current) current.link.classList.add('active');
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+</script>
+</body>
+</html>

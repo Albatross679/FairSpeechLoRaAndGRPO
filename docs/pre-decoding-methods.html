@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pre-decoding Methods for ASR Training Data</title>
+<style>
+  html { font-size: 62.5%; }
+  body {
+    font-family: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    font-size: 1.7rem;
+    line-height: 1.618;
+    color: #4a4a4a;
+    background: #f5f4f0;
+    margin: 0;
+    padding: 0;
+  }
+  .page-wrapper {
+    display: flex;
+    max-width: 80em;
+    margin: 0 auto;
+    align-items: flex-start;
+  }
+  aside.sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    max-height: 100vh;
+    overflow-y: auto;
+    background: #f0efeb;
+    padding: 1.8em 1.2em 2em 1.5em;
+    font-size: 1em;
+    border-right: 1px solid #e2ddd6;
+  }
+  aside.sidebar strong {
+    display: block;
+    font-size: 1.15em;
+    color: #3a3a3a;
+    border-bottom: 2px solid #7c3043;
+    padding-bottom: 0.4em;
+    margin-bottom: 0.8em;
+  }
+  aside.sidebar ul { list-style: none; padding: 0; margin: 0; }
+  aside.sidebar li { margin: 0.25em 0; }
+  aside.sidebar a {
+    display: block;
+    padding: 0.3em 0.6em;
+    color: #4a4a4a;
+    text-decoration: none;
+    border-radius: 4px;
+    transition: background 0.15s, color 0.15s;
+  }
+  aside.sidebar a:hover { background: #ebe7e3; color: #7c3043; }
+  aside.sidebar a.active {
+    background: #ebe7e3;
+    color: #7c3043;
+    font-weight: 700;
+    border-left: 3px solid #7c3043;
+    padding-left: calc(0.6em - 3px);
+  }
+  .main-content {
+    flex: 1;
+    max-width: 56em;
+    padding: 13px 2em 2em 2.5em;
+    min-width: 0;
+  }
+  h1 {
+    font-size: 2em;
+    color: #3a3a3a;
+    margin: 0.4em 0 0.15em 0;
+    line-height: 1.2;
+  }
+  p.subtitle {
+    color: #7c3043;
+    font-style: italic;
+    font-size: 1.1em;
+    margin: 0 0 1em 0;
+  }
+  hr {
+    border: none;
+    border-top: 1px solid #d9c9c2;
+    margin: 1.4em 0;
+  }
+  h2 {
+    font-size: 1.7em;
+    color: #3a3a3a;
+    border-bottom: 2px solid #7c3043;
+    padding-bottom: 0.25em;
+    margin: 1.8em 0 0.7em 0;
+  }
+  h3 {
+    font-size: 1.45em;
+    color: #3a3a3a;
+    margin: 1.4em 0 0.5em 0;
+  }
+  h4 { font-size: 1.25em; color: #3a3a3a; margin: 1em 0 0.4em 0; }
+  p { margin: 0.6em 0; }
+  a { color: #7c3043; text-decoration: none; }
+  a:hover { color: #a3415a; text-decoration: underline; }
+  a:visited { color: #5c2233; }
+  strong { color: #3a3a3a; }
+  code {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    background: #f0efeb;
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    font-size: 0.88em;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92em;
+    margin: 1.2em 0;
+    border-top: 2px solid #7c3043;
+    border-bottom: 2px solid #7c3043;
+  }
+  thead th {
+    padding: 0.6em 0.8em;
+    text-align: left;
+    font-weight: 700;
+    color: #3a3a3a;
+    background: #f0efeb;
+    border-bottom: 3px solid #7c3043;
+  }
+  tbody td {
+    padding: 0.55em 0.8em;
+    border-bottom: 1px solid #ddd;
+    vertical-align: top;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #f5eaed; }
+  tr.highlight { background: #fbf0f2; }
+  tr.highlight td { font-weight: 700; }
+
+  .callout {
+    border-left: 4px solid #7c3043;
+    background: #f1f1f1;
+    padding: 1em 1.2em;
+    margin: 1.4em 0;
+    border-radius: 0 6px 6px 0;
+  }
+  .callout.warning { border-left-color: #d4a017; background: #fdf8e8; }
+  .callout.danger  { border-left-color: #c0392b; background: #fdf0ef; }
+  .callout.success { border-left-color: #27ae60; background: #edf9f1; }
+  .callout strong { color: #3a3a3a; }
+
+  span.verdict {
+    display: inline-block;
+    padding: 0.15em 0.6em;
+    border-radius: 3px;
+    font-size: 0.85em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  span.verdict.best      { background: #7c3043; color: #fff; }
+  span.verdict.viable    { background: #edf9f1; color: #27ae60; border: 1px solid #27ae60; }
+  span.verdict.partial   { background: #fdf8e8; color: #a67a00; border: 1px solid #d4a017; }
+  span.verdict.not-viable{ background: #fdf0ef; color: #c0392b; border: 1px solid #c0392b; }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1em;
+    margin: 1.4em 0;
+  }
+  .card {
+    background: #faf9f7;
+    border: 1px solid #d9c9c2;
+    border-left: 3px solid #7c3043;
+    border-radius: 4px;
+    padding: 1em 1.1em;
+  }
+  .card h4 {
+    margin: 0 0 0.35em 0;
+    font-size: 1.05em;
+    color: #7c3043;
+  }
+  .card p { margin: 0.2em 0; font-size: 0.95em; line-height: 1.55; }
+  .card .tag {
+    display: inline-block;
+    font-size: 0.78em;
+    color: #7c3043;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 0.35em;
+  }
+
+  details {
+    background: #faf9f7;
+    border: 1px solid #d9c9c2;
+    border-left: 3px solid #7c3043;
+    border-radius: 4px;
+    padding: 0.7em 1em;
+    margin: 0.7em 0;
+  }
+  details summary {
+    cursor: pointer;
+    font-weight: 700;
+    color: #3a3a3a;
+  }
+  details summary:hover { color: #7c3043; }
+  details[open] summary { margin-bottom: 0.4em; }
+  details p { margin: 0.3em 0; font-size: 0.95em; }
+
+  .xref-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 0.7em;
+    margin: 1em 0;
+  }
+  .xref {
+    background: #f0efeb;
+    border-left: 3px solid #7c3043;
+    padding: 0.6em 0.9em;
+    border-radius: 0 4px 4px 0;
+    font-size: 0.9em;
+  }
+  .xref strong { display: block; color: #7c3043; margin-bottom: 0.2em; }
+
+  footer {
+    margin-top: 3em;
+    padding-top: 1em;
+    border-top: 1px solid #d9c9c2;
+    color: #7a7570;
+    font-size: 0.9em;
+  }
+  footer p { margin: 0.3em 0; }
+
+  nav#toc { display: none; }
+
+  @media (max-width: 900px) {
+    .page-wrapper { flex-direction: column; }
+    aside.sidebar { display: none; }
+    .main-content { padding: 1em 1.2em; max-width: 100%; }
+    nav#toc {
+      display: block;
+      background: #f0efeb;
+      border-left: 3px solid #7c3043;
+      padding: 0.8em 1em;
+      margin: 1em 0;
+      border-radius: 0 4px 4px 0;
+    }
+    nav#toc strong { display: block; color: #3a3a3a; margin-bottom: 0.3em; }
+    nav#toc ul { list-style: none; padding-left: 0; margin: 0; }
+    nav#toc li { margin: 0.15em 0; }
+    nav#toc a { color: #7c3043; }
+  }
+  @media (max-width: 684px) { body { font-size: 1.35rem; } }
+  @media (max-width: 382px) { body { font-size: 1.2rem; } }
+
+  @media print {
+    aside.sidebar { display: none; }
+    .page-wrapper { display: block; }
+    .main-content { max-width: 100%; padding: 0; }
+    body { background: #fff; color: #000; }
+    a { color: #000; text-decoration: underline; }
+    tbody tr:hover { background: transparent; }
+    details { break-inside: avoid; }
+    details[open] { break-inside: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="page-wrapper">
+
+  <aside class="sidebar" id="sidebar-toc">
+    <strong>Contents</strong>
+    <ul>
+      <li><a href="#context">Context</a></li>
+      <li><a href="#two-problems">1. Two-part problem</a></li>
+      <li><a href="#storage-formats">2. Storage formats</a></li>
+      <li><a href="#sample-rate">3. Sample rate</a></li>
+      <li><a href="#packaging">4. WebDataset packaging</a></li>
+      <li><a href="#decision">5. Decision matrix</a></li>
+      <li><a href="#upfront-cost">6. Upfront cost</a></li>
+      <li><a href="#rejected">7. Why not int8 &amp; 8 kHz</a></li>
+      <li><a href="#misconceptions">8. Misconceptions</a></li>
+      <li><a href="#xrefs">9. Cross-references</a></li>
+    </ul>
+  </aside>
+
+  <div class="main-content">
+
+    <h1>Pre-decoding Methods for ASR Training Data</h1>
+    <p class="subtitle">WebDataset, FLAC, raw PCM, log-mels, and quantization — when each one wins</p>
+    <hr>
+
+    <nav id="toc">
+      <strong>Table of Contents</strong>
+      <ul>
+        <li><a href="#context">Context</a></li>
+        <li><a href="#two-problems">1. Two-part problem</a></li>
+        <li><a href="#storage-formats">2. Storage formats</a></li>
+        <li><a href="#sample-rate">3. Sample rate</a></li>
+        <li><a href="#packaging">4. WebDataset packaging</a></li>
+        <li><a href="#decision">5. Decision matrix</a></li>
+        <li><a href="#upfront-cost">6. Upfront cost</a></li>
+        <li><a href="#rejected">7. Why not int8 &amp; 8 kHz</a></li>
+        <li><a href="#misconceptions">8. Misconceptions</a></li>
+        <li><a href="#xrefs">9. Cross-references</a></li>
+      </ul>
+    </nav>
+
+    <div class="callout" id="context">
+      <strong>Why this document exists.</strong>
+      <p>Phase&nbsp;03-02's VRAM tuning on the A6000 capped mean GPU utilization at <strong>41&ndash;42%</strong>, well below the 55% launch floor for Plan&nbsp;03-03. Diagnosis: the dataloader is I/O-bound on MP3 decode plus per-file seeks across 1.16M small files on overlayfs with 4 CPU cores. Pre-decoding is the root-cause fix. This page is the decision reference for <em>how</em> to pre-decode. See <a href="gpu-occupancy-handling.html">gpu-occupancy-handling.html</a> for the diagnosis and <a href="webdataset-explained.html">webdataset-explained.html</a> for a deeper WebDataset primer.</p>
+    </div>
+
+    <h2 id="two-problems">1. The two-part problem</h2>
+    <p>"Pre-decoding" actually bundles two independent problems. Conflating them is the most common planning mistake — you can fix one without the other, and each fix has its own cost.</p>
+
+    <div class="card-grid">
+      <div class="card">
+        <span class="tag">Problem A</span>
+        <h4>The decode cost</h4>
+        <p>MP3 decompression on CPU is the dominant per-sample cost. Single-threaded per file, competing with every other dataloader operation. On a 4-core host, decoder threads starve the training loop.</p>
+        <p><em>Fixed by:</em> picking a storage format that's cheaper to decode (FLAC, PCM, log-mels).</p>
+      </div>
+      <div class="card">
+        <span class="tag">Problem B</span>
+        <h4>The file-layout cost</h4>
+        <p>2.2M tiny files in a flat directory means millions of <code>open()</code> / <code>seek()</code> / <code>read()</code> syscalls per epoch. Overlayfs amplifies the cost. Page cache fragments. Sequential I/O on a tar shard is 10&ndash;100&times; faster than random I/O across small files.</p>
+        <p><em>Fixed by:</em> packaging into large sequential shards (WebDataset, FFCV, tar).</p>
+      </div>
+    </div>
+
+    <div class="callout warning">
+      <strong>The common mistake:</strong> assuming "switch to WebDataset" solves everything. WebDataset fixes <em>only</em> Problem B (file layout). The storage format <em>inside</em> the shards determines whether Problem A (decode cost) is also fixed. A WebDataset tar full of MP3 files has the same decode bottleneck as a flat MP3 directory.
+    </div>
+
+    <h2 id="storage-formats">2. Storage format comparison</h2>
+    <p>Main comparison of what to put inside a shard (or on disk, if not using WebDataset). Estimates assume 16&nbsp;kHz mono at 5.18&nbsp;s avg clip duration and 1.16M train clips.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Format</th>
+          <th>Bytes/s</th>
+          <th>Train split</th>
+          <th>Decode on load</th>
+          <th>Quality</th>
+          <th>Verdict</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>MP3 @ 64 kbps (current)</td>
+          <td>~8 KB</td>
+          <td>~48 GB</td>
+          <td>heavy (bottleneck)</td>
+          <td>lossy perceptual</td>
+          <td><span class="verdict not-viable">status quo</span></td>
+        </tr>
+        <tr class="highlight">
+          <td><strong>FLAC lossless</strong></td>
+          <td>~10&ndash;16 KB</td>
+          <td>~100&ndash;115 GB</td>
+          <td>light (10&ndash;20&times; faster than MP3)</td>
+          <td>bit-exact</td>
+          <td><span class="verdict viable">viable</span></td>
+        </tr>
+        <tr>
+          <td>OPUS @ 24 kbps</td>
+          <td>~3 KB</td>
+          <td>~18 GB</td>
+          <td>medium</td>
+          <td>perceptual</td>
+          <td><span class="verdict not-viable">not worth risk</span></td>
+        </tr>
+        <tr class="highlight">
+          <td><strong>int16 PCM</strong></td>
+          <td>32 KB</td>
+          <td>~192 GB</td>
+          <td>zero (memcpy)</td>
+          <td>lossless</td>
+          <td><span class="verdict best">primary</span></td>
+        </tr>
+        <tr>
+          <td>float16 PCM</td>
+          <td>32 KB</td>
+          <td>~192 GB</td>
+          <td>zero</td>
+          <td>lossless</td>
+          <td><span class="verdict partial">no benefit over int16</span></td>
+        </tr>
+        <tr>
+          <td>int8 linear</td>
+          <td>16 KB</td>
+          <td>~96 GB</td>
+          <td>zero</td>
+          <td>48 dB dynamic range</td>
+          <td><span class="verdict not-viable">avoid</span></td>
+        </tr>
+        <tr>
+          <td>&mu;-law 8-bit (G.711)</td>
+          <td>16 KB</td>
+          <td>~96 GB</td>
+          <td>light (one LUT)</td>
+          <td>~72 dB perceptual</td>
+          <td><span class="verdict partial">partial</span></td>
+        </tr>
+        <tr class="highlight">
+          <td><strong>Log-mel fp16 (80-mel, 100 fps)</strong></td>
+          <td>~16 KB</td>
+          <td>~96 GB</td>
+          <td>zero</td>
+          <td>identical to pipeline output</td>
+          <td><span class="verdict best">best (frozen cfg)</span></td>
+        </tr>
+        <tr>
+          <td>Log-mel int8</td>
+          <td>~8 KB</td>
+          <td>~48 GB</td>
+          <td>zero</td>
+          <td>small quality loss</td>
+          <td><span class="verdict partial">aggressive</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><em>Highlighted rows are the three actually-recommended options. Pick based on disk budget and whether the feature extraction config is frozen (see &sect;5).</em></p>
+
+    <h2 id="sample-rate">3. Sample-rate options</h2>
+    <p>Independent of storage format: what target sample rate should the pre-decode land at? CommonVoice-25 sources are heterogeneous (63% @ 48 kHz, 37% @ 32 kHz, trace @ 44.1 kHz &mdash; see <a href="../project-overview.html#datasets">project-overview.html &sect;2</a>).</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Source &rarr; Target</th>
+          <th>Train-split size</th>
+          <th>Quality impact</th>
+          <th>Verdict</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Native (mixed 32/48 kHz) &rarr; keep native</td>
+          <td>~400 GB</td>
+          <td>none</td>
+          <td><span class="verdict not-viable">wasteful</span></td>
+        </tr>
+        <tr class="highlight">
+          <td>Any &rarr; 16 kHz mono int16</td>
+          <td>~192 GB</td>
+          <td>none for Qwen3-ASR (matches pre-train)</td>
+          <td><span class="verdict best">yes</span></td>
+        </tr>
+        <tr>
+          <td>Any &rarr; 8 kHz mono int16</td>
+          <td>~96 GB</td>
+          <td>+10&ndash;30% relative WER, demographically uneven</td>
+          <td><span class="verdict not-viable">no (fairness)</span></td>
+        </tr>
+        <tr class="highlight">
+          <td>Any &rarr; 16 kHz mono + log-mel</td>
+          <td>~96 GB</td>
+          <td>none</td>
+          <td><span class="verdict best">yes (frozen cfg)</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout danger">
+      <strong>Why 8 kHz is disqualified for a fairness study.</strong>
+      <p>Bandwidth reduction to 8 kHz cuts everything above 4 kHz: sibilants (/s/, /ʃ/, /f/, /θ/), stop bursts, and high formants. These features degrade <em>unequally</em> across demographics &mdash; female voices, children, and speakers of accents with high-frequency consonant distinctions lose more information. Introducing 8 kHz would confound the fairness metric directly: any measured WER gap could come from the codec, not the model. Unacceptable for a study whose entire point is to measure those gaps.</p>
+    </div>
+
+    <h2 id="packaging">4. Packaging layer &mdash; why WebDataset</h2>
+    <p>Independent of storage format: how are the pre-decoded samples arranged on disk? This is Problem B from &sect;1.</p>
+
+    <div class="card-grid">
+      <div class="card">
+        <span class="tag">Layout A</span>
+        <h4>Individual files</h4>
+        <p>One file per clip. 2.2M small files, random I/O, millions of <code>open()</code> calls per epoch. Overlayfs amplifies the syscall overhead. Page cache fragments because each file is tiny. Workers contend for inode lookups.</p>
+      </div>
+      <div class="card">
+        <span class="tag">Layout B</span>
+        <h4>WebDataset tar shards</h4>
+        <p>~1 GB per shard, ~1000&ndash;5000 clips each. Sequential I/O within a shard, one <code>open()</code> per shard, page cache works, workers stream one shard at a time. Standard POSIX tar format &mdash; portable, inspectable, shareable.</p>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>WebDataset does</th><th>WebDataset does <em>not</em></th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Solve the file-layout cost (Problem B)</td>
+          <td>Change storage size</td>
+        </tr>
+        <tr>
+          <td>Give shard-level parallelism across workers</td>
+          <td>Change decode cost</td>
+        </tr>
+        <tr>
+          <td>Improve page-cache behavior via sequential reads</td>
+          <td>Eliminate the need to pick a storage format</td>
+        </tr>
+        <tr>
+          <td>Standard format across PyTorch, JAX, TensorFlow</td>
+          <td>Make the dataset smaller or faster to decode on its own</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="decision">5. Decision matrix &mdash; which combination?</h2>
+    <p>Pick the first row whose constraints your host satisfies.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Situation</th>
+          <th>Storage</th>
+          <th>Packaging</th>
+          <th>Sample rate</th>
+          <th>Size</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Zero-cost pre-flight first</td>
+          <td>(none)</td>
+          <td>(none)</td>
+          <td>(as-is)</td>
+          <td>0</td>
+          <td><strong>Try first.</strong> num_workers=2 + warm page cache. If util clears 55%, skip pre-decoding entirely.</td>
+        </tr>
+        <tr class="highlight">
+          <td>Feature cfg frozen, disk ~100 GB</td>
+          <td>log-mel fp16</td>
+          <td>WebDataset</td>
+          <td>16 kHz mono</td>
+          <td>~96 GB</td>
+          <td><strong>Biggest throughput win.</strong> Skips both MP3 decode and mel filterbank. Locks feature config.</td>
+        </tr>
+        <tr class="highlight">
+          <td>Reusable across phases, disk &ge;&nbsp;200 GB</td>
+          <td>int16 PCM</td>
+          <td>WebDataset</td>
+          <td>16 kHz mono</td>
+          <td>~192 GB</td>
+          <td><strong>Primary recommendation.</strong> Format-agnostic, safe across future phases. No feature lock-in.</td>
+        </tr>
+        <tr>
+          <td>Disk tight ~100 GB, want flexibility</td>
+          <td>FLAC lossless</td>
+          <td>WebDataset</td>
+          <td>16 kHz mono</td>
+          <td>~100&ndash;115 GB</td>
+          <td>Partial decode cost remains, but 10&ndash;20&times; cheaper than MP3. Lossless, reusable.</td>
+        </tr>
+        <tr>
+          <td>Disk very tight &lt;&nbsp;50 GB</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>N/A</td>
+          <td>Pre-decoding is no longer the right answer. Migrate host (Option 5 in <code>io_remediation_report.md</code>).</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="upfront-cost">6. Upfront cost of each option</h2>
+    <p>What you pay <em>before</em> the first training step, regardless of how long the subsequent training run is.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Option</th>
+          <th>Upfront CPU</th>
+          <th>Upfront disk</th>
+          <th>Code changes</th>
+          <th>Reversibility</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>int16 PCM + WebDataset</td>
+          <td>~4&ndash;6 h (1.16M clips, 4 cores)</td>
+          <td>~192 GB</td>
+          <td>medium: shard writer + loader</td>
+          <td>fully reversible</td>
+        </tr>
+        <tr>
+          <td>FLAC lossless + WebDataset</td>
+          <td>~4&ndash;6 h (decode + re-encode)</td>
+          <td>~100&ndash;115 GB</td>
+          <td>medium</td>
+          <td>fully reversible</td>
+        </tr>
+        <tr>
+          <td>Log-mel fp16 + WebDataset</td>
+          <td>~5&ndash;8 h (decode + filterbank)</td>
+          <td>~96 GB</td>
+          <td>medium-hard: match processor cfg exactly; bypass model front-end</td>
+          <td>reversible but must freeze feature cfg</td>
+        </tr>
+        <tr>
+          <td>&mu;-law + WebDataset</td>
+          <td>~4&ndash;6 h</td>
+          <td>~96 GB</td>
+          <td>medium</td>
+          <td>reversible but fewer benefits than int16</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><em>CPU estimates assume ~10&ndash;15&nbsp;ms MP3 decode per clip on the A6000 host's 4 cores. Your mileage will vary with decoder settings and clip length distribution.</em></p>
+
+    <h2 id="rejected">7. Why we rejected int8 audio and 8 kHz</h2>
+
+    <div class="card-grid">
+      <div class="card">
+        <span class="tag">Rejected</span>
+        <h4>int8 linear audio</h4>
+        <p><strong>Dynamic range.</strong> int16 gives ~96&nbsp;dB; int8 linear gives ~48&nbsp;dB &mdash; the span between a whisper and a normal voice. Quiet consonants land in the noise floor, loud stops clip.</p>
+        <p><strong>No memory win.</strong> The model expects float32 at load time, so you dequantize back to float anyway. int8 saves disk but adds noise.</p>
+        <p><strong>Fairness confound.</strong> Quantization noise hits quiet consonants and aspirated stops unevenly across accents and genders &mdash; you'd be baking a demographic artifact into the dataset.</p>
+      </div>
+      <div class="card">
+        <span class="tag">Rejected</span>
+        <h4>8 kHz sample rate</h4>
+        <p><strong>Bandwidth loss.</strong> Nyquist = 4 kHz. Sibilants (/s/, /ʃ/, /f/, /θ/), stop bursts, and high formants all live above 4 kHz.</p>
+        <p><strong>Measurable WER cost.</strong> Published 16 kHz &rarr; 8 kHz degradation is +10&ndash;30% relative, and it is demographically uneven.</p>
+        <p><strong>Distribution shift.</strong> Qwen3-ASR was pre-trained on 16 kHz input. Feeding it 8 kHz (even upsampled back) means zeroed high-frequency bins the encoder has never seen during pre-training.</p>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Bottom line:</strong> neither int8 audio nor 8 kHz is a valid optimization for this project. Both save disk but trade quality for size in ways that <em>directly confound</em> the fairness measurement that is the entire point of the study.
+    </div>
+
+    <h2 id="misconceptions">8. Common misconceptions</h2>
+
+    <details>
+      <summary>"WebDataset reduces storage."</summary>
+      <p>No. WebDataset is a <em>packaging</em> format, not a compression format. Storage size depends on what you put inside the shards. A WebDataset of MP3s is still ~84 GB; a WebDataset of int16 PCM is still ~192 GB. The tar overhead is negligible (&lt;&nbsp;1%). WebDataset speeds up <em>I/O layout</em> (Problem B), not <em>storage size</em>.</p>
+    </details>
+
+    <details>
+      <summary>"Log-mels are the same as mel-spectrograms."</summary>
+      <p>Close but not identical. A mel-spectrogram is the output of a mel filterbank applied to a STFT magnitude. A log-mel spectrogram is that spectrogram with a log (or log-plus-small-epsilon) applied. Qwen3-ASR expects log-mels with a specific <code>n_mels</code>, <code>sample_rate</code>, <code>hop_length</code>, <code>win_length</code>, <code>window</code>, <code>power</code>, and whether the log is natural or base-10. If you pre-compute, you <strong>must</strong> match the processor config exactly, or training will see a feature distribution the model has never seen.</p>
+    </details>
+
+    <details>
+      <summary>"FLAC is like MP3 but bigger."</summary>
+      <p>Very different. FLAC is <strong>lossless</strong> &mdash; it bit-exact reconstructs the original PCM samples. MP3 is a lossy perceptual codec that throws away ~90% of the data. FLAC is ~2&times; bigger than MP3 <em>but</em> ~2&times; smaller than int16 PCM, and decodes 10&ndash;20&times; faster than MP3 because its math is simpler. For an I/O-bound ASR dataloader, FLAC is often the sweet spot between storage and decode cost.</p>
+    </details>
+
+    <details>
+      <summary>"Pre-decoded shards make the dataset immutable."</summary>
+      <p>Yes, and for the most part that's a feature. Shards are reproducible, shareable across hosts, and hash-identifiable. The downside: if you change the feature-extraction config (e.g., switch <code>n_mels</code> from 80 to 128), you have to re-dump the shards from source. Budget that cost into any decision to pre-compute features rather than raw audio.</p>
+    </details>
+
+    <details>
+      <summary>"OPUS at 24 kbps is the sweet spot &mdash; smaller than FLAC, better than MP3."</summary>
+      <p>Smaller, yes. Better quality per bit, yes. But OPUS is still a perceptual lossy codec, and chaining it with MP3-sourced audio compounds the perceptual loss (the first lossy pass has already discarded information, so the second pass is operating on an already-degraded signal). For a fairness study you cannot afford unknown perceptual artifacts that might favor some accents over others. OPUS is fine for general ML but not here.</p>
+    </details>
+
+    <h2 id="xrefs">9. Cross-references</h2>
+    <div class="xref-grid">
+      <div class="xref">
+        <strong><a href="gpu-occupancy-handling.html">gpu-occupancy-handling.html</a></strong>
+        The GPU utilization problem this document solves. Read first for context on why pre-decoding matters at all.
+      </div>
+      <div class="xref">
+        <strong><a href="webdataset-explained.html">webdataset-explained.html</a></strong>
+        Deeper WebDataset primer &mdash; tar layout, shard writing, loader composition. Companion to &sect;4 above.
+      </div>
+      <div class="xref">
+        <strong><a href="../project-overview.html#datasets">project-overview.html &sect;2</a></strong>
+        Dataset schemas and the empirical CV-25 sample-rate histogram (48/32/44.1 kHz mix).
+      </div>
+      <div class="xref">
+        <strong><code>outputs/full-lora-vram-tune/io_remediation_report.md</code></strong>
+        The 6 ranked mitigation options from Plan 03-02 Task 3. Pre-decoding is Option&nbsp;1.
+      </div>
+      <div class="xref">
+        <strong><a href="maximize-vram-playbook.html">maximize-vram-playbook.html</a></strong>
+        Companion playbook &mdash; what to do once the dataloader is no longer the bottleneck.
+      </div>
+      <div class="xref">
+        <strong><code>.planning/phases/03-full-sft-lora-training/03-02-SUMMARY.md</code></strong>
+        The original Phase 03-02 summary with full grid results and the BLOCKED verdict.
+      </div>
+    </div>
+
+    <footer>
+      <p><small>Sources: <code>.planning/phases/03-full-sft-lora-training/03-02-SUMMARY.md</code>, <code>outputs/full-lora-vram-tune/io_remediation_report.md</code>, empirical CV-25 sample-rate probe (n=200). Numbers are estimates for the 1.16M-clip train split at 5.18 s avg duration.</small></p>
+      <p><small>Last updated: 2026-04-10 · Phase 03-02 context · Plan 03-03 launch is GATED on one of these mitigation paths.</small></p>
+    </footer>
+
+  </div><!-- /.main-content -->
+
+</div><!-- /.page-wrapper -->
+
+<script>
+(function() {
+  var sidebarLinks = document.querySelectorAll('#sidebar-toc a');
+  var sections = [];
+  sidebarLinks.forEach(function(link) {
+    var id = link.getAttribute('href').slice(1);
+    var el = document.getElementById(id);
+    if (el) sections.push({ id: id, el: el, link: link });
+  });
+
+  function onScroll() {
+    var scrollY = window.scrollY + 80;
+    var current = null;
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].el.offsetTop <= scrollY) {
+        current = sections[i];
+      }
+    }
+    sidebarLinks.forEach(function(l) { l.classList.remove('active'); });
+    if (current) current.link.classList.add('active');
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 04.1 — RL Algorithm Comparison Research</title>
+<style>
+html { font-size: 62.5%; }
+body {
+  font-family: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  font-size: 1.7rem;
+  line-height: 1.618;
+  color: #4a4a4a;
+  background: #f5f4f0;
+  margin: 0;
+  padding: 0;
+}
+.page-wrapper {
+  display: flex;
+  max-width: 80em;
+  margin: 0 auto;
+  align-items: flex-start;
+}
+.sidebar {
+  width: 240px;
+  min-width: 240px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  background: #f0efeb;
+  padding: 1.5em 1em 1.5em 1.5em;
+  border-right: 1px solid #e0ddd6;
+  box-sizing: border-box;
+  font-size: 1em;
+}
+.sidebar strong {
+  display: block;
+  font-size: 1.15em;
+  color: #7c3043;
+  padding-bottom: 0.5em;
+  margin-bottom: 0.5em;
+  border-bottom: 1px solid #d4cec4;
+}
+.sidebar ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.sidebar li { margin: 0; }
+.sidebar a {
+  display: block;
+  padding: 0.35em 0.6em;
+  color: #4a4a4a;
+  text-decoration: none;
+  border-radius: 3px;
+  border-left: 2px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+.sidebar a:hover {
+  background: #ebe7e3;
+  color: #7c3043;
+}
+.sidebar a.active {
+  background: #ebe7e3;
+  border-left-color: #7c3043;
+  color: #7c3043;
+  font-weight: 600;
+}
+.main-content {
+  flex: 1;
+  max-width: 56em;
+  padding: 13px 2em 2em 2.5em;
+  box-sizing: border-box;
+}
+h1, h2, h3, h4, h5, h6 {
+  color: #3a3a3a;
+  font-family: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  line-height: 1.3;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+h1 { font-size: 2em; margin-top: 0.5em; }
+h2 {
+  font-size: 1.7em;
+  border-bottom: 2px solid #7c3043;
+  padding-bottom: 0.3em;
+}
+h3 { font-size: 1.45em; }
+h4 { font-size: 1.25em; }
+h5 { font-size: 1.1em; }
+h6 { font-size: 1em; }
+p { margin: 0.8em 0; }
+p.subtitle {
+  color: #7c3043;
+  font-size: 1.2em;
+  font-style: italic;
+  margin-top: 0;
+}
+a { color: #7c3043; text-decoration: none; border-bottom: 1px solid #d4a8b3; }
+a:visited { color: #5c2233; }
+a:hover { color: #a3415a; border-bottom-color: #a3415a; }
+hr { border: none; border-top: 1px solid #d4cec4; margin: 2em 0; }
+ul, ol { padding-left: 1.8em; }
+li { margin: 0.3em 0; }
+strong { color: #3a3a3a; }
+blockquote {
+  border-left: 4px solid #7c3043;
+  padding: 0.2em 1.2em;
+  margin: 1.2em 0;
+  color: #555;
+  font-style: italic;
+  background: #faf8f5;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92em;
+  margin: 1.2em 0;
+  border-top: 2px solid #7c3043;
+  border-bottom: 2px solid #7c3043;
+}
+thead th {
+  padding: 0.6em 0.8em;
+  text-align: left;
+  font-weight: 700;
+  color: #3a3a3a;
+  border-bottom: 3px solid #7c3043;
+}
+tbody td {
+  padding: 0.55em 0.8em;
+  border-bottom: 1px solid #ddd;
+  vertical-align: top;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: #f5eaed; }
+tr.highlight { background: #faf1f3; }
+caption {
+  caption-side: top;
+  padding: 0.4em 0;
+  font-style: italic;
+  color: #7c3043;
+  text-align: left;
+}
+pre.code-block {
+  background: #faf9f7;
+  border: 1px solid #ddd;
+  border-left: 3px solid #7c3043;
+  border-radius: 4px;
+  padding: 1.2em 1.5em;
+  margin: 1.2em 0;
+  overflow-x: auto;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.85em;
+  line-height: 1.65;
+  color: #3a3a3a;
+}
+pre.code-block code { display: block; }
+pre.code-block .comment { color: #998; font-style: italic; }
+code {
+  background: #f0efeb;
+  padding: 0.1em 0.4em;
+  border-radius: 3px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.88em;
+  color: #5c2233;
+}
+.callout {
+  border-left: 4px solid #7c3043;
+  background: #f1f1f1;
+  padding: 1em 1.2em;
+  margin: 1.2em 0;
+  border-radius: 0 6px 6px 0;
+}
+.callout.warning {
+  border-left-color: #d4a017;
+  background: #fdf8e8;
+}
+.callout.danger {
+  border-left-color: #c0392b;
+  background: #fdf0ef;
+}
+.callout.success {
+  border-left-color: #27ae60;
+  background: #edf9f1;
+}
+span.verdict {
+  display: inline-block;
+  padding: 0.15em 0.6em;
+  border-radius: 3px;
+  font-size: 0.85em;
+  font-weight: 600;
+}
+span.verdict.best {
+  background: #7c3043;
+  color: #fff;
+}
+span.verdict.viable {
+  background: #27ae60;
+  color: #fff;
+}
+span.verdict.partial {
+  background: #d4a017;
+  color: #fff;
+}
+span.verdict.not-viable {
+  background: #c0392b;
+  color: #fff;
+}
+nav#toc { display: none; }
+footer {
+  margin-top: 3em;
+  padding-top: 1.5em;
+  border-top: 1px solid #d4cec4;
+  color: #888;
+  font-size: 0.9em;
+}
+@media (max-width: 900px) {
+  .page-wrapper { flex-direction: column; }
+  .sidebar { display: none; }
+  .main-content { padding: 1em; max-width: 100%; }
+  nav#toc {
+    display: block;
+    background: #f0efeb;
+    padding: 1em 1.5em;
+    border-left: 3px solid #7c3043;
+    margin: 1em 0 2em 0;
+  }
+  nav#toc strong { display: block; color: #7c3043; margin-bottom: 0.4em; }
+  nav#toc ul { margin: 0; padding-left: 1.5em; }
+}
+@media (max-width: 684px) { body { font-size: 1.35rem; } }
+@media (max-width: 382px) { body { font-size: 1.2rem; } }
+@media print {
+  .sidebar { display: none; }
+  .main-content { max-width: 100%; padding: 0; }
+  body { background: #fff; }
+  a { color: #3a3a3a; border-bottom: none; }
+}
+</style>
+</head>
+<body>
+<div class="page-wrapper">
+
+  <aside class="sidebar" id="sidebar-toc">
+    <strong>Contents</strong>
+    <ul>
+      <li><a href="#summary">Summary</a></li>
+      <li><a href="#three-questions">The Three Questions</a></li>
+      <li><a href="#shortlist">Algorithm Shortlist</a></li>
+      <li><a href="#rejected">Rejected Candidates</a></li>
+      <li><a href="#design-contract">Design Contract</a></li>
+      <li><a href="#evaluation">Evaluation Protocol</a></li>
+      <li><a href="#runplan">Run Plan &amp; Budget</a></li>
+      <li><a href="#architecture">Architecture</a></li>
+      <li><a href="#pitfalls">Top Pitfalls</a></li>
+      <li><a href="#decisions">Decisions for User</a></li>
+      <li><a href="#preflight">Pre-flight Gate</a></li>
+      <li><a href="#assumptions">Assumptions</a></li>
+      <li><a href="#sources">Key Sources</a></li>
+    </ul>
+  </aside>
+
+  <div class="main-content">
+
+    <h1>Phase 04.1 — RL Algorithm Comparison</h1>
+    <p class="subtitle">Fair head-to-head comparison of critic-free RL algorithms for fairness-aware ASR fine-tuning</p>
+    <hr>
+
+    <nav id="toc">
+      <strong>Table of Contents</strong>
+      <ul>
+        <li><a href="#summary">Summary</a></li>
+        <li><a href="#three-questions">The Three Questions</a></li>
+        <li><a href="#shortlist">Algorithm Shortlist</a></li>
+        <li><a href="#rejected">Rejected Candidates</a></li>
+        <li><a href="#design-contract">Design Contract</a></li>
+        <li><a href="#evaluation">Evaluation Protocol</a></li>
+        <li><a href="#runplan">Run Plan &amp; Budget</a></li>
+        <li><a href="#architecture">Architecture</a></li>
+        <li><a href="#pitfalls">Top Pitfalls</a></li>
+        <li><a href="#decisions">Decisions for User</a></li>
+        <li><a href="#preflight">Pre-flight Gate</a></li>
+        <li><a href="#assumptions">Assumptions</a></li>
+        <li><a href="#sources">Key Sources</a></li>
+      </ul>
+    </nav>
+
+    <h2 id="summary">Summary</h2>
+
+    <table>
+      <tbody>
+        <tr><td><strong>Researched</strong></td><td>2026-04-10</td></tr>
+        <tr><td><strong>Domain</strong></td><td>Critic-free RL / preference-optimization for fairness-aware ASR fine-tuning</td></tr>
+        <tr><td><strong>Confidence</strong></td><td>MEDIUM-HIGH</td></tr>
+        <tr><td><strong>Reuses</strong></td><td>Phase 3 SFT LoRA adapter, Phase 4 custom GRPO loop, Phase 4 composite reward, Phase 4 VRAM playbook</td></tr>
+        <tr><td><strong>New dependencies</strong></td><td>None — same package set as Phase 4</td></tr>
+        <tr><td><strong>New LOC</strong></td><td>~700 (of which ~1,400 reused verbatim from Phase 4)</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Bottom line:</strong> Phase 04.1 is a <em>loss module swap</em>, not a new training stack. Refactor Phase 4's <code>grpo_step()</code> into a dispatcher over swappable <code>LossModule</code>s, hold everything else constant, run 4 algorithms × 3 seeds × 200 steps, and report pairwise bootstrap CIs against GRPO. Total compute budget ≈ 8–16 hours on T4 — one overnight session.
+    </div>
+
+    <h2 id="three-questions">The Three Questions</h2>
+
+    <table>
+      <thead>
+        <tr><th style="width:28%;">Question</th><th>Answer</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>How to design the experiments?</strong></td>
+          <td>Hold base model, SFT init, dataset subset, reward function, reference model, generation HPs, evaluation protocol, and seeds constant. Vary <em>only</em> the RL loss / advantage computation. Run ≥ 3 seeds per algorithm on the same 2 K subset used in Phase 4. Report Interquartile Mean (IQM) with bootstrap 95% CIs. Anchor everything to GRPO — the table is always "GRPO vs X," not a free-for-all.</td>
+        </tr>
+        <tr>
+          <td><strong>How to keep conditions consistent?</strong></td>
+          <td>Extend the Phase 4 <code>grpo_step()</code> into a dispatcher over swappable <em>loss modules</em> that share generation, log-prob computation, reference-model handling (PEFT <code>disable_adapter_layers()</code>), reward computation, and KL coefficient. Keep ε, β, lr, temperature, G, batch size, gradient accumulation, optimizer, and sample budget identical across algorithms. <strong>Only the advantage/loss math changes.</strong> Tune learning rate per algorithm on a 3-point grid — it is the one HP where "same value" is unfair.</td>
+        </tr>
+        <tr>
+          <td><strong>Which algorithms?</strong></td>
+          <td>Four on-policy algorithms that all fit in T4 VRAM, all use a scalar-per-sequence reward, all reuse the existing generation loop, and collectively cover the family tree of critic-free RLHF: <strong>Dr. GRPO</strong>, <strong>RLOO</strong>, <strong>REINFORCE++</strong>, and <strong>PPO with group-mean baseline</strong>.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="shortlist">Algorithm Shortlist</h2>
+
+    <p>Four algorithms were selected to satisfy four constraints simultaneously: applicable to sequence-level scalar reward on decoder-only ASR, fits T4 VRAM at G=2, implementable as a ~50-line <code>LossModule</code>, and scientifically interesting.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Algorithm</th>
+          <th>Advantage</th>
+          <th>Loss</th>
+          <th>Family</th>
+          <th>Role</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><strong>Dr. GRPO</strong><br><small>Liu et al. 2025</small></td>
+          <td><code>r − group_mean</code> (no std, no length norm)</td>
+          <td>Clipped ratio + β·KL</td>
+          <td>Group-relative</td>
+          <td><span class="verdict best">Reference</span></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><strong>RLOO</strong><br><small>Ahmadian et al. 2024</small></td>
+          <td>Leave-one-out baseline: <code>r<sub>i</sub> − mean<sub>j≠i</sub>(r<sub>j</sub>)</code></td>
+          <td>REINFORCE (optionally clipped)</td>
+          <td>LOO baseline</td>
+          <td><span class="verdict viable">Challenger</span></td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><strong>REINFORCE++</strong><br><small>Hu et al. 2025</small></td>
+          <td><code>(r − batch_mean) / batch_std</code><br>global across B·G</td>
+          <td>PPO clip + β·KL</td>
+          <td>Global baseline</td>
+          <td><span class="verdict viable">Challenger</span></td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><strong>PPO (group-mean)</strong><br><small>Schulman 2017, Huang 2022</small></td>
+          <td>Same as Dr. GRPO — the key control</td>
+          <td>PPO clip + β·KL + optional entropy bonus</td>
+          <td>Clipped ratio</td>
+          <td><span class="verdict viable">Challenger</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h4>Why these four, and what each comparison isolates</h4>
+    <ul>
+      <li><strong>Dr. GRPO vs PPO (group-mean):</strong> Identical advantages, different loss machinery. Isolates what the PPO clip + entropy bonus buy over plain REINFORCE with group-mean baseline.</li>
+      <li><strong>RLOO vs Dr. GRPO:</strong> Isolates the effect of the baseline (leave-one-out vs group mean). At G=2, these should be mathematically equivalent up to a constant; observed divergence is a pure implementation-detail finding.</li>
+      <li><strong>REINFORCE++ vs GRPO:</strong> Global vs per-prompt normalization on heterogeneous prompt sets — exactly the setting where REINFORCE++'s claim should matter, given our FS/CV demographic split.</li>
+    </ul>
+
+    <h2 id="rejected">Rejected Candidates</h2>
+
+    <table>
+      <thead>
+        <tr><th>Algorithm</th><th>Verdict</th><th>Why rejected</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>PPO with separate critic</strong></td>
+          <td><span class="verdict not-viable">Out of scope</span></td>
+          <td>Doubles VRAM (adds a second model head). Explicitly out of scope per REQUIREMENTS.md. Not "fair" since every other candidate is critic-free.</td>
+        </tr>
+        <tr>
+          <td><strong>DPO / IPO / SimPO / ORPO</strong></td>
+          <td><span class="verdict not-viable">Wrong shape</span></td>
+          <td>Require converting scalar composite reward to pairwise preferences — information-lossy. No audio trainer in TRL. Would need a whole second data pipeline for one algorithm.</td>
+        </tr>
+        <tr>
+          <td><strong>KTO</strong></td>
+          <td><span class="verdict not-viable">Experimental</span></td>
+          <td>Requires binary desirable/undesirable labels, not scalar rewards. Marked experimental in TRL v1.0. No audio support.</td>
+        </tr>
+        <tr>
+          <td><strong>RAFT / Rejection sampling</strong></td>
+          <td><span class="verdict partial">Duplicates Phase 6</span></td>
+          <td>Already planned as Phase 6 ("Rejection Sampling — Fairness-Aware SFT"). Including here would duplicate work.</td>
+        </tr>
+        <tr>
+          <td><strong>ReMax</strong></td>
+          <td><span class="verdict partial">Marginal</span></td>
+          <td>At G=2, functionally nearly indistinguishable from RLOO with the greedy sample as baseline. Marginal value over RLOO.</td>
+        </tr>
+        <tr>
+          <td><strong>DAPO (full)</strong></td>
+          <td><span class="verdict partial">Too many knobs</span></td>
+          <td>Asymmetric clip + dynamic sampling + token-level loss — each is a separate ablation. Deferred unless entropy collapse is observed.</td>
+        </tr>
+        <tr>
+          <td><strong>GSPO</strong></td>
+          <td><span class="verdict partial">Wrong regime</span></td>
+          <td>Full-sequence importance ratio helps long sequences; ASR transcriptions are &lt; 128 tokens. Marginal value.</td>
+        </tr>
+        <tr>
+          <td><strong>TRL <code>PPOTrainer</code> (v1)</strong></td>
+          <td><span class="verdict not-viable">Deprecated</span></td>
+          <td>Legacy v1 RLHF loop is being deprecated; never compatible with non-causal-LM models.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="design-contract">Experimental Design Contract</h2>
+
+    <h3>Held constant across ALL algorithms and ALL seeds</h3>
+
+    <table>
+      <thead>
+        <tr><th style="width:40%;">Dimension</th><th>Value</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Base model</td><td>Qwen3-ASR-1.7B (frozen encoder, LoRA on decoder)</td></tr>
+        <tr><td>Starting adapter</td><td>Phase 3 production SFT LoRA adapter</td></tr>
+        <tr><td>LoRA config</td><td>rank=4, alpha=4, dropout=0.05, target_mlp=true</td></tr>
+        <tr><td>Training subset</td><td>2 K samples, equal FS/CV, demographic stratified (reuse Phase 4 CSV verbatim)</td></tr>
+        <tr><td>Reward function</td><td>Composite WER + fairness, <code>RewardComputer(λ=0.3, window=10)</code></td></tr>
+        <tr><td>λ (fairness weight)</td><td>0.3 — mid-Pareto</td></tr>
+        <tr><td>G (candidates per prompt)</td><td>2</td></tr>
+        <tr><td>batch_size / grad_accum</td><td>1 / 4</td></tr>
+        <tr><td>max_new_tokens</td><td>128</td></tr>
+        <tr><td>temperature</td><td>0.8</td></tr>
+        <tr><td>Reference model</td><td>PEFT <code>disable_adapter_layers()</code> — no second model copy</td></tr>
+        <tr><td>β (KL coefficient)</td><td>0.04 — identical across all algorithms</td></tr>
+        <tr><td>ε (PPO clip)</td><td>0.2 symmetric — identical across all algorithms</td></tr>
+        <tr><td>Optimizer</td><td>AdamW (β1=0.9, β2=0.999, wd=0.0)</td></tr>
+        <tr><td>LR schedule</td><td>Linear warmup 10 steps, then constant</td></tr>
+        <tr><td>Max steps</td><td>200</td></tr>
+        <tr><td>Precision</td><td>bf16</td></tr>
+        <tr><td>Seeds</td><td>{42, 43, 44} — identical across algorithms</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Varied (the only things that change)</h3>
+
+    <table>
+      <thead>
+        <tr><th>Dimension</th><th>Variation</th><th>Rationale</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Algorithm</strong></td>
+          <td>{dr_grpo, rloo, reinforce_pp, ppo_groupmean}</td>
+          <td>The scientific question</td>
+        </tr>
+        <tr>
+          <td><strong>Seed</strong></td>
+          <td>{42, 43, 44}</td>
+          <td>Control for random variance (Henderson 2018)</td>
+        </tr>
+        <tr>
+          <td><strong>Learning rate</strong></td>
+          <td>{1e-6, 1e-5, 3e-5}</td>
+          <td>Tuned per algorithm on a short 50-step probe, then frozen. Per-algo lr is the one HP concession — "same lr" is unfair because different losses have different gradient magnitudes.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Sample budget equity</h3>
+
+    <p>Every algorithm sees the same counts per seed:</p>
+    <ul>
+      <li><strong>Rollouts:</strong> 200 × 1 × 2 = 400 environment interactions</li>
+      <li><strong>Reward queries:</strong> 400 <code>RewardComputer</code> calls</li>
+      <li><strong>Gradient updates:</strong> 200 optimizer steps (with grad_accum=4)</li>
+      <li><strong>Ref-model forward passes:</strong> 400 teacher-forcing calls via <code>disable_adapter_layers()</code></li>
+    </ul>
+
+    <h2 id="evaluation">Evaluation Protocol</h2>
+
+    <h3>Metrics reported per (algorithm × seed)</h3>
+
+    <table>
+      <thead>
+        <tr><th>Metric</th><th>Purpose</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Final dev WER (overall)</td><td>Accuracy — final verdict</td></tr>
+        <tr><td>Final per-group WER</td><td>Fairness — final verdict</td></tr>
+        <tr><td>WER gap (max − min across groups)</td><td>Primary fairness metric</td></tr>
+        <tr><td>WER max/min ratio</td><td>Secondary fairness metric</td></tr>
+        <tr><td>Training wall-clock (min)</td><td>Efficiency</td></tr>
+        <tr><td>Peak VRAM (GB)</td><td>Budget compliance (must be &lt; 13 GB)</td></tr>
+        <tr><td><code>frac_reward_zero_std</code></td><td>Signal quality — unique-answer detector</td></tr>
+        <tr><td>Advantage std (last 10)</td><td>Gradient magnitude detector</td></tr>
+        <tr><td>Entropy at final step</td><td>Entropy collapse detector</td></tr>
+        <tr><td>Mean completion length</td><td>Length-bias / reward-hacking detector</td></tr>
+        <tr><td><code>clip_frac</code></td><td>Comparability — should be &lt; 0.2 in a healthy run</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Aggregation and statistics</h3>
+
+    <ol>
+      <li>Report <strong>Interquartile Mean (IQM)</strong> with bootstrap 95% CI across seeds (Agarwal 2021).</li>
+      <li>Also report arithmetic mean ± SE for readers who want the classic view.</li>
+      <li>Learning-curve plot with shaded band = IQM ± 95% bootstrap CI.</li>
+      <li>Pairwise bootstrap (10 000 resamples) of <code>Δ = mean(challenger) − mean(GRPO)</code>.</li>
+      <li>Per Henderson 2018, also report Welch t-test and Mann–Whitney U alongside the bootstrap.</li>
+    </ol>
+
+    <div class="callout warning">
+      <strong>Honest caveat:</strong> With N=3 seeds, no pairwise test will reach p &lt; 0.05 unless the effect is very large. The value of the table is in showing the <em>direction</em> of differences and the <em>overlap</em> of CIs. Do not sell underpowered tests as conclusive.
+    </div>
+
+    <h3>Plots produced at phase end</h3>
+
+    <ul>
+      <li><strong>Reward learning curves</strong> — one panel, four lines, shaded bootstrap CI band.</li>
+      <li><strong>Pareto scatter</strong> — (WER, gap) per (algorithm, seed) with per-algorithm 95% CI ellipse.</li>
+      <li><strong>Wall-clock efficiency</strong> — bar chart: steps-to-90%-of-final-reward per algorithm.</li>
+      <li><strong>VRAM bar chart</strong> — peak VRAM per algorithm (should be nearly identical).</li>
+    </ul>
+
+    <h3>Reward-hacking gate</h3>
+
+    <table>
+      <thead>
+        <tr><th>Check</th><th>Trigger</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>wer_floor_breach</code></td><td>Final mean WER &gt; baseline × 1.2</td></tr>
+        <tr><td><code>length_explosion</code></td><td>Final mean completion length &gt; 2× initial</td></tr>
+        <tr><td><code>vocabulary_collapse</code></td><td>Unique tokens in final completions &lt; 50% of initial</td></tr>
+        <tr><td><code>entropy_collapse</code></td><td>Final entropy &lt; 0.3× initial</td></tr>
+      </tbody>
+    </table>
+
+    <p>If any check fires for any run, that run is marked <strong>DEGRADED</strong> and excluded from the "winner" decision, but still reported.</p>
+
+    <h2 id="runplan">Run Plan &amp; Compute Budget</h2>
+
+    <table>
+      <thead>
+        <tr><th>Stage</th><th>Runs</th><th>Steps</th><th>Est. T4 time</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>lr grid probes (1 seed per algo × 3 lr)</td>
+          <td>12</td>
+          <td>50</td>
+          <td>≈ 1.5 h</td>
+        </tr>
+        <tr>
+          <td>Core comparison (4 algo × 3 seeds)</td>
+          <td>12</td>
+          <td>200</td>
+          <td>≈ 6–12 h</td>
+        </tr>
+        <tr class="highlight">
+          <td><strong>Total</strong></td>
+          <td><strong>24</strong></td>
+          <td>—</td>
+          <td><strong>≈ 8–16 h (one overnight)</strong></td>
+        </tr>
+        <tr>
+          <td>Optional: winner × λ ∈ {0, 0.3, 0.7}</td>
+          <td>9</td>
+          <td>200</td>
+          <td>+ ≈ 6 h</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="architecture">Architecture — New Code</h2>
+
+    <pre class="code-block"><code>scripts/training/
+├── train_grpo.py                 <span class="comment"># EXISTING — Phase 4 prototype (untouched)</span>
+├── train_rl.py                   <span class="comment"># NEW — dispatcher over loss modules (~150 lines)</span>
+├── rl_losses/                    <span class="comment"># NEW directory</span>
+│   ├── base.py                   <span class="comment"># LossModule ABC (~40 lines)</span>
+│   ├── dr_grpo_loss.py           <span class="comment"># verbatim port of Phase 4 grpo_step:380-500</span>
+│   ├── rloo_loss.py              <span class="comment"># leave-one-out baseline (~50 lines)</span>
+│   ├── reinforce_pp_loss.py      <span class="comment"># global batch normalization</span>
+│   └── ppo_groupmean_loss.py     <span class="comment"># PPO clip + group-mean baseline</span>
+│
+├── reward.py                     <span class="comment"># EXISTING — reused identical for all algorithms</span>
+├── data_loader.py                <span class="comment"># EXISTING — reused</span>
+└── data_collator.py              <span class="comment"># EXISTING — reused</span>
+
+scripts/analysis/                 <span class="comment"># NEW directory</span>
+├── aggregate_rl_runs.py          <span class="comment"># IQM + seed aggregation</span>
+├── bootstrap_pairwise.py         <span class="comment"># scipy.stats.bootstrap + t + Mann-Whitney</span>
+└── pareto_comparison.py          <span class="comment"># (WER, gap) scatter per (algorithm, seed)</span>
+
+outputs/rl-comparison/            <span class="comment"># NEW output root</span>
+├── dr_grpo/seed_{42,43,44}/
+├── rloo/seed_{42,43,44}/
+├── reinforce_pp/seed_{42,43,44}/
+├── ppo_groupmean/seed_{42,43,44}/
+├── lr_grid/                      <span class="comment"># per-algo lr tuning results</span>
+└── comparison/
+    ├── aggregated_metrics.json   <span class="comment"># per-algorithm mean ± CI</span>
+    ├── pairwise_vs_grpo.json     <span class="comment"># bootstrap pairwise test results</span>
+    └── pareto_plot.png</code></pre>
+
+    <p><strong>Budget:</strong> ~700 new LOC, ~1,400 reused from Phase 4 verbatim. <strong>Zero new pip dependencies.</strong></p>
+
+    <h2 id="pitfalls">Top 10 Pitfalls</h2>
+
+    <table>
+      <thead>
+        <tr><th>#</th><th>Pitfall</th><th>Mitigation</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>Per-algo KL coefficient differences silently pick the winner</td>
+          <td>Hold β = 0.04 identical; log both raw <code>kl</code> and <code>β·kl</code></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>Shared lr is unfair — different losses have different gradient magnitudes</td>
+          <td>Per-algo lr grid on 50-step probe with seed=42 only</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>Single-seed lr winners are noise artifacts</td>
+          <td>Flag for re-probe if chosen lr differs by &gt; 1 OOM from grid center</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td>Phase 4's unique-answer problem inherited — all algos fail equally</td>
+          <td>Preflight check <code>frac_zero_std &lt; 0.5</code> before launch</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td>Non-deterministic adapter load across seeds</td>
+          <td>Hash <code>state_dict</code>, use <code>torch.use_deterministic_algorithms(True)</code></td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td>Length bias disguised as "PPO is better"</td>
+          <td>Dr. GRPO length normalization across all four algorithms</td>
+        </tr>
+        <tr>
+          <td>7</td>
+          <td>Entropy collapse from symmetric ε=0.2 clip</td>
+          <td>Log entropy every step; mark DEGRADED if &lt; 0.3× initial</td>
+        </tr>
+        <tr>
+          <td>8</td>
+          <td><strong>Refactor confounder:</strong> Dr. GRPO module diverges from Phase 4</td>
+          <td>Regression test — Dr. GRPO reward curve must match Phase 4 within 0.5% at every logged step</td>
+        </tr>
+        <tr>
+          <td>9</td>
+          <td>Silent NaN step-skips create sample-budget mismatch</td>
+          <td>Log <code>n_nan_skipped</code>; mark DEGRADED if &gt; 5</td>
+        </tr>
+        <tr>
+          <td>10</td>
+          <td>Reporting single-number winners from 3 seeds</td>
+          <td>Every numeric claim accompanied by 95% bootstrap CI and CI-overlap sentence</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="decisions">Decisions For User</h2>
+
+    <table>
+      <thead>
+        <tr><th>Decision</th><th>Recommendation</th><th>Fallback</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Seed count: 3 or 5?</td>
+          <td><strong>3 seeds</strong> initially; extend to 5 if wall-clock &lt; 8 h</td>
+          <td>3 only, note limitation in report</td>
+        </tr>
+        <tr>
+          <td>Include preference-style baseline (DPO / KTO)?</td>
+          <td><strong>No</strong> — rejected by the 4-constraint filter</td>
+          <td>Offline best-vs-worst DPO as separate secondary comparison (+~9 h)</td>
+        </tr>
+        <tr>
+          <td>λ count: single or 3 values?</td>
+          <td><strong>Single λ = 0.3</strong> for core comparison; winner-only sweep after</td>
+          <td>Full 4 × 3 λ × 3 seed = 36 runs (~24 h extra)</td>
+        </tr>
+        <tr>
+          <td>Starting adapter?</td>
+          <td><strong>Phase 3 production SFT</strong></td>
+          <td>Phase 2.1 locked-config adapter if Phase 3 not ready</td>
+        </tr>
+        <tr>
+          <td>G = 2 or G = 4?</td>
+          <td><strong>G = 2</strong> — matches Phase 4, keeps T4 VRAM safe</td>
+          <td>Upgrade all four algos to G=4 together if Phase 4 confirms fit. Never mix.</td>
+        </tr>
+        <tr>
+          <td>Entropy-collapse asymmetric-clip follow-up?</td>
+          <td>Only if collapse is observed in core runs</td>
+          <td>Skip; document as future work</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="preflight">Pre-flight Gate</h2>
+
+    <div class="callout danger">
+      <strong>Phase 04.1 is currently blocked.</strong> Per <code>.planning/STATE.md</code>, Phase 3 is still executing and Phase 4 has not started. Phase 04.1 requires both to complete before launch.
+    </div>
+
+    <p>Before launching any Phase 04.1 run, these files must exist:</p>
+
+    <pre class="code-block"><code>outputs/full-lora/adapter/                           <span class="comment"># Phase 3 production SFT adapter</span>
+outputs/grpo-prototype/train_subset.csv              <span class="comment"># Phase 4 training subset (reuse verbatim)</span>
+outputs/grpo-prototype/eval_subset.csv               <span class="comment"># Phase 4 eval subset</span>
+outputs/grpo-prototype/lambda_0.0/training_log.json  <span class="comment"># source of baseline_wer for WER floor</span>
+outputs/grpo-prototype/lambda_0.3/training_log.json  <span class="comment"># Dr. GRPO reference curve for regression test</span></code></pre>
+
+    <h2 id="assumptions">Key Assumptions</h2>
+
+    <table>
+      <thead>
+        <tr><th>#</th><th>Claim</th><th>Risk if wrong</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>A1</td>
+          <td>Phase 3 will produce a production SFT LoRA adapter before Phase 04.1 launches</td>
+          <td>High — fallback to Phase 2.1 adapter is acceptable but must be disclosed</td>
+        </tr>
+        <tr>
+          <td>A2</td>
+          <td>Phase 4 will produce a working Dr. GRPO reference curve and reusable subset CSVs</td>
+          <td>High — Phase 04.1 needs the regression test; inherits any unique-answer problem</td>
+        </tr>
+        <tr>
+          <td>A3</td>
+          <td><code>disable_adapter_layers()</code> behaves identically after arbitrary train/eval mode switches in PEFT 0.18.1</td>
+          <td>Medium — if it fails, all algorithms degrade equally (still comparable)</td>
+        </tr>
+        <tr>
+          <td>A4</td>
+          <td>Per-algorithm lr tuning claim (Ahmadian 2024) transfers from text RLHF to audio ASR</td>
+          <td>Medium — if transfer fails, lr grid is wasted compute but comparison still valid</td>
+        </tr>
+        <tr>
+          <td>A5</td>
+          <td>Symmetric ε=0.2 clip will not cause entropy collapse within 200 steps at G=2</td>
+          <td>Medium — 200 steps is short; collapse typically emerges at ≥ 500 steps</td>
+        </tr>
+        <tr>
+          <td>A8</td>
+          <td>Dr. GRPO with G=2 is mathematically equivalent to RLOO with G=2 up to a constant</td>
+          <td>Low — empirical divergence is itself an interesting finding</td>
+        </tr>
+        <tr>
+          <td>A11</td>
+          <td>λ=0.3 is a mid-Pareto operating point per Phase 4 sweep</td>
+          <td>Low — substitute 0.5 or 0.7 after Phase 4 completes if needed</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="sources">Key Sources</h2>
+
+    <h4>Primary (HIGH confidence)</h4>
+    <ul>
+      <li><strong>Henderson et al. 2018.</strong> <em>Deep Reinforcement Learning that Matters.</em> <a href="https://arxiv.org/abs/1709.06560">arxiv:1709.06560</a> — ≥ 3 seed minimum, dual t-test + Mann–Whitney reporting.</li>
+      <li><strong>Colas et al. 2018.</strong> <em>How Many Random Seeds?</em> <a href="https://arxiv.org/abs/1806.08295">arxiv:1806.08295</a> — statistical power analysis for seed count.</li>
+      <li><strong>Agarwal et al. NeurIPS 2021.</strong> <em>Deep RL at the Edge of the Statistical Precipice.</em> <a href="https://arxiv.org/abs/2108.13264">arxiv:2108.13264</a> — IQM + bootstrap CI at ≥ 5 seeds.</li>
+      <li><strong>Ahmadian et al. 2024.</strong> <em>Back to Basics: Revisiting REINFORCE Style Optimization for RLHF.</em> <a href="https://arxiv.org/abs/2402.14740">arxiv:2402.14740</a> — RLOO algorithm and per-algo lr tuning protocol.</li>
+      <li><strong>Liu et al. 2025.</strong> <em>Understanding R1-Zero-Like Training.</em> <a href="https://arxiv.org/abs/2503.20783">arxiv:2503.20783</a> — Dr. GRPO, fixes GRPO length bias.</li>
+      <li><strong>Hu et al. 2025.</strong> <em>REINFORCE++: An Efficient RLHF Algorithm.</em> <a href="https://arxiv.org/abs/2501.03262">arxiv:2501.03262</a> — global advantage normalization.</li>
+      <li><strong>Huang et al. 2022.</strong> <em>The 37 Implementation Details of PPO.</em> ICLR Blog Track — lr as the dominant PPO HP.</li>
+      <li><strong>Amazon ASRU 2025.</strong> <a href="https://arxiv.org/abs/2509.01939">arxiv:2509.01939</a> — β=0.04 default, unique-answer problem.</li>
+    </ul>
+
+    <h4>Methodological note</h4>
+    <div class="callout success">
+      <strong>Novel contribution:</strong> To the researcher's knowledge, <em>fair head-to-head RL algorithm comparison on ASR fairness</em> has not been published. Phase 04.1 is a direct application of the 2024–2026 RLHF comparison methodology (Henderson 2018 + Agarwal 2021 + Ahmadian 2024) to the audio/ASR setting, with Dr. GRPO as the anchor.
+    </div>
+
+    <footer>
+      <p><small>Phase 04.1 research — compiled 2026-04-10 · Valid until 2026-06-10 · Source: <code>.planning/phases/04.1-experiments-with-different-rl-algorithms-on-phase-3-outputs/04.1-RESEARCH.md</code></small></p>
+    </footer>
+
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrapper -->
+
+<script>
+(function() {
+  var sidebarLinks = document.querySelectorAll('#sidebar-toc a');
+  var sections = [];
+  sidebarLinks.forEach(function(link) {
+    var id = link.getAttribute('href').slice(1);
+    var el = document.getElementById(id);
+    if (el) sections.push({ id: id, el: el, link: link });
+  });
+
+  function onScroll() {
+    var scrollY = window.scrollY + 80;
+    var current = null;
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].el.offsetTop <= scrollY) {
+        current = sections[i];
+      }
+    }
+    sidebarLinks.forEach(function(l) { l.classList.remove('active'); });
+    if (current) current.link.classList.add('active');
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+</script>
+</body>
+</html>

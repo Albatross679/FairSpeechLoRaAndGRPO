@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sample Collecting for Rejection Sampling SFT &mdash; Phase 6 Pipeline</title>
+<link rel="stylesheet" href="styles/palatino-burgundy.css">
+<style>
+/* === File-specific: Pipeline Flow Diagram === */
+.pipeline {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr;
+  gap: 0.6em;
+  align-items: stretch;
+  margin: 1.8em 0;
+}
+.pipeline .stage {
+  background: #fff;
+  border: 1px solid #e0ddd8;
+  border-top: 3px solid #7c3043;
+  border-radius: 6px;
+  padding: 1em 1.1em;
+  display: flex; flex-direction: column; min-width: 0;
+}
+.pipeline .stage .stage-num {
+  font-size: 0.78em; font-weight: 700; color: #7c3043;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  margin-bottom: 0.3em;
+}
+.pipeline .stage h4 {
+  font-size: 1.05em; margin: 0 0 0.4em 0; color: #3a3a3a;
+}
+.pipeline .stage p {
+  font-size: 0.85em; margin: 0.2em 0; color: #555;
+}
+.pipeline .stage .io {
+  margin-top: 0.6em; padding-top: 0.5em;
+  border-top: 1px dashed #e0ddd8;
+  font-size: 0.78em; color: #888;
+}
+.pipeline .stage .io strong { color: #7c3043; font-weight: 600; }
+.pipeline .arrow {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.8em; color: #7c3043; font-weight: 700;
+  padding: 0 0.1em;
+}
+.pipeline .arrow .label {
+  display: block; font-size: 0.55em; color: #888; font-weight: 400;
+  text-align: center; margin-top: -0.3em; white-space: nowrap;
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+@media (max-width: 900px) {
+  .pipeline { grid-template-columns: 1fr; }
+  .pipeline .arrow { transform: rotate(90deg); padding: 0.3em 0; }
+}
+
+/* === File-specific: Stat Cards === */
+.stat-row {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 0.8em; margin: 1.2em 0;
+}
+.stat-card {
+  background: #fff; border: 1px solid #e0ddd8; border-radius: 6px;
+  padding: 0.9em 1em; text-align: center;
+}
+.stat-card .num {
+  font-size: 1.6em; font-weight: 700; color: #7c3043;
+  font-family: "Palatino Linotype", Palatino, Georgia, serif;
+}
+.stat-card .unit { font-size: 0.75em; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-card .label { font-size: 0.82em; color: #555; margin-top: 0.3em; }
+@media (max-width: 684px) { .stat-row { grid-template-columns: 1fr 1fr; } }
+
+/* === File-specific: Key-val summary === */
+.kv {
+  display: grid; grid-template-columns: max-content 1fr;
+  gap: 0.4em 1.2em; margin: 1em 0;
+  font-size: 0.92em;
+}
+.kv dt { color: #7c3043; font-weight: 600; }
+.kv dd { margin: 0; color: #4a4a4a; }
+
+/* === File-specific: Two-column lists === */
+.two-col-list {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1.2em; margin: 1em 0;
+}
+.two-col-list > div {
+  background: #faf9f7; border: 1px solid #e0ddd8;
+  border-left: 3px solid #7c3043;
+  border-radius: 0 6px 6px 0; padding: 0.9em 1.1em;
+}
+.two-col-list h5 {
+  margin: 0 0 0.4em 0; font-size: 1em; color: #7c3043;
+}
+.two-col-list ul { margin: 0.3em 0 0 0; padding-left: 1.2em; font-size: 0.88em; }
+@media (max-width: 684px) { .two-col-list { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="page-wrapper">
+
+  <aside class="sidebar" id="sidebar-toc">
+    <strong>Contents</strong>
+    <ul>
+      <li><a href="#bigpic">Big Picture</a></li>
+      <li><a href="#pipeline">Pipeline Overview</a></li>
+      <li><a href="#stage1">Stage 1 &mdash; Generate</a></li>
+      <li><a href="#stage2">Stage 2 &mdash; Filter</a></li>
+      <li><a href="#stage3">Stage 3 &mdash; SFT</a></li>
+      <li><a href="#decoupling">Why Three Stages</a></li>
+      <li><a href="#risks">Key Risks</a></li>
+      <li><a href="#budget">Budget Reality</a></li>
+    </ul>
+  </aside>
+
+  <div class="main-content">
+    <h1>Sample Collecting for Rejection Sampling SFT</h1>
+    <p class="subtitle">Phase 6 three-stage pipeline &mdash; distilling a frozen GRPO checkpoint into fairness-aware SFT training data.</p>
+    <hr>
+
+    <nav id="toc">
+      <strong>Table of Contents</strong>
+      <ul>
+        <li><a href="#bigpic">1. Big Picture</a></li>
+        <li><a href="#pipeline">2. Pipeline Overview</a></li>
+        <li><a href="#stage1">3. Stage 1 &mdash; Generate Candidates</a></li>
+        <li><a href="#stage2">4. Stage 2 &mdash; Filter</a></li>
+        <li><a href="#stage3">5. Stage 3 &mdash; SFT on Filtered Data</a></li>
+        <li><a href="#decoupling">6. Why Three Stages</a></li>
+        <li><a href="#risks">7. Key Risks</a></li>
+        <li><a href="#budget">8. Budget Reality Check</a></li>
+      </ul>
+    </nav>
+
+    <!-- =================== BIG PICTURE =================== -->
+    <h2 id="bigpic">Big Picture</h2>
+
+    <p>
+      Phase 5 produces a fairness-aware GRPO checkpoint, but RL inference is expensive.
+      <strong>Phase 6 distills that policy into a standard SFT model</strong> by generating many
+      transcription candidates from the frozen GRPO checkpoint, filtering them for joint
+      accuracy + fairness, then fine-tuning a fresh LoRA adapter on the curated set.
+      The result is a model with fairness baked into its training data, deployable without
+      RL at inference time.
+    </p>
+
+    <div class="callout">
+      <strong>The core move:</strong> candidate generation happens <em>after</em> GRPO training finishes &mdash;
+      from the frozen best checkpoint, not from intermediate policies during training.
+      This matches the DeepSeek-R1 / Qwen3 / Llama alternating-training paradigm.
+    </div>
+
+    <dl class="kv">
+      <dt>Source model</dt><dd>Best GRPO adapter from Phase 5 (selected by composite WER + fairness metric)</dd>
+      <dt>Target model</dt><dd>Fresh LoRA on the base model &mdash; <em>not</em> a continuation of the GRPO adapter</dd>
+      <dt>Corpus</dt><dd>~5,000 utterance representative subset of the Phase 3 training manifest</dd>
+      <dt>Candidates per utterance</dt><dd>N = 10 (RLHF book recommends 10&ndash;30; ASR has less diversity headroom)</dd>
+      <dt>Sampling</dt><dd><code>do_sample=True</code>, <code>temperature=0.8</code> &mdash; diversity over individual quality</dd>
+      <dt>Output artifact</dt><dd>Filtered CSV (~3&ndash;5K rows) &rarr; fresh LoRA adapter trained for 1 epoch</dd>
+    </dl>
+
+    <!-- =================== PIPELINE OVERVIEW =================== -->
+    <h2 id="pipeline">Pipeline Overview</h2>
+
+    <p>
+      Three independent scripts connected by CSV intermediates. The separation is
+      load-bearing: Stage 1 is the expensive step, Stages 2 and 3 are cheap and iterable.
+    </p>
+
+    <div class="pipeline">
+      <div class="stage">
+        <div class="stage-num">Stage 1</div>
+        <h4>Generate Candidates</h4>
+        <p>Load frozen GRPO checkpoint. For each utterance in the 5K subset, sample 10 transcriptions at temperature 0.8. Compute WER per candidate. Write one row per (utterance, candidate).</p>
+        <div class="io"><strong>In:</strong> GRPO adapter + manifest<br><strong>Out:</strong> 50K rows CSV</div>
+      </div>
+      <div class="arrow">&rarr;<span class="label">all_candidates.csv</span></div>
+      <div class="stage">
+        <div class="stage-num">Stage 2</div>
+        <h4>Filter</h4>
+        <p>Select best candidate per utterance (lowest WER). Apply WER threshold. Check per-group WER; rebalance demographic groups by relaxing or tightening per-group thresholds.</p>
+        <div class="io"><strong>In:</strong> candidates CSV<br><strong>Out:</strong> ~3&ndash;5K rows CSV</div>
+      </div>
+      <div class="arrow">&rarr;<span class="label">filtered_dataset.csv</span></div>
+      <div class="stage">
+        <div class="stage-num">Stage 3</div>
+        <h4>SFT</h4>
+        <p>Load <em>base</em> model. Apply a fresh LoRA adapter with Phase 3's locked hyperparameters. Train 1 epoch on the filtered dataset. Reuses <code>train_standard_lora.py</code> infrastructure wholesale.</p>
+        <div class="io"><strong>In:</strong> filtered CSV<br><strong>Out:</strong> Fresh LoRA adapter</div>
+      </div>
+    </div>
+
+    <h3>Output Directory Layout</h3>
+
+<pre class="code-block"><code>outputs/rejection-sampling/
+├── candidates/                        <span class="comment"># Stage 1 output</span>
+│   └── all_candidates.csv             <span class="comment"># 50K rows: utterance_id, candidate_idx, hypothesis, wer, demographic</span>
+│
+├── filtered/                          <span class="comment"># Stage 2 output</span>
+│   └── filtered_dataset.csv           <span class="comment"># ~3-5K rows: one best candidate per accepted utterance</span>
+│
+├── adapter/                           <span class="comment"># Stage 3 output</span>
+│   ├── adapter_model.safetensors      <span class="comment"># Fresh LoRA weights</span>
+│   └── adapter_config.json
+│
+└── eval/                              <span class="comment"># Reuses evaluate_adapter.py as-is</span>
+    └── fairness_report.json</code></pre>
+
+    <!-- =================== STAGE 1 =================== -->
+    <h2 id="stage1">Stage 1 &mdash; Generate Candidates</h2>
+
+    <p>
+      The single expensive step in the pipeline. Each utterance is run through the frozen GRPO
+      checkpoint ten times with stochastic sampling, then WER is computed inline for every
+      candidate so the filtering stage has nothing to recompute.
+    </p>
+
+    <h3>Generation Knobs</h3>
+
+    <table>
+      <thead>
+        <tr><th>Knob</th><th>Value</th><th>Why</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>N candidates</td>
+          <td>10 per utterance</td>
+          <td>RLHF book: 10&ndash;30 is the standard range. ASR has less diversity, so lower end.</td>
+        </tr>
+        <tr>
+          <td>Decoding mode</td>
+          <td><code>do_sample=True</code></td>
+          <td>Greedy/beam produce high-quality but nearly identical candidates &mdash; nothing to filter between.</td>
+        </tr>
+        <tr>
+          <td>Temperature</td>
+          <td>0.8</td>
+          <td>Diversity knob. Raise to 1.0&ndash;1.2 if the pilot shows near-duplicate candidates.</td>
+        </tr>
+        <tr>
+          <td>Inner batch</td>
+          <td><code>num_return_sequences=2</code></td>
+          <td>T4's 15 GB KV cache OOMs at 10 parallel sequences. Loop 5 times per utterance.</td>
+        </tr>
+        <tr>
+          <td>Audio batch</td>
+          <td>1 utterance at a time</td>
+          <td>Keeps KV cache arithmetic simple. Generation is the bottleneck, not audio encoding.</td>
+        </tr>
+        <tr>
+          <td>GC hygiene</td>
+          <td><code>torch.cuda.empty_cache()</code> per inner loop</td>
+          <td>Prevents drift-OOM after hundreds of utterances.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>CSV Schema</h3>
+
+    <table>
+      <thead>
+        <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>utterance_id</code></td><td>string</td><td>Unique id from source manifest</td></tr>
+        <tr><td><code>candidate_idx</code></td><td>int 0&ndash;9</td><td>Which of the 10 candidates for this utterance</td></tr>
+        <tr><td><code>hypothesis</code></td><td>string</td><td>Normalized transcription from GRPO model</td></tr>
+        <tr><td><code>reference</code></td><td>string</td><td>Ground-truth transcription (copied from manifest)</td></tr>
+        <tr><td><code>wer</code></td><td>float</td><td>jiwer WER vs reference, computed inline</td></tr>
+        <tr><td><code>demographic_group</code></td><td>string</td><td>ethnicity or accent label from manifest</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warning">
+      <strong>Why write WER into the candidate CSV?</strong> It front-loads the one computation that depends on Stage 1's actual text outputs.
+      Stage 2 can then iterate on thresholds without ever re-decoding audio &mdash; the filter becomes a pandas operation, not a model call.
+    </div>
+
+    <!-- =================== STAGE 2 =================== -->
+    <h2 id="stage2">Stage 2 &mdash; Filter</h2>
+
+    <p>
+      Two rules that matter. Everything else is threshold tuning.
+    </p>
+
+    <h3>Rule 1: Per-Utterance Best, Not Global Top-K</h3>
+
+    <div class="two-col-list">
+      <div>
+        <h5>What to do</h5>
+        <ul>
+          <li>Group candidates by <code>utterance_id</code></li>
+          <li>Keep the single lowest-WER row per group</li>
+          <li>Result: one row per utterance (~5K rows)</li>
+        </ul>
+      </div>
+      <div>
+        <h5>Why not global top-K</h5>
+        <ul>
+          <li>Short/clear audio has low WER naturally</li>
+          <li>Easy utterances are overrepresented in majority groups</li>
+          <li>Global top-K &rarr; filtered set is less fair than original</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>Rule 2: Fairness-Aware Two-Pass Threshold</h3>
+
+    <table>
+      <thead>
+        <tr><th>Pass</th><th>Action</th><th>Output</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Pass 1 &mdash; WER ceiling</td>
+          <td>Drop utterances whose best-candidate WER exceeds global threshold (e.g. 0.30)</td>
+          <td>High-quality subset, possibly demographically skewed</td>
+        </tr>
+        <tr>
+          <td>Pass 2 &mdash; per-group gap</td>
+          <td>Compute WER per demographic group. If gap &gt; tolerance, <em>relax</em> threshold for underperforming groups and <em>tighten</em> for overperforming ones</td>
+          <td>Fairness-balanced SFT set</td>
+        </tr>
+        <tr>
+          <td>Pass 3 &mdash; coverage check</td>
+          <td>Verify each group has at least <code>min_group_size</code> utterances; if not, keep the N lowest-WER candidates regardless of threshold</td>
+          <td>Guaranteed demographic coverage</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout success">
+      <strong>Target acceptance rate:</strong> 60&ndash;80%. Above 95% means the filter is doing nothing;
+      below 40% means thresholds are starving the SFT set.
+    </div>
+
+    <!-- =================== STAGE 3 =================== -->
+    <h2 id="stage3">Stage 3 &mdash; SFT on Filtered Data</h2>
+
+    <p>
+      The cheapest surprise in Phase 6: Stage 3 is almost entirely reused Phase 3 code.
+      Swap the CSV path and reduce epochs; everything else &mdash; model loading, data collator,
+      LoRA config, Trainer setup, evaluation &mdash; is unchanged.
+    </p>
+
+    <h3>What Changes vs. Phase 3</h3>
+
+    <table>
+      <thead>
+        <tr><th>Setting</th><th>Phase 3 (full SFT)</th><th>Phase 6 (rejection SFT)</th><th>Reason</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Training data</td>
+          <td>Full manifest (~41K)</td>
+          <td>Filtered CSV (~3&ndash;5K)</td>
+          <td>Whole point of rejection sampling</td>
+        </tr>
+        <tr>
+          <td>Starting weights</td>
+          <td>Base Qwen3-ASR</td>
+          <td>Base Qwen3-ASR <em>(not the GRPO adapter)</em></td>
+          <td>Fresh LoRA avoids RL weight artifacts; stacking adapters causes instability</td>
+        </tr>
+        <tr>
+          <td>LoRA rank / alpha</td>
+          <td>From locked config</td>
+          <td>Same locked config</td>
+          <td>Comparability with Phase 3 baseline</td>
+        </tr>
+        <tr>
+          <td>Epochs</td>
+          <td>3&ndash;5</td>
+          <td>1 (maybe 2)</td>
+          <td>Small dataset + LoRA = fast overfit risk</td>
+        </tr>
+        <tr>
+          <td>Dropout</td>
+          <td>0.05</td>
+          <td>0.05&ndash;0.10</td>
+          <td>Bump if filtered set is &lt; 50% of Phase 3 size</td>
+        </tr>
+        <tr>
+          <td>Evaluation</td>
+          <td><code>evaluate_adapter.py</code></td>
+          <td><code>evaluate_adapter.py</code></td>
+          <td>Zero change &mdash; reuses fairness bridge</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout danger">
+      <strong>Anti-pattern: continuing the GRPO adapter.</strong> Do <em>not</em> load the Phase 5 adapter and run SFT on top of it.
+      The GRPO adapter carries RL-specific weight distributions and stacking two LoRA adapters causes gradient interference.
+      The point of rejection sampling is to distill the GRPO policy's <em>outputs</em>, not its weights.
+    </div>
+
+    <!-- =================== DECOUPLING =================== -->
+    <h2 id="decoupling">Why Three Stages &mdash; The Decoupling Argument</h2>
+
+    <p>
+      A single monolithic script would be shorter, but rejection sampling is a threshold-tuning
+      problem and the threshold choice depends on data you don't have until Stage 1 finishes.
+      The CSV handoffs separate the one expensive step from the many cheap ones.
+    </p>
+
+    <table>
+      <thead>
+        <tr><th>Stage</th><th>Cost per run</th><th>How often you re-run it</th><th>What you iterate on</th></tr>
+      </thead>
+      <tbody>
+        <tr class="highlight">
+          <td>1 &mdash; Generate</td>
+          <td>~48 hours (T4)</td>
+          <td>Once (maybe twice if temp changes)</td>
+          <td>N candidates, temperature, model checkpoint</td>
+        </tr>
+        <tr>
+          <td>2 &mdash; Filter</td>
+          <td>Seconds</td>
+          <td>Dozens of times</td>
+          <td>WER threshold, fairness gap tolerance, min group size</td>
+        </tr>
+        <tr>
+          <td>3 &mdash; SFT</td>
+          <td>1&ndash;3 hours</td>
+          <td>3&ndash;5 times per filter config</td>
+          <td>Epochs, LR, dropout</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Concrete failure avoided:</strong> if you fuse Stage 1 and Stage 2 into one script, a bad threshold choice
+      forces re-running the 48-hour generation step. The CSV intermediate makes that mistake cost seconds instead of days.
+    </div>
+
+    <!-- =================== RISKS =================== -->
+    <h2 id="risks">Key Risks &amp; Mitigations</h2>
+
+    <h3>Risk 1: Unique-Answer Problem <span class="verdict not-viable">Critical</span></h3>
+
+    <p>
+      ASR transcription has effectively one correct answer per utterance. Unlike open-ended text
+      where 10 samples produce 10 different valid completions, ASR candidates may be 10 near-duplicates.
+      If that happens, the filter has nothing to select between and "rejection sampling" reduces to
+      straightforward GRPO inference.
+    </p>
+
+    <div class="two-col-list">
+      <div>
+        <h5>Warning signs</h5>
+        <ul>
+          <li>&gt;80% of utterances have all 10 candidates with identical WER</li>
+          <li>Median pairwise edit distance &lt; 1 word</li>
+          <li>Filtered set is &gt; 95% the size of the original</li>
+        </ul>
+      </div>
+      <div>
+        <h5>Mitigations</h5>
+        <ul>
+          <li>Run a <strong>pilot on 100 utterances first</strong> before the 48-hour full run</li>
+          <li>Raise temperature to 1.0 or 1.2 if diversity is too low</li>
+          <li>Mix in candidates from the pre-GRPO base model for structural variety</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>Risk 2: Threshold Bias Against Hard Utterances <span class="verdict partial">High</span></h3>
+
+    <p>
+      A uniform WER ceiling disproportionately rejects utterances from demographic groups the GRPO
+      model already struggles with &mdash; the exact groups that need <em>more</em> data, not less.
+      The two-pass fairness filter (Rule 2 above) exists specifically to prevent this.
+    </p>
+
+    <h3>Risk 3: VRAM Exhaustion on T4 <span class="verdict partial">High</span></h3>
+
+    <p>
+      <code>num_return_sequences=10</code> forces 10 parallel KV caches on a 1.7B model &mdash; instant OOM on 15 GB.
+      Mitigation: loop with <code>num_return_sequences=2</code> five times per utterance, with
+      <code>torch.cuda.empty_cache()</code> between loops.
+    </p>
+
+    <h3>Risk 4: SFT Overfitting on a Small Set <span class="verdict partial">Medium</span></h3>
+
+    <p>
+      A filtered set of 3&ndash;5K samples with Phase 3's epoch schedule will overfit quickly.
+      Mitigations: reduce epochs to 1, bump dropout to 0.10, monitor eval loss every few hundred steps.
+    </p>
+
+    <!-- =================== BUDGET =================== -->
+    <h2 id="budget">Budget Reality Check</h2>
+
+    <p>
+      The compute math is why Phase 6 scopes to a 5K subset instead of the full 45K manifest.
+    </p>
+
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="num">3.5 s</div>
+        <div class="unit">per inference</div>
+        <div class="label">Phase 2 benchmark on T4</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">45K</div>
+        <div class="unit">utterances</div>
+        <div class="label">Full Phase 3 training manifest</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">10</div>
+        <div class="unit">candidates</div>
+        <div class="label">Per utterance</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">T4</div>
+        <div class="unit">GPU</div>
+        <div class="label">15 GB VRAM ceiling</div>
+      </div>
+    </div>
+
+    <h3>Cost by Scope</h3>
+
+    <table>
+      <thead>
+        <tr><th>Scope</th><th>Inference passes</th><th>Wall clock</th><th>Feasible?</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Full 45K &times; 10 candidates</td>
+          <td>450,000</td>
+          <td>~437 hours (&gt;18 days)</td>
+          <td><span class="verdict not-viable">No</span></td>
+        </tr>
+        <tr>
+          <td>Full 45K &times; 5 candidates</td>
+          <td>225,000</td>
+          <td>~218 hours (&gt;9 days)</td>
+          <td><span class="verdict not-viable">No</span></td>
+        </tr>
+        <tr class="highlight">
+          <td><strong>5K subset &times; 10 candidates</strong></td>
+          <td><strong>50,000</strong></td>
+          <td><strong>~48 hours</strong></td>
+          <td><span class="verdict best">Primary plan</span></td>
+        </tr>
+        <tr>
+          <td>5K subset &times; 5 candidates</td>
+          <td>25,000</td>
+          <td>~24 hours</td>
+          <td><span class="verdict viable">Fallback</span></td>
+        </tr>
+        <tr>
+          <td>1K pilot &times; 10 candidates</td>
+          <td>10,000</td>
+          <td>~10 hours</td>
+          <td><span class="verdict viable">Diversity pilot</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Recommended order of operations:</strong>
+      (1) Run a 100-utterance pilot to measure candidate diversity &mdash; a few hours.
+      (2) If diversity is sufficient, run the full 5K &times; 10 generation &mdash; ~48 hours.
+      (3) Iterate on filter thresholds &mdash; minutes per pass.
+      (4) Train the rejection SFT adapter &mdash; a couple of hours.
+      Total wall clock: ~3 days of GPU time, most of it unattended.
+    </div>
+
+    <hr>
+
+    <footer>
+      <p><small>
+        Last updated: 2026-04-10 &middot;
+        Source: <a href="../.planning/phases/06-rejection-sampling-fairness-sft/06-RESEARCH.md">.planning/phases/06-rejection-sampling-fairness-sft/06-RESEARCH.md</a> &middot;
+        Related: <a href="sft-rl-alternating-training.html">SFT + RL Alternating Training</a>
+      </small></p>
+    </footer>
+
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrapper -->
+
+<script>
+/* Scroll-spy for sidebar */
+(function() {
+  var sidebarLinks = document.querySelectorAll('#sidebar-toc a');
+  var sections = [];
+  sidebarLinks.forEach(function(link) {
+    var id = link.getAttribute('href').slice(1);
+    var el = document.getElementById(id);
+    if (el) sections.push({ id: id, el: el, link: link });
+  });
+
+  function onScroll() {
+    var scrollY = window.scrollY + 80;
+    var current = null;
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].el.offsetTop <= scrollY) {
+        current = sections[i];
+      }
+    }
+    sidebarLinks.forEach(function(l) { l.classList.remove('active'); });
+    if (current) current.link.classList.add('active');
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+</script>
+
+</body>
+</html>

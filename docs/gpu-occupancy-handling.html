@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GPU Occupancy Handling — Phase 03-02</title>
+<style>
+  html { font-size: 62.5%; }
+  body {
+    font-family: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    font-size: 1.7rem;
+    line-height: 1.618;
+    color: #4a4a4a;
+    background: #f5f4f0;
+    margin: 0;
+    padding: 0;
+  }
+  .page-wrapper {
+    display: flex;
+    max-width: 80em;
+    margin: 0 auto;
+    align-items: flex-start;
+  }
+  aside.sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    max-height: 100vh;
+    overflow-y: auto;
+    background: #f0efeb;
+    padding: 1.8em 1.2em 2em 1.5em;
+    font-size: 1em;
+    border-right: 1px solid #e2ddd6;
+  }
+  aside.sidebar strong {
+    display: block;
+    font-size: 1.15em;
+    color: #3a3a3a;
+    border-bottom: 2px solid #7c3043;
+    padding-bottom: 0.4em;
+    margin-bottom: 0.8em;
+  }
+  aside.sidebar ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  aside.sidebar li { margin: 0.25em 0; }
+  aside.sidebar a {
+    display: block;
+    padding: 0.3em 0.6em;
+    color: #4a4a4a;
+    text-decoration: none;
+    border-radius: 4px;
+    transition: background 0.15s, color 0.15s;
+  }
+  aside.sidebar a:hover { background: #ebe7e3; color: #7c3043; }
+  aside.sidebar a.active {
+    background: #ebe7e3;
+    color: #7c3043;
+    font-weight: 700;
+    border-left: 3px solid #7c3043;
+    padding-left: calc(0.6em - 3px);
+  }
+  .main-content {
+    flex: 1;
+    max-width: 56em;
+    padding: 13px 2em 2em 2.5em;
+    min-width: 0;
+  }
+  h1 {
+    font-size: 2em;
+    color: #3a3a3a;
+    margin: 0.4em 0 0.15em 0;
+    line-height: 1.2;
+  }
+  p.subtitle {
+    color: #7c3043;
+    font-style: italic;
+    font-size: 1.1em;
+    margin: 0 0 1em 0;
+  }
+  hr {
+    border: none;
+    border-top: 1px solid #d9c9c2;
+    margin: 1.4em 0;
+  }
+  h2 {
+    font-size: 1.7em;
+    color: #3a3a3a;
+    border-bottom: 2px solid #7c3043;
+    padding-bottom: 0.25em;
+    margin: 1.8em 0 0.7em 0;
+  }
+  h3 {
+    font-size: 1.45em;
+    color: #3a3a3a;
+    margin: 1.4em 0 0.5em 0;
+  }
+  h4 {
+    font-size: 1.25em;
+    color: #3a3a3a;
+    margin: 1em 0 0.4em 0;
+  }
+  p { margin: 0.6em 0; }
+  a { color: #7c3043; text-decoration: none; }
+  a:hover { color: #a3415a; text-decoration: underline; }
+  a:visited { color: #5c2233; }
+  strong { color: #3a3a3a; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92em;
+    margin: 1.2em 0;
+    border-top: 2px solid #7c3043;
+    border-bottom: 2px solid #7c3043;
+  }
+  thead th {
+    padding: 0.6em 0.8em;
+    text-align: left;
+    font-weight: 700;
+    color: #3a3a3a;
+    background: #f0efeb;
+    border-bottom: 3px solid #7c3043;
+  }
+  tbody td {
+    padding: 0.55em 0.8em;
+    border-bottom: 1px solid #ddd;
+    vertical-align: top;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #f5eaed; }
+  tr.highlight { background: #f5eaed; }
+  tr.highlight td { font-weight: 700; }
+
+  .callout {
+    border-left: 4px solid #7c3043;
+    background: #f1f1f1;
+    padding: 1em 1.2em;
+    margin: 1.4em 0;
+    border-radius: 0 6px 6px 0;
+  }
+  .callout.warning {
+    border-left-color: #d4a017;
+    background: #fdf8e8;
+  }
+  .callout.danger {
+    border-left-color: #c0392b;
+    background: #fdf0ef;
+  }
+  .callout.success {
+    border-left-color: #27ae60;
+    background: #edf9f1;
+  }
+  .callout strong { color: #3a3a3a; }
+
+  span.verdict {
+    display: inline-block;
+    padding: 0.15em 0.6em;
+    border-radius: 3px;
+    font-size: 0.85em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  span.verdict.best      { background: #7c3043; color: #fff; }
+  span.verdict.viable    { background: #edf9f1; color: #27ae60; border: 1px solid #27ae60; }
+  span.verdict.partial   { background: #fdf8e8; color: #a67a00; border: 1px solid #d4a017; }
+  span.verdict.not-viable{ background: #fdf0ef; color: #c0392b; border: 1px solid #c0392b; }
+
+  .observation-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1em;
+    margin: 1.4em 0;
+  }
+  .observation-card {
+    background: #faf9f7;
+    border: 1px solid #d9c9c2;
+    border-left: 3px solid #7c3043;
+    border-radius: 4px;
+    padding: 1em 1.1em;
+  }
+  .observation-card h4 {
+    margin: 0 0 0.35em 0;
+    font-size: 1.05em;
+    color: #7c3043;
+  }
+  .observation-card p {
+    margin: 0.2em 0;
+    font-size: 0.95em;
+    line-height: 1.55;
+  }
+  .observation-card .tag {
+    display: inline-block;
+    font-size: 0.8em;
+    color: #7c3043;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 0.4em;
+  }
+
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.8em;
+    margin: 1em 0 1.4em 0;
+  }
+  .meta-tile {
+    background: #faf9f7;
+    border: 1px solid #d9c9c2;
+    border-top: 3px solid #7c3043;
+    padding: 0.7em 1em;
+    border-radius: 0 0 4px 4px;
+  }
+  .meta-tile .label {
+    font-size: 0.78em;
+    color: #7c3043;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    display: block;
+    margin-bottom: 0.2em;
+  }
+  .meta-tile .value {
+    font-size: 1.15em;
+    color: #3a3a3a;
+    font-weight: 700;
+  }
+
+  pre.commit-list {
+    background: #faf9f7;
+    border: 1px solid #ddd;
+    border-left: 3px solid #7c3043;
+    border-radius: 4px;
+    padding: 1em 1.3em;
+    margin: 1.2em 0;
+    overflow-x: auto;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.85em;
+    line-height: 1.7;
+    color: #3a3a3a;
+  }
+  pre.commit-list .sha { color: #7c3043; font-weight: 700; }
+  pre.commit-list .dim { color: #998; }
+
+  footer {
+    margin-top: 3em;
+    padding-top: 1em;
+    border-top: 1px solid #d9c9c2;
+    color: #7a7570;
+    font-size: 0.9em;
+  }
+  footer p { margin: 0.3em 0; }
+
+  nav#toc { display: none; }
+
+  @media (max-width: 900px) {
+    .page-wrapper { flex-direction: column; }
+    aside.sidebar { display: none; }
+    .main-content { padding: 1em 1.2em; max-width: 100%; }
+    nav#toc {
+      display: block;
+      background: #f0efeb;
+      border-left: 3px solid #7c3043;
+      padding: 0.8em 1em;
+      margin: 1em 0;
+      border-radius: 0 4px 4px 0;
+    }
+    nav#toc strong { display: block; color: #3a3a3a; margin-bottom: 0.3em; }
+    nav#toc ul { list-style: none; padding-left: 0; margin: 0; }
+    nav#toc li { margin: 0.15em 0; }
+    nav#toc a { color: #7c3043; }
+  }
+  @media (max-width: 684px) { body { font-size: 1.35rem; } }
+  @media (max-width: 382px) { body { font-size: 1.2rem; } }
+
+  @media print {
+    aside.sidebar { display: none; }
+    .page-wrapper { display: block; }
+    .main-content { max-width: 100%; padding: 0; }
+    body { background: #fff; color: #000; }
+    a { color: #000; text-decoration: underline; }
+    tbody tr:hover { background: transparent; }
+  }
+</style>
+</head>
+<body>
+<div class="page-wrapper">
+
+  <aside class="sidebar" id="sidebar-toc">
+    <strong>Contents</strong>
+    <ul>
+      <li><a href="#context">Context &amp; Goal</a></li>
+      <li><a href="#headline">Headline Numbers</a></li>
+      <li><a href="#grid">Tuning Grid</a></li>
+      <li><a href="#winner">Winner Selection</a></li>
+      <li><a href="#diagnosis">I/O Diagnosis</a></li>
+      <li><a href="#repro">Repro Re-run</a></li>
+      <li><a href="#mitigations">Mitigation Options</a></li>
+      <li><a href="#path-forward">Recommended Path</a></li>
+      <li><a href="#commits">Commits</a></li>
+      <li><a href="#status">Status &amp; Blockers</a></li>
+    </ul>
+  </aside>
+
+  <div class="main-content">
+
+    <h1>GPU Occupancy Handling — Phase 03-02</h1>
+    <p class="subtitle">VRAM / throughput tuning on the A6000 host for Qwen3-ASR SFT-LoRA — blocked at 41–42% mean GPU utilization</p>
+    <hr>
+
+    <nav id="toc">
+      <strong>Table of Contents</strong>
+      <ul>
+        <li><a href="#context">1. Context &amp; Goal</a></li>
+        <li><a href="#headline">2. Headline Numbers</a></li>
+        <li><a href="#grid">3. Tuning Grid</a></li>
+        <li><a href="#winner">4. Winner Selection</a></li>
+        <li><a href="#diagnosis">5. I/O Diagnosis</a></li>
+        <li><a href="#repro">6. Repro Re-run</a></li>
+        <li><a href="#mitigations">7. Mitigation Options</a></li>
+        <li><a href="#path-forward">8. Recommended Path</a></li>
+        <li><a href="#commits">9. Commits</a></li>
+        <li><a href="#status">10. Status &amp; Blockers</a></li>
+      </ul>
+    </nav>
+
+    <div class="callout danger">
+      <strong>Bottom line:</strong> The 6-cell VRAM tuning grid on the A6000 topped out at <strong>41.0–42.6% mean GPU utilization</strong>, well below the 55% launch floor. Evidence points squarely at <strong>dataloader I/O as the binding constraint</strong>. Cell C (fixed 8×2 microbatch, fused AdamW, gradient checkpointing on) was frozen as the provisional winner, but the verdict is <strong>BLOCKED</strong> and Plan 03-03 launch is gated on an I/O mitigation path.
+    </div>
+
+    <h2 id="context">Context &amp; Goal</h2>
+
+    <div class="meta-grid">
+      <div class="meta-tile"><span class="label">Phase</span><span class="value">03-02</span></div>
+      <div class="meta-tile"><span class="label">Host</span><span class="value">A6000 · 48 GB</span></div>
+      <div class="meta-tile"><span class="label">Model</span><span class="value">Qwen3-ASR LoRA</span></div>
+      <div class="meta-tile"><span class="label">Util Floor</span><span class="value">≥ 55%</span></div>
+      <div class="meta-tile"><span class="label">Best Cell Util</span><span class="value">42.6%</span></div>
+      <div class="meta-tile"><span class="label">Verdict</span><span class="value">BLOCKED</span></div>
+    </div>
+
+    <table>
+      <caption style="caption-side: top; text-align: left; font-size: 0.85em; color: #7c3043; font-weight: 700; padding-bottom: 0.4em; text-transform: uppercase; letter-spacing: 0.06em;">Scope</caption>
+      <tbody>
+        <tr><td><strong>Purpose</strong></td><td>Find a launch config that maximizes GPU occupancy before committing to a multi-day full SFT-LoRA run.</td></tr>
+        <tr><td><strong>Gate</strong></td><td>Mean GPU util ≥ 55% required before Plan 03-03 (full training) launches.</td></tr>
+        <tr><td><strong>Probe</strong></td><td>6-cell grid over batch size, grad-accum, optimizer, gradient checkpointing, dynamic vs fixed batching.</td></tr>
+        <tr><td><strong>Artifacts</strong></td><td>grid_results.csv · vram_config.json · io_remediation_report.md · per-cell metrics.json</td></tr>
+        <tr><td><strong>Wall clock</strong></td><td>~37 min for full grid (cells A/B/C ~3 min each; D 8 min; E 13 min; F 7 min) + ~3 min repro.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="headline">Headline Numbers</h2>
+
+    <table>
+      <thead>
+        <tr><th>Metric</th><th>Value</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Best mean GPU util</td><td>42.6% (cells D, E)</td><td><span class="verdict not-viable">below floor</span></td></tr>
+        <tr><td>Winner util (cell C)</td><td>41.0%</td><td><span class="verdict not-viable">below floor</span></td></tr>
+        <tr><td>Winner peak VRAM</td><td>18.57 GB / 48 GB (39%)</td><td><span class="verdict partial">headroom unused</span></td></tr>
+        <tr><td>Winner step time</td><td>2.01 s</td><td><span class="verdict viable">fastest in grid</span></td></tr>
+        <tr><td>Repro-run util (cell C)</td><td>50.57% (+9.57 pp)</td><td><span class="verdict partial">noisy, within tolerance</span></td></tr>
+        <tr><td>Est. Plan 03-03 runtime at 41% util</td><td>~73 h (2 epochs)</td><td><span class="verdict not-viable">3-day blocking run</span></td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="grid">6-Cell Tuning Grid</h2>
+
+    <p>Each cell ran as an isolated subprocess with an <code>nvidia-smi</code> poller at 1 Hz. Per-cell <code>metrics.json</code> + <code>training_config.json</code> captured runtime-effective values (optimizer actually used, gradient checkpointing actually enabled) — not just requested values — to catch silent fallbacks like fused → torch AdamW.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Cell</th>
+          <th>Config</th>
+          <th>Peak VRAM</th>
+          <th>Mean GPU util</th>
+          <th>Step (s)</th>
+          <th>GC</th>
+          <th>Optim</th>
+          <th>Verdict</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>A</strong></td>
+          <td>fixed 4×4, baseline</td>
+          <td>11.23 GB</td>
+          <td>35.0%</td>
+          <td>2.49</td>
+          <td>on</td>
+          <td>adamw_torch</td>
+          <td><span class="verdict viable">pass</span></td>
+        </tr>
+        <tr>
+          <td><strong>B</strong></td>
+          <td>fixed 4×4 + fused adam</td>
+          <td>11.23 GB</td>
+          <td>35.7%</td>
+          <td>2.50</td>
+          <td>on</td>
+          <td>adamw_torch_fused</td>
+          <td><span class="verdict viable">pass</span></td>
+        </tr>
+        <tr class="highlight">
+          <td><strong>C ★</strong></td>
+          <td>fixed <strong>8×2</strong> + fused adam (winner)</td>
+          <td>18.57 GB</td>
+          <td>41.0%</td>
+          <td>2.01</td>
+          <td>on</td>
+          <td>adamw_torch_fused</td>
+          <td><span class="verdict best">winner</span></td>
+        </tr>
+        <tr>
+          <td><strong>D</strong></td>
+          <td>dynamic fb=180, max=64</td>
+          <td>11.12 GB</td>
+          <td>42.6%</td>
+          <td>8.72</td>
+          <td>on</td>
+          <td>adamw_torch_fused</td>
+          <td><span class="verdict viable">pass</span></td>
+        </tr>
+        <tr>
+          <td><strong>E</strong></td>
+          <td>dynamic fb=300, max=96</td>
+          <td>16.10 GB</td>
+          <td>42.6%</td>
+          <td>16.08</td>
+          <td>on</td>
+          <td>adamw_torch_fused</td>
+          <td><span class="verdict viable">pass</span></td>
+        </tr>
+        <tr>
+          <td><strong>F</strong></td>
+          <td>dynamic fb=180, max=64, <strong>no GC</strong></td>
+          <td>24.94 GB</td>
+          <td>35.9%</td>
+          <td>7.77</td>
+          <td>off</td>
+          <td>adamw_torch_fused</td>
+          <td><span class="verdict viable">pass</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout warning">
+      <strong>Caveat on tok/s for dynamic cells (D, E, F).</strong> The reported <em>tokens_per_sec</em> field uses <code>batch_size × grad_accum = 4</code> from <code>TrainingArguments</code>, not the real per-step sample count (which is <em>avg sampler batch × grad_accum ≈ 30–160</em>). Dynamic-cell tok/s is therefore ~20× too low. This does <strong>not</strong> change the winner — util is the primary sort key and the Occam tiebreak dominates tok/s — but it distorts any quick throughput read across fixed vs dynamic rows. Flagged as a known stub, fix deferred.
+    </div>
+
+    <h2 id="winner">Winner Selection &amp; Occam Tiebreak Fix</h2>
+
+    <p>Selection rule (from PLAN.md): sort by <code>(−mean_gpu_util, −tok/s, +step_time, +complexity)</code>, then apply an Occam tiebreak — among all cells within 2 pp of the util leader, prefer the lowest complexity score.</p>
+
+    <table>
+      <thead>
+        <tr><th>Step</th><th>Action</th><th>Outcome</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>Primary sort</td><td>D and E tied at 42.6%, C at 41.0% — all three within 2 pp of leader.</td></tr>
+        <tr><td>2</td><td>Build tie band</td><td>Tie band = {C, D, E}.</td></tr>
+        <tr><td>3</td><td>Complexity scores</td><td>C = 0 (fixed batching) · D = 1 (dynamic) · E = 1 (dynamic).</td></tr>
+        <tr><td>4</td><td>Occam tiebreak</td><td><strong>Cell C wins</strong> — only fixed-batching cell in the band.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Rule-1 bug auto-fixed in this session.</strong> The original <code>tune_vram.select_winner()</code> only compared the top two sorted cells — it would have silently promoted cell E (runner-up) and never considered cell C (third in the sort). Fix widens the Occam check to scan every cell within the 2 pp tie band, then picks the lowest complexity deterministically. Committed as <strong>e537ab2</strong>. Re-ran selection against the existing <code>metrics.json</code> files — winner flipped from E → C. No re-training needed.
+    </div>
+
+    <h2 id="diagnosis">Why BLOCKED — I/O Is the Binding Constraint</h2>
+
+    <p>Four independent observations from the grid converge on "dataloader I/O is the bottleneck." Compute, optimizer, and memory are all ruled out.</p>
+
+    <div class="observation-grid">
+      <div class="observation-card">
+        <span class="tag">Observation 1</span>
+        <h4>Util flat across 8× compute variance</h4>
+        <p>Cell C steps in 2.01 s. Cell E steps in 16.08 s. Per-step compute differs by 8×. Mean GPU util is within 1.6 pp. If compute were the bottleneck, heavier cells would pull higher util. They don't.</p>
+      </div>
+      <div class="observation-card">
+        <span class="tag">Observation 2</span>
+        <h4>Disabling GC <em>lowered</em> util</h4>
+        <p>Cell F (no gradient checkpointing) is faster per step than cell D but util <strong>drops</strong> from 42.6% → 35.9%. A faster step leaves the dataloader less time to prefetch, so the GPU waits longer on data. Textbook I/O-bound signature.</p>
+      </div>
+      <div class="observation-card">
+        <span class="tag">Observation 3</span>
+        <h4>Fused AdamW is a no-op</h4>
+        <p>A → B swaps <code>adamw_torch</code> for <code>adamw_torch_fused</code>. Util gain: +0.7 pp. The optimizer is not on the critical path.</p>
+      </div>
+      <div class="observation-card">
+        <span class="tag">Observation 4</span>
+        <h4>Only microbatch size moved the needle</h4>
+        <p>A → C doubles the microbatch (4 → 8) and gains +6 pp util. That's consistent with amortizing data transfer over a larger batch — exactly what you'd expect from a dataloader-bound training loop.</p>
+      </div>
+    </div>
+
+    <h2 id="repro">Reproducibility Re-run of Cell C</h2>
+
+    <p>Cell C was re-run once against a cold output directory to check measurement stability. Same flags, same seed, same subset.</p>
+
+    <table>
+      <thead>
+        <tr><th>Metric</th><th>Original</th><th>Repro</th><th>Delta</th><th>Tolerance</th><th>Within?</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>peak_vram_gb</td><td>18.575</td><td>18.575</td><td>+0.000</td><td>±10%</td><td><span class="verdict viable">yes</span></td></tr>
+        <tr><td>mean_gpu_util</td><td>41.00</td><td>50.57</td><td>+9.57 pp</td><td>±10 pp</td><td><span class="verdict partial">edge</span></td></tr>
+        <tr><td>median_gpu_util</td><td>13.00</td><td>44.50</td><td>+31.5 pp</td><td>—</td><td><span class="verdict not-viable">noisy</span></td></tr>
+        <tr><td>median_step_time_s</td><td>2.010</td><td>2.080</td><td>+0.070</td><td>—</td><td><span class="verdict viable">yes</span></td></tr>
+        <tr><td>final_loss</td><td>0.4126</td><td>0.4126</td><td>+0.000</td><td>—</td><td><span class="verdict viable">bit-for-bit</span></td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Interpretation:</strong> True cell C util is likely in the <strong>41–51%</strong> range, not a fixed 41%. VRAM and loss reproduce deterministically, but GPU util sits on the edge of the tolerance window because the steady-state sampling window is sensitive to when the training loop actually starts firing. One noisy run near 50% is not enough to upgrade the verdict to <em>go_with_warning</em>. Conservative call: keep verdict = <strong>BLOCKED</strong> and force an I/O mitigation before the expensive full run.
+    </div>
+
+    <h2 id="mitigations">6 I/O Mitigation Options</h2>
+
+    <p>Task 3 fired automatically when the verdict came back blocked. It produced <code>io_remediation_report.md</code> with six ranked options, each analyzed for impact, cost, and risk.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Option</th>
+          <th>Impact</th>
+          <th>Cost</th>
+          <th>Recommended</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="highlight">
+          <td>1</td>
+          <td>Pre-decode audio to <strong>WebDataset tar shards</strong></td>
+          <td>3–5× throughput</td>
+          <td>~50 GB disk · 4–6 h preprocessing · medium code</td>
+          <td><span class="verdict best">primary (root-cause)</span></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>Stage rotating subset into <code>/dev/shm</code></td>
+          <td>1.5–2.5×</td>
+          <td>~15 GB RAM · small code</td>
+          <td><span class="verdict partial">companion only</span></td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>Warm the page cache before training</td>
+          <td>+5–10 pp (epoch 2+)</td>
+          <td>0 code · ~20 GB RAM</td>
+          <td><span class="verdict viable">zero-cost pre-flight</span></td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td>Lower <code>num_workers</code> to 2</td>
+          <td>−5 to +5 pp</td>
+          <td>0 code</td>
+          <td><span class="verdict viable">zero-cost pre-flight</span></td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td>Migrate to a host with 8+ cores &amp; NVMe</td>
+          <td>1.7–3×</td>
+          <td>~1 h ops · data re-copy · $</td>
+          <td><span class="verdict partial">alternative to Option 1</span></td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td>Accept 42% util, launch Plan 03-03 as-is</td>
+          <td>none</td>
+          <td>~73 h GPU time (2 epochs)</td>
+          <td><span class="verdict not-viable">no — 3 days blocked</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="path-forward">Recommended Path Forward</h2>
+
+    <div class="callout success">
+      <strong>Two-step strategy:</strong>
+      <p><strong>(1) Zero-cost pre-flight first.</strong> Re-run cell C on this host with <code>--dataloader_num_workers 2</code> and a warm page cache (Options 3 + 4). ~10 min of work. If the new mean GPU util clears 55%, upgrade the verdict to <em>go_with_warning</em> and launch Plan 03-03 unchanged.</p>
+      <p><strong>(2) If still below floor — fix the root cause.</strong> Pick one of:</p>
+      <ul style="margin: 0.4em 0 0.2em 1.4em; padding: 0;">
+        <li><strong>Option 1 (WebDataset pre-decode)</strong> — unblocks this run and every future ASR training phase. Recommended if you're staying on this host.</li>
+        <li><strong>Option 5 (migrate host)</strong> — faster wall-clock to unblock, but doesn't improve any downstream phase.</li>
+      </ul>
+      <p><strong>Do not</strong> pursue Option 6 as the primary path — burning 73 h of GPU time at 41% util is cheaper to avoid than to endure.</p>
+    </div>
+
+    <h2 id="commits">Commit Trail</h2>
+
+    <pre class="commit-list"><code><span class="sha">b2fc8b3</span>  feat(03-02): add tune_vram.py grid runner + CLI flags
+         <span class="dim">── --vram_config, --no_grad_checkpoint, --optim, --eval_batch_size</span>
+<span class="sha">e537ab2</span>  fix(03-02): correct Occam tiebreak in tune_vram.select_winner
+         <span class="dim">── scans full 2 pp tie band, not just runner-up</span>
+<span class="sha">d99045c</span>  chore(03-02): VRAM tuning grid results + frozen vram_config.json
+         <span class="dim">── winner = cell C; bundles missed Task 1 log</span>
+<span class="sha">6e21867</span>  docs(03-02): Task 3 I/O remediation report for blocked verdict
+         <span class="dim">── 6 ranked options + diagnosis + host constraints</span>
+<span class="sha">dbe20cb</span>  docs(03-02): complete VRAM tuning + frozen config
+         <span class="dim">── plan metadata + summary</span></code></pre>
+
+    <h2 id="status">Status &amp; Blockers</h2>
+
+    <table>
+      <thead>
+        <tr><th>Plan</th><th>State</th><th>Blocker</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>03-02</strong> VRAM tuning</td>
+          <td><span class="verdict best">complete</span></td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><strong>03-03</strong> full SFT-LoRA launch</td>
+          <td><span class="verdict not-viable">gated</span></td>
+          <td>User must pick a mitigation path from <code>io_remediation_report.md</code></td>
+        </tr>
+        <tr>
+          <td><strong>03-04</strong> post-training eval</td>
+          <td><span class="verdict not-viable">transitively blocked</span></td>
+          <td>Waits on 03-03</td>
+        </tr>
+        <tr>
+          <td><strong>Phase 04</strong> RL prototyping</td>
+          <td><span class="verdict not-viable">transitively blocked</span></td>
+          <td>Needs 03-03 checkpoint</td>
+        </tr>
+        <tr>
+          <td><strong>Phase 05</strong> scaled RL</td>
+          <td><span class="verdict not-viable">transitively blocked</span></td>
+          <td>Depends on Phase 04</td>
+        </tr>
+        <tr>
+          <td><strong>Phase 06</strong> rejection sampling SFT</td>
+          <td><span class="verdict not-viable">transitively blocked</span></td>
+          <td>Depends on Phase 04/05 samples</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout danger">
+      <strong>Next action required:</strong> Pick one of Options 1, 3 + 4, or 5 from <code>outputs/full-lora-vram-tune/io_remediation_report.md</code>. Plan 03-03 cannot launch until the <code>vram_config.json</code> verdict flips from <em>blocked</em> to <em>go</em> / <em>go_with_warning</em>.
+    </div>
+
+    <footer>
+      <p><small>Sources: <code>.planning/phases/03-full-sft-lora-training/03-02-SUMMARY.md</code>, <code>outputs/full-lora-vram-tune/io_remediation_report.md</code>, <code>outputs/full-lora-vram-tune/grid_results.csv</code>, <code>outputs/full-lora-vram-tune-repro/repro_metrics.json</code>.</small></p>
+      <p><small>Last updated: 2026-04-10 · Phase 03-02 · BLOCKED verdict frozen in <code>vram_config.json</code>.</small></p>
+    </footer>
+
+  </div><!-- /.main-content -->
+
+</div><!-- /.page-wrapper -->
+
+<script>
+(function() {
+  var sidebarLinks = document.querySelectorAll('#sidebar-toc a');
+  var sections = [];
+  sidebarLinks.forEach(function(link) {
+    var id = link.getAttribute('href').slice(1);
+    var el = document.getElementById(id);
+    if (el) sections.push({ id: id, el: el, link: link });
+  });
+
+  function onScroll() {
+    var scrollY = window.scrollY + 80;
+    var current = null;
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].el.offsetTop <= scrollY) {
+        current = sections[i];
+      }
+    }
+    sidebarLinks.forEach(function(l) { l.classList.remove('active'); });
+    if (current) current.link.classList.add('active');
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+</script>
+</body>
+</html>

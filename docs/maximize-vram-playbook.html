@@ -1,0 +1,2248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maximize VRAM — A 4-Phase Playbook</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  /* ========== Palatino Burgundy ========== */
+  html { font-size: 62.5%; }
+  body {
+    font-family: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    font-size: 1.7rem;
+    line-height: 1.618;
+    color: #4a4a4a;
+    background: #f5f4f0;
+    margin: 0;
+    padding: 0;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    color: #3a3a3a;
+    line-height: 1.25;
+    margin-top: 1.6em;
+    margin-bottom: 0.5em;
+  }
+  h1 { font-size: 2em; margin-top: 0.4em; }
+  h2 {
+    font-size: 1.7em;
+    border-bottom: 2px solid #7c3043;
+    padding-bottom: 0.25em;
+  }
+  h3 { font-size: 1.45em; }
+  h4 { font-size: 1.25em; }
+  p.subtitle {
+    font-style: italic;
+    color: #6a6a6a;
+    font-size: 1.15em;
+    margin-top: -0.4em;
+    margin-bottom: 1.4em;
+  }
+  a { color: #7c3043; text-decoration: none; border-bottom: 1px solid rgba(124,48,67,0.3); }
+  a:visited { color: #5c2233; }
+  a:hover { color: #a3415a; border-bottom-color: #a3415a; }
+
+  hr { border: none; border-top: 1px solid #d8d4cc; margin: 2em 0; }
+
+  /* ========== Layout ========== */
+  .page-wrapper {
+    display: flex;
+    max-width: 80em;
+    margin: 0 auto;
+  }
+  .sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    background: #f0efeb;
+    padding: 2em 1.4em;
+    border-right: 1px solid #e0ddd5;
+    box-sizing: border-box;
+  }
+  .sidebar strong {
+    display: block;
+    font-size: 1.15em;
+    color: #3a3a3a;
+    margin-bottom: 0.8em;
+    padding-bottom: 0.4em;
+    border-bottom: 2px solid #7c3043;
+  }
+  .sidebar ul { list-style: none; padding: 0; margin: 0; }
+  .sidebar li { margin: 0; }
+  .sidebar a {
+    display: block;
+    padding: 0.5em 0.7em;
+    color: #4a4a4a;
+    font-size: 1em;
+    border-bottom: none;
+    border-radius: 3px;
+    transition: background 0.12s ease;
+  }
+  .sidebar a:hover { background: #ebe7e3; color: #7c3043; }
+  .sidebar a.active {
+    background: #ebe7e3;
+    color: #7c3043;
+    font-weight: 700;
+    border-left: 3px solid #7c3043;
+    padding-left: calc(0.7em - 3px);
+  }
+  .main-content {
+    flex: 1;
+    max-width: 56em;
+    padding: 13px 2em 2em 2.5em;
+    box-sizing: border-box;
+  }
+
+  /* ========== Tables ========== */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92em;
+    margin: 1.2em 0;
+    border-top: 2px solid #7c3043;
+    border-bottom: 2px solid #7c3043;
+  }
+  thead th {
+    padding: 0.6em 0.8em;
+    text-align: left;
+    font-weight: 700;
+    color: #3a3a3a;
+    border-bottom: 3px solid #7c3043;
+  }
+  tbody td {
+    padding: 0.55em 0.8em;
+    border-bottom: 1px solid #ddd;
+    vertical-align: top;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #f5eaed; }
+
+  /* ========== Callouts ========== */
+  .callout {
+    border-left: 4px solid #7c3043;
+    background: #f1f1f1;
+    padding: 1em 1.2em;
+    margin: 1.2em 0;
+    border-radius: 0 6px 6px 0;
+  }
+  .callout.warning {
+    border-left-color: #d4a017;
+    background: #fdf8e8;
+  }
+  .callout.danger {
+    border-left-color: #c0392b;
+    background: #fdf0ef;
+  }
+  .callout.success {
+    border-left-color: #27ae60;
+    background: #edf9f1;
+  }
+  .callout p { margin: 0.3em 0; }
+
+  /* ========== SVG Figures ========== */
+  figure.diagram {
+    background: #faf9f7;
+    border: 1px solid #e0ddd5;
+    border-left: 3px solid #7c3043;
+    border-radius: 4px;
+    padding: 1.3em 1.4em 1em 1.4em;
+    margin: 1.5em 0;
+  }
+  figure.diagram svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: 100%;
+  }
+  figure.diagram figcaption {
+    margin-top: 0.9em;
+    font-size: 0.88em;
+    color: #6a6a6a;
+    font-style: italic;
+    text-align: center;
+  }
+
+  /* ========== Code blocks (file trees / structural) ========== */
+  pre.code-block {
+    background: #faf9f7;
+    border: 1px solid #ddd;
+    border-left: 3px solid #7c3043;
+    border-radius: 4px;
+    padding: 1.2em 1.5em;
+    margin: 1.2em 0;
+    overflow-x: auto;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.85em;
+    line-height: 1.65;
+    color: #3a3a3a;
+  }
+  pre.code-block code { display: block; }
+  pre.code-block .comment { color: #998; font-style: italic; }
+
+  /* ========== Verdict badges ========== */
+  .verdict {
+    display: inline-block;
+    font-size: 0.85em;
+    font-weight: 700;
+    padding: 0.18em 0.65em;
+    border-radius: 11px;
+    margin-left: 0.4em;
+    vertical-align: middle;
+  }
+  .verdict.viable    { background: #edf9f1; color: #27ae60; border: 1px solid #27ae60; }
+  .verdict.partial   { background: #fdf8e8; color: #9c7200; border: 1px solid #d4a017; }
+  .verdict.not-viable{ background: #fdf0ef; color: #c0392b; border: 1px solid #c0392b; }
+  .verdict.best      { background: #f5eaed; color: #7c3043; border: 1px solid #7c3043; }
+
+  /* ========== Approach cards ========== */
+  .approach-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1em;
+    margin: 1.2em 0;
+  }
+  .approach-card {
+    background: #faf9f7;
+    border: 1px solid #e0ddd5;
+    border-top: 3px solid #7c3043;
+    border-radius: 4px;
+    padding: 1em 1.1em;
+  }
+  .approach-card h4 { margin: 0 0 0.4em 0; font-size: 1.1em; color: #3a3a3a; }
+  .approach-card p { margin: 0.35em 0; font-size: 0.95em; }
+  .approach-card p.meta { font-size: 0.85em; color: #6a6a6a; font-style: italic; }
+
+  /* ========== Checklist ========== */
+  ul.checklist { list-style: none; padding-left: 0; }
+  ul.checklist li {
+    padding: 0.4em 0.5em 0.4em 2em;
+    position: relative;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: background 0.12s;
+  }
+  ul.checklist li:hover { background: #f5eaed; }
+  ul.checklist li::before {
+    content: "";
+    position: absolute;
+    left: 0.4em;
+    top: 0.7em;
+    width: 1.1em;
+    height: 1.1em;
+    border: 2px solid #7c3043;
+    border-radius: 3px;
+    background: #fff;
+    box-sizing: border-box;
+  }
+  ul.checklist li.checked { color: #999; text-decoration: line-through; }
+  ul.checklist li.checked::before {
+    background: #7c3043;
+  }
+  ul.checklist li.checked::after {
+    content: "✓";
+    color: #fff;
+    position: absolute;
+    left: 0.58em;
+    top: 0.38em;
+    font-weight: bold;
+    font-size: 0.95em;
+  }
+  .reset-btn {
+    background: #f5f4f0;
+    border: 1px solid #7c3043;
+    color: #7c3043;
+    padding: 0.4em 1em;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.9em;
+    margin-top: 0.8em;
+  }
+  .reset-btn:hover { background: #7c3043; color: #fff; }
+
+  /* ========== FAQ ========== */
+  details {
+    background: #faf9f7;
+    border: 1px solid #e0ddd5;
+    border-left: 3px solid #7c3043;
+    border-radius: 4px;
+    padding: 0.6em 1em;
+    margin: 0.6em 0;
+  }
+  details summary {
+    cursor: pointer;
+    font-weight: 700;
+    color: #3a3a3a;
+  }
+  details[open] summary { margin-bottom: 0.5em; }
+
+  blockquote {
+    border-left: 4px solid #7c3043;
+    margin: 1.2em 0;
+    padding: 0.5em 1.2em;
+    color: #5a5a5a;
+    font-style: italic;
+    background: #faf9f7;
+  }
+
+  code {
+    font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+    font-size: 0.88em;
+    background: #ebe7e3;
+    padding: 0.1em 0.4em;
+    border-radius: 3px;
+    color: #7c3043;
+  }
+
+  footer {
+    margin-top: 3em;
+    padding-top: 1em;
+    border-top: 1px solid #d8d4cc;
+    color: #6a6a6a;
+    font-size: 0.9em;
+  }
+
+  nav#toc { display: none; }
+
+  /* ========== Responsive ========== */
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .main-content { max-width: 100%; padding: 1em 1.2em; }
+    nav#toc {
+      display: block;
+      background: #f0efeb;
+      border-left: 3px solid #7c3043;
+      padding: 1em 1.2em;
+      margin: 1em 0 1.8em 0;
+      border-radius: 0 4px 4px 0;
+    }
+    nav#toc strong { display: block; margin-bottom: 0.4em; }
+    nav#toc ul { padding-left: 1.2em; }
+  }
+  @media (max-width: 684px) { body { font-size: 1.35rem; } }
+  @media (max-width: 382px) { body { font-size: 1.2rem; } }
+
+  /* ========== Print ========== */
+  @media print {
+    .sidebar, .reset-btn { display: none; }
+    .main-content { max-width: 100%; padding: 0; }
+    body { background: #fff; color: #000; }
+    a { color: #000; border-bottom: none; }
+    pre.code-block, table, .callout, details { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="page-wrapper">
+
+  <aside class="sidebar" id="sidebar-toc">
+    <strong>Contents</strong>
+    <ul>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#phase1">Phase 1 · Diagnose</a></li>
+      <li><a href="#phase2">Phase 2 · Maximize VRAM</a></li>
+      <li><a href="#vram-chart">VRAM Breakdown</a></li>
+      <li><a href="#techniques">9 Techniques</a></li>
+      <li><a href="#phase3">Phase 3 · Data Pipeline</a></li>
+      <li><a href="#phase4">Phase 4 · Verify</a></li>
+      <li><a href="#advanced">Advanced (2024–2026)</a></li>
+      <li><a href="#adv-priority">· Top-10 Priority</a></li>
+      <li><a href="#adv-parallelism">· Parallelism</a></li>
+      <li><a href="#adv-activation">· Activation Memory</a></li>
+      <li><a href="#adv-attention">· Attention Kernels</a></li>
+      <li><a href="#adv-fp8">· fp8 &amp; MX Formats</a></li>
+      <li><a href="#adv-optimizers">· Modern Optimizers</a></li>
+      <li><a href="#adv-peft">· PEFT Variants</a></li>
+      <li><a href="#adv-compile">· Compiler &amp; Graphs</a></li>
+      <li><a href="#adv-datapipe">· Data Pipelines</a></li>
+      <li><a href="#adv-system">· Allocator &amp; System</a></li>
+      <li><a href="#adv-diag">· Advanced Diagnostics</a></li>
+      <li><a href="#adv-recipes">· Framework Recipes</a></li>
+      <li><a href="#symptoms">Symptom Lookup</a></li>
+      <li><a href="#preflight">Pre-flight Checklist</a></li>
+      <li><a href="#faq">FAQ</a></li>
+    </ul>
+  </aside>
+
+  <div class="main-content">
+
+    <h1>Maximize VRAM — A 4-Phase Playbook</h1>
+    <p class="subtitle">Make GPU memory the bottleneck — not CPU, not I/O, not misconfiguration.</p>
+    <hr>
+
+    <nav id="toc">
+      <strong>Table of Contents</strong>
+      <ul>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#phase1">Phase 1 · Diagnose the Bottleneck</a></li>
+        <li><a href="#phase2">Phase 2 · Maximize What Fits</a></li>
+        <li><a href="#phase3">Phase 3 · Fix the Data Pipeline</a></li>
+        <li><a href="#phase4">Phase 4 · Verify &amp; Monitor</a></li>
+        <li><a href="#advanced">Advanced Techniques (2024–2026)</a></li>
+        <li><a href="#symptoms">Quick Symptom Lookup</a></li>
+        <li><a href="#preflight">Pre-flight Checklist</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </nav>
+
+    <h2 id="overview">Overview</h2>
+
+    <div class="callout">
+      <strong>Bottom line:</strong>
+      <p>Diagnose the actual bottleneck before optimizing. Applying VRAM techniques to an I/O-bound pipeline wastes hours tuning memory flags while the GPU sits idle waiting for data.</p>
+    </div>
+
+    <p>This playbook is task-agnostic (LLMs, ASR, vision, diffusion) and framework-agnostic (PyTorch, HF Trainer/TRL, DeepSpeed, FSDP, Lightning). The four phases are <em>not</em> strictly sequential — a quick <code>nvidia-smi</code> tells you which phase to start in.</p>
+
+    <div class="approach-grid">
+      <div class="approach-card">
+        <h4>Phase 1 · Diagnose <span class="verdict best">start here</span></h4>
+        <p>Identify whether you are VRAM-, CPU-, or I/O-bound.</p>
+        <p class="meta">Tools: nvidia-smi, nvitop, PyTorch Profiler</p>
+      </div>
+      <div class="approach-card">
+        <h4>Phase 2 · Maximize VRAM <span class="verdict viable">9 techniques</span></h4>
+        <p>Push peak VRAM to 80–90% of total without OOM.</p>
+        <p class="meta">Mixed precision → checkpointing → QLoRA → FSDP</p>
+      </div>
+      <div class="approach-card">
+        <h4>Phase 3 · Data Pipeline <span class="verdict partial">if idle</span></h4>
+        <p>Fix DataLoader, workers, pin_memory, offline preprocessing.</p>
+        <p class="meta">Skip if GPU-Util is already &gt; 90%</p>
+      </div>
+      <div class="approach-card">
+        <h4>Phase 4 · Verify <span class="verdict viable">always</span></h4>
+        <p>Confirm stable 80–90% utilization before committing to the full run.</p>
+        <p class="meta">Memory snapshots, fragmentation fix</p>
+      </div>
+    </div>
+
+    <h2 id="phase1">Phase 1 · Diagnose the Bottleneck</h2>
+
+    <p>There are three bottleneck types, each with a distinct signature. Only the <em>VRAM-bound</em> state is healthy; the other two mean your GPU is starving.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Bottleneck</th>
+          <th>GPU-Util</th>
+          <th>GPU Memory</th>
+          <th>CPU</th>
+          <th>Pattern</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>I/O-bound</strong></td>
+          <td>Low (10–40%), spiky</td>
+          <td>Low–moderate</td>
+          <td>Low (waiting on disk)</td>
+          <td>GPU idles between batches</td>
+        </tr>
+        <tr>
+          <td><strong>CPU-bound</strong></td>
+          <td>Low (10–40%), spiky</td>
+          <td>Low–moderate</td>
+          <td>High (100% on cores)</td>
+          <td>GPU waits for preprocessing</td>
+        </tr>
+        <tr>
+          <td><strong>VRAM-bound</strong> <span class="verdict best">healthy</span></td>
+          <td>High (80–100%), steady</td>
+          <td>Near capacity</td>
+          <td>Moderate</td>
+          <td>GPU runs continuously</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Decision tree</h3>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 760 440" xmlns="http://www.w3.org/2000/svg"
+           style="font-family: 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;">
+        <defs>
+          <marker id="dt-arrow" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#7c3043"/>
+          </marker>
+        </defs>
+
+        <!-- Level 0: root decision -->
+        <rect x="260" y="10" width="240" height="54" rx="6"
+              fill="#faf9f7" stroke="#7c3043" stroke-width="2"/>
+        <text x="380" y="34" text-anchor="middle" font-size="15" font-weight="700" fill="#3a3a3a">Is GPU-Util</text>
+        <text x="380" y="52" text-anchor="middle" font-size="15" font-weight="700" fill="#3a3a3a">consistently &gt; 90%?</text>
+
+        <!-- Root → Level 1 arrows -->
+        <line x1="330" y1="64" x2="200" y2="138" stroke="#7c3043" stroke-width="1.8" marker-end="url(#dt-arrow)"/>
+        <line x1="430" y1="64" x2="560" y2="138" stroke="#7c3043" stroke-width="1.8" marker-end="url(#dt-arrow)"/>
+        <text x="245" y="104" text-anchor="middle" font-size="13" font-weight="700" fill="#7c3043">YES</text>
+        <text x="515" y="104" text-anchor="middle" font-size="13" font-weight="700" fill="#7c3043">NO</text>
+
+        <!-- Level 1: two decisions -->
+        <rect x="100" y="144" width="200" height="54" rx="6"
+              fill="#faf9f7" stroke="#7c3043" stroke-width="2"/>
+        <text x="200" y="168" text-anchor="middle" font-size="14" font-weight="700" fill="#3a3a3a">Peak VRAM</text>
+        <text x="200" y="186" text-anchor="middle" font-size="14" font-weight="700" fill="#3a3a3a">&gt; 85% of total?</text>
+
+        <rect x="460" y="144" width="200" height="54" rx="6"
+              fill="#faf9f7" stroke="#7c3043" stroke-width="2"/>
+        <text x="560" y="168" text-anchor="middle" font-size="14" font-weight="700" fill="#3a3a3a">Is CPU</text>
+        <text x="560" y="186" text-anchor="middle" font-size="14" font-weight="700" fill="#3a3a3a">near 100%?</text>
+
+        <!-- Level 1 → Leaves -->
+        <line x1="155" y1="198" x2="100" y2="284" stroke="#7c3043" stroke-width="1.8" marker-end="url(#dt-arrow)"/>
+        <line x1="245" y1="198" x2="285" y2="284" stroke="#7c3043" stroke-width="1.8" marker-end="url(#dt-arrow)"/>
+        <text x="108" y="248" text-anchor="middle" font-size="12" font-weight="700" fill="#7c3043">YES</text>
+        <text x="278" y="248" text-anchor="middle" font-size="12" font-weight="700" fill="#7c3043">NO</text>
+
+        <line x1="515" y1="198" x2="475" y2="284" stroke="#7c3043" stroke-width="1.8" marker-end="url(#dt-arrow)"/>
+        <line x1="605" y1="198" x2="660" y2="284" stroke="#7c3043" stroke-width="1.8" marker-end="url(#dt-arrow)"/>
+        <text x="478" y="248" text-anchor="middle" font-size="12" font-weight="700" fill="#7c3043">YES</text>
+        <text x="650" y="248" text-anchor="middle" font-size="12" font-weight="700" fill="#7c3043">NO</text>
+
+        <!-- Leaf 1: VRAM-bound (healthy) -->
+        <rect x="15" y="288" width="170" height="96" rx="6"
+              fill="#f5eaed" stroke="#7c3043" stroke-width="2.5"/>
+        <text x="100" y="314" text-anchor="middle" font-size="14" font-weight="700" fill="#7c3043">VRAM-bound ✓</text>
+        <text x="100" y="338" text-anchor="middle" font-size="12" fill="#4a4a4a">Healthy state.</text>
+        <text x="100" y="356" text-anchor="middle" font-size="12" fill="#4a4a4a">Go to Phase 2 to</text>
+        <text x="100" y="372" text-anchor="middle" font-size="12" fill="#4a4a4a">squeeze more in.</text>
+
+        <!-- Leaf 2: Compute-bound -->
+        <rect x="200" y="288" width="170" height="96" rx="6"
+              fill="#fdf8e8" stroke="#d4a017" stroke-width="2"/>
+        <text x="285" y="314" text-anchor="middle" font-size="14" font-weight="700" fill="#9c7200">Compute-bound</text>
+        <text x="285" y="338" text-anchor="middle" font-size="12" fill="#4a4a4a">Try torch.compile,</text>
+        <text x="285" y="356" text-anchor="middle" font-size="12" fill="#4a4a4a">FlashAttention,</text>
+        <text x="285" y="372" text-anchor="middle" font-size="12" fill="#4a4a4a">larger batch.</text>
+
+        <!-- Leaf 3: CPU-bound -->
+        <rect x="390" y="288" width="170" height="96" rx="6"
+              fill="#fdf8e8" stroke="#d4a017" stroke-width="2"/>
+        <text x="475" y="314" text-anchor="middle" font-size="14" font-weight="700" fill="#9c7200">CPU-bound</text>
+        <text x="475" y="338" text-anchor="middle" font-size="12" fill="#4a4a4a">More workers,</text>
+        <text x="475" y="356" text-anchor="middle" font-size="12" fill="#4a4a4a">optimize transforms,</text>
+        <text x="475" y="372" text-anchor="middle" font-size="12" fill="#4a4a4a">preprocess offline.</text>
+
+        <!-- Leaf 4: I/O-bound -->
+        <rect x="580" y="288" width="170" height="96" rx="6"
+              fill="#fdf0ef" stroke="#c0392b" stroke-width="2"/>
+        <text x="665" y="314" text-anchor="middle" font-size="14" font-weight="700" fill="#c0392b">I/O-bound</text>
+        <text x="665" y="338" text-anchor="middle" font-size="12" fill="#4a4a4a">Faster storage,</text>
+        <text x="665" y="356" text-anchor="middle" font-size="12" fill="#4a4a4a">Arrow format,</text>
+        <text x="665" y="372" text-anchor="middle" font-size="12" fill="#4a4a4a">memory-mapped files.</text>
+
+        <!-- Phase pointers under leaves -->
+        <text x="100" y="410" text-anchor="middle" font-size="11" fill="#7c3043" font-weight="700">→ PHASE 2</text>
+        <text x="285" y="410" text-anchor="middle" font-size="11" fill="#7c3043" font-weight="700">→ PHASE 2</text>
+        <text x="475" y="410" text-anchor="middle" font-size="11" fill="#7c3043" font-weight="700">→ PHASE 3</text>
+        <text x="665" y="410" text-anchor="middle" font-size="11" fill="#7c3043" font-weight="700">→ PHASE 3</text>
+      </svg>
+      <figcaption>Only the left-most path (VRAM-bound) is the healthy state. The other three outcomes mean the GPU is starving.</figcaption>
+    </figure>
+
+    <h2 id="phase2">Phase 2 · Maximize What Fits in VRAM</h2>
+
+    <p>For a model with P parameters using AdamW + mixed precision, memory consumption decomposes as:</p>
+
+    <h3 id="vram-chart">Where VRAM Actually Goes</h3>
+
+    <div style="margin:1.5em 0;">
+      <canvas id="vramBreakdownChart"></canvas>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>Component</th><th>Size (bytes)</th><th>Reducible By</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Model weights (fp16)</td><td>2P</td><td>LoRA, quantization</td></tr>
+        <tr><td>FP32 master copy</td><td>4P</td><td>LoRA (trainable only)</td></tr>
+        <tr><td>Gradients (fp16)</td><td>2P</td><td>LoRA, ZeRO</td></tr>
+        <tr><td>Optimizer states (AdamW fp32)</td><td>8P</td><td>LoRA, 8-bit optimizer, ZeRO</td></tr>
+        <tr><td>Activations</td><td>Variable (often dominant)</td><td>Grad checkpointing, smaller batch</td></tr>
+        <tr><td><strong>Total (excl. activations)</strong></td><td><strong>16P</strong></td><td></td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warning">
+      <strong>Key insight:</strong>
+      <p>Mixed precision does <em>not</em> reduce optimizer state memory — those stay fp32. Its savings come from activations and faster Tensor Core compute. With LoRA (~1% trainable), optimizer states shrink ~100×, making activations the dominant consumer.</p>
+    </div>
+
+    <h3 id="techniques">The 9 Techniques (apply in order)</h3>
+
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Technique</th>
+          <th>Impact</th>
+          <th>Verdict</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>Mixed precision (fp16/bf16)</td>
+          <td>1.3–1.5× speedup, ½ activation memory</td>
+          <td><span class="verdict viable">free</span></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>Gradient checkpointing</td>
+          <td>4–6× activation reduction; ~20% slower</td>
+          <td><span class="verdict viable">must-do</span></td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>SDPA / FlashAttention-2</td>
+          <td>Attention O(N²) → O(N)</td>
+          <td><span class="verdict viable">free</span></td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td>Maximize <code>per_device_batch_size</code></td>
+          <td>Binary search to near-OOM</td>
+          <td><span class="verdict best">highest ROI</span></td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td>Gradient accumulation</td>
+          <td>Reach target effective batch</td>
+          <td><span class="verdict viable">after step 4</span></td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td>8-bit optimizer (<code>adamw_bnb_8bit</code>)</td>
+          <td>~75% optimizer-state reduction</td>
+          <td><span class="verdict partial">full-FT only</span></td>
+        </tr>
+        <tr>
+          <td>7</td>
+          <td>QLoRA (NF4 base weights)</td>
+          <td>Frozen weights 2P → 0.5P bytes</td>
+          <td><span class="verdict best">big win</span></td>
+        </tr>
+        <tr>
+          <td>8</td>
+          <td>Fused kernels (Liger, Unsloth)</td>
+          <td>~20–50% less VRAM, ~2× faster</td>
+          <td><span class="verdict viable">free</span></td>
+        </tr>
+        <tr>
+          <td>9</td>
+          <td>FSDP / DeepSpeed ZeRO</td>
+          <td>Shards states / grads / params across GPUs</td>
+          <td><span class="verdict partial">last resort</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout danger">
+      <strong>Common mistake:</strong>
+      <p>Using <code>bf16=True</code> on T4 or V100. These Turing/Volta GPUs have no native bf16 Tensor Cores — it falls back to slow software emulation or errors outright. Always match precision to compute capability (T4/V100 → fp16; A100/H100/RTX30+ → bf16).</p>
+    </div>
+
+    <div class="callout success">
+      <strong>Good rule of thumb:</strong>
+      <p>Never reduce batch size just to increase accumulation — that wastes GPU parallelism. <code>batch=8, accum=4</code> is always better than <code>batch=1, accum=32</code> for the same effective batch of 32.</p>
+    </div>
+
+    <h3 id="grad-checkpoint-deep-dive">Deep dive: what is gradient checkpointing?</h3>
+
+    <p>Gradient checkpointing (sometimes called <em>activation checkpointing</em>) is the single most impactful memory-saving technique after mixed precision. To understand why, you need to understand where activation memory comes from in the first place.</p>
+
+    <h4>Why the backward pass needs activations</h4>
+
+    <p>During the forward pass, every layer <em>L</em> computes an output tensor <em>a<sub>L</sub></em> from its input <em>a<sub>L−1</sub></em>. To compute gradients during the backward pass, PyTorch's autograd engine needs to know the value of <em>a<sub>L−1</sub></em> — because the gradient of most operations depends on their input. The naive strategy is the simplest one:</p>
+
+    <blockquote>Store every activation from every layer during forward; read them back during backward.</blockquote>
+
+    <p>This is fast (no recomputation) but memory-hungry. For a transformer with <em>n</em> layers and batch size <em>b</em> at sequence length <em>s</em>, activation memory scales as <strong>O(n · b · s · hidden_dim)</strong>. On a 24-layer model with long sequences, this easily dwarfs the model weights, gradients, and optimizer states combined — which is why activations are listed as "variable, often dominant" in the VRAM breakdown table above.</p>
+
+    <h4>The checkpointing trick: trade compute for memory</h4>
+
+    <p>Gradient checkpointing replaces "store everything" with "store a few anchors, recompute the rest on demand." The model is partitioned into <em>segments</em> (commonly one segment per transformer block or group of blocks). During forward:</p>
+
+    <ul>
+      <li><strong>Save only the input</strong> to each segment (the "checkpoint"), not the intermediate activations inside it.</li>
+      <li>When the backward pass reaches a segment, <strong>re-run its forward</strong> starting from the saved checkpoint to reconstruct the missing intermediates <em>just in time</em>, compute the gradients, and then discard them again.</li>
+    </ul>
+
+    <p>The classic paper by Chen et al. (2016), <em>"Training Deep Nets with Sublinear Memory Cost,"</em> showed that if you place checkpoints every <em>√n</em> layers, activation memory drops from O(<em>n</em>) to O(<em>√n</em>) while the forward work roughly doubles (one original pass + one recomputation pass during backward). In practice, framework implementations place a checkpoint at every transformer block, which is close enough to the theoretical optimum for deep networks.</p>
+
+    <h4>Visual intuition</h4>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 740 360" xmlns="http://www.w3.org/2000/svg"
+           style="font-family: 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;">
+        <defs>
+          <marker id="gc-arrow" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#7c3043"/>
+          </marker>
+          <marker id="gc-arrow-recompute" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#b85c3a"/>
+          </marker>
+        </defs>
+
+        <!-- ===== Row 1: Standard ===== -->
+        <text x="20" y="22" font-size="14" font-weight="700" fill="#3a3a3a">
+          Standard training: store every activation in VRAM
+        </text>
+
+        <!-- 8 filled layer boxes, pitch 78 -->
+        <g font-size="15" font-weight="700">
+          <rect x="40" y="40" width="60" height="50" rx="5" fill="#7c3043"/>
+          <text x="70" y="72" text-anchor="middle" fill="#fff">a₀</text>
+          <line x1="100" y1="65" x2="116" y2="65" stroke="#7c3043" stroke-width="1.8" marker-end="url(#gc-arrow)"/>
+
+          <rect x="118" y="40" width="60" height="50" rx="5" fill="#7c3043"/>
+          <text x="148" y="72" text-anchor="middle" fill="#fff">a₁</text>
+          <line x1="178" y1="65" x2="194" y2="65" stroke="#7c3043" stroke-width="1.8" marker-end="url(#gc-arrow)"/>
+
+          <rect x="196" y="40" width="60" height="50" rx="5" fill="#7c3043"/>
+          <text x="226" y="72" text-anchor="middle" fill="#fff">a₂</text>
+          <line x1="256" y1="65" x2="272" y2="65" stroke="#7c3043" stroke-width="1.8" marker-end="url(#gc-arrow)"/>
+
+          <rect x="274" y="40" width="60" height="50" rx="5" fill="#7c3043"/>
+          <text x="304" y="72" text-anchor="middle" fill="#fff">a₃</text>
+          <line x1="334" y1="65" x2="350" y2="65" stroke="#7c3043" stroke-width="1.8" marker-end="url(#gc-arrow)"/>
+
+          <rect x="352" y="40" width="60" height="50" rx="5" fill="#7c3043"/>
+          <text x="382" y="72" text-anchor="middle" fill="#fff">a₄</text>
+          <line x1="412" y1="65" x2="428" y2="65" stroke="#7c3043" stroke-width="1.8" marker-end="url(#gc-arrow)"/>
+
+          <rect x="430" y="40" width="60" height="50" rx="5" fill="#7c3043"/>
+          <text x="460" y="72" text-anchor="middle" fill="#fff">a₅</text>
+          <line x1="490" y1="65" x2="506" y2="65" stroke="#7c3043" stroke-width="1.8" marker-end="url(#gc-arrow)"/>
+
+          <rect x="508" y="40" width="60" height="50" rx="5" fill="#7c3043"/>
+          <text x="538" y="72" text-anchor="middle" fill="#fff">a₆</text>
+          <line x1="568" y1="65" x2="584" y2="65" stroke="#7c3043" stroke-width="1.8" marker-end="url(#gc-arrow)"/>
+
+          <rect x="586" y="40" width="60" height="50" rx="5" fill="#7c3043"/>
+          <text x="616" y="72" text-anchor="middle" fill="#fff">a₇</text>
+          <line x1="646" y1="65" x2="678" y2="65" stroke="#7c3043" stroke-width="1.8" marker-end="url(#gc-arrow)"/>
+
+          <text x="705" y="70" text-anchor="middle" font-size="13" font-weight="400"
+                fill="#4a4a4a" font-style="italic">loss</text>
+        </g>
+
+        <text x="40" y="114" font-size="12" fill="#6a6a6a" font-style="italic">
+          Memory: 8 activations retained · Compute: 1× forward pass
+        </text>
+
+        <!-- ===== Row 2: Checkpointed ===== -->
+        <text x="20" y="164" font-size="14" font-weight="700" fill="#3a3a3a">
+          With gradient checkpointing: keep only anchors, recompute the rest
+        </text>
+
+        <g font-size="15" font-weight="700">
+          <!-- a0: checkpoint -->
+          <rect x="40" y="184" width="60" height="50" rx="5" fill="#7c3043"/>
+          <text x="70" y="216" text-anchor="middle" fill="#fff">a₀</text>
+          <line x1="100" y1="209" x2="116" y2="209" stroke="#7c3043" stroke-width="1.8" marker-end="url(#gc-arrow)"/>
+
+          <!-- a1: transient -->
+          <rect x="118" y="184" width="60" height="50" rx="5"
+                fill="#faf9f7" stroke="#7c3043" stroke-width="2" stroke-dasharray="4 3"/>
+          <text x="148" y="216" text-anchor="middle" fill="#7c3043">a₁</text>
+          <line x1="178" y1="209" x2="194" y2="209" stroke="#7c3043" stroke-width="1.8" marker-end="url(#gc-arrow)"/>
+
+          <!-- a2: transient -->
+          <rect x="196" y="184" width="60" height="50" rx="5"
+                fill="#faf9f7" stroke="#7c3043" stroke-width="2" stroke-dasharray="4 3"/>
+          <text x="226" y="216" text-anchor="middle" fill="#7c3043">a₂</text>
+          <line x1="256" y1="209" x2="272" y2="209" stroke="#7c3043" stroke-width="1.8" marker-end="url(#gc-arrow)"/>
+
+          <!-- a3: checkpoint -->
+          <rect x="274" y="184" width="60" height="50" rx="5" fill="#7c3043"/>
+          <text x="304" y="216" text-anchor="middle" fill="#fff">a₃</text>
+          <line x1="334" y1="209" x2="350" y2="209" stroke="#7c3043" stroke-width="1.8" marker-end="url(#gc-arrow)"/>
+
+          <!-- a4: transient -->
+          <rect x="352" y="184" width="60" height="50" rx="5"
+                fill="#faf9f7" stroke="#7c3043" stroke-width="2" stroke-dasharray="4 3"/>
+          <text x="382" y="216" text-anchor="middle" fill="#7c3043">a₄</text>
+          <line x1="412" y1="209" x2="428" y2="209" stroke="#7c3043" stroke-width="1.8" marker-end="url(#gc-arrow)"/>
+
+          <!-- a5: transient -->
+          <rect x="430" y="184" width="60" height="50" rx="5"
+                fill="#faf9f7" stroke="#7c3043" stroke-width="2" stroke-dasharray="4 3"/>
+          <text x="460" y="216" text-anchor="middle" fill="#7c3043">a₅</text>
+          <line x1="490" y1="209" x2="506" y2="209" stroke="#7c3043" stroke-width="1.8" marker-end="url(#gc-arrow)"/>
+
+          <!-- a6: checkpoint -->
+          <rect x="508" y="184" width="60" height="50" rx="5" fill="#7c3043"/>
+          <text x="538" y="216" text-anchor="middle" fill="#fff">a₆</text>
+          <line x1="568" y1="209" x2="584" y2="209" stroke="#7c3043" stroke-width="1.8" marker-end="url(#gc-arrow)"/>
+
+          <!-- a7: transient -->
+          <rect x="586" y="184" width="60" height="50" rx="5"
+                fill="#faf9f7" stroke="#7c3043" stroke-width="2" stroke-dasharray="4 3"/>
+          <text x="616" y="216" text-anchor="middle" fill="#7c3043">a₇</text>
+          <line x1="646" y1="209" x2="678" y2="209" stroke="#7c3043" stroke-width="1.8" marker-end="url(#gc-arrow)"/>
+
+          <text x="705" y="214" text-anchor="middle" font-size="13" font-weight="400"
+                fill="#4a4a4a" font-style="italic">loss</text>
+        </g>
+
+        <!-- Recompute arc: bends down from a₃ under a₄, a₅ to a₆ -->
+        <path d="M 304 244 Q 420 305 538 244"
+              fill="none" stroke="#b85c3a" stroke-width="2.2" stroke-dasharray="6 4"
+              marker-end="url(#gc-arrow-recompute)"/>
+        <text x="420" y="297" text-anchor="middle" font-size="12" font-weight="700"
+              fill="#b85c3a" font-style="italic">recomputed on demand during backward</text>
+
+        <!-- Legend -->
+        <g font-size="12" fill="#4a4a4a">
+          <rect x="40" y="334" width="18" height="13" fill="#7c3043"/>
+          <text x="64" y="345">checkpoint — kept in VRAM</text>
+          <rect x="270" y="334" width="18" height="13"
+                fill="#faf9f7" stroke="#7c3043" stroke-width="2" stroke-dasharray="4 3"/>
+          <text x="294" y="345">transient — freed, recomputed in backward</text>
+        </g>
+      </svg>
+      <figcaption>Forward pass through an 8-layer network. Standard training stores all eight activations; checkpointing keeps only three anchors (a₀, a₃, a₆) and re-runs the forward segment a₃→a₄→a₅→a₆ when backward reaches it.</figcaption>
+    </figure>
+
+    <h4>The memory / compute tradeoff</h4>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Strategy</th>
+          <th>Activation Memory</th>
+          <th>Forward Compute</th>
+          <th>Total Step Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Store all activations (default)</td>
+          <td>O(n)</td>
+          <td>1×</td>
+          <td>Baseline</td>
+        </tr>
+        <tr>
+          <td>Gradient checkpointing (√n segments)</td>
+          <td>O(√n) — ~4–6× less</td>
+          <td>~2× during backward</td>
+          <td>~20% slower</td>
+        </tr>
+        <tr>
+          <td>Full recomputation (no activations saved)</td>
+          <td>O(1)</td>
+          <td>O(n²) — quadratic blowup</td>
+          <td>Impractically slow</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>The 20% wall-clock slowdown is almost always worth it, because <em>the memory you free up gets spent on a larger batch size</em>, which recovers much of that throughput back via better GPU utilization. In most real workloads, gradient checkpointing actually makes total training faster at a fixed VRAM budget.</p>
+
+    <div class="callout danger">
+      <strong>Always pass <code>use_reentrant=False</code>:</strong>
+      <p>The older reentrant variant is deprecated. It breaks with <code>torch.compile</code>, interacts poorly with certain autograd functions (multi-output layers, non-tensor inputs), and can silently disable gradient flow through frozen parameters — which is catastrophic for LoRA, because your adapters stop training.</p>
+    </div>
+
+    <div class="callout warning">
+      <strong>Gotchas to watch for:</strong>
+      <p>(1) Gradient checkpointing is incompatible with <code>model.eval()</code> / <code>torch.no_grad()</code> blocks inside the checkpointed region — the recomputed forward won't build a graph and gradients vanish. (2) If you use <code>output_hidden_states=True</code> on a HuggingFace model, disable it: the framework forces activation storage to return intermediates, defeating the optimization. (3) BatchNorm's running stats can update twice per step (once in each forward pass) — use GroupNorm, LayerNorm, or RMSNorm instead, which is standard in modern transformers anyway.</p>
+    </div>
+
+    <div class="callout success">
+      <strong>Bottom line:</strong>
+      <p>Gradient checkpointing trades ~20% wall-clock time for a 4–6× reduction in activation memory on a typical 24-layer transformer. That freed memory lets you fit larger batches, which recovers most of the throughput loss via GPU parallelism — making it the highest-ROI memory technique after mixed precision, and a near-mandatory default for any non-trivial fine-tuning run.</p>
+    </div>
+
+    <h3 id="flash-attention-deep-dive">Deep dive: what is FlashAttention?</h3>
+
+    <p><strong>FlashAttention</strong> (Dao et al., 2022; FlashAttention-2, 2023; FlashAttention-3, 2024) is an <em>exact</em>, IO-aware attention algorithm. "Exact" means the output is numerically equivalent to standard attention — there's no approximation, no accuracy loss, no hyperparameter to tune. The only thing that changes is <em>how</em> the computation is scheduled against the GPU memory hierarchy, and that change alone buys you a massive memory and speed win.</p>
+
+    <h4>The problem with standard attention</h4>
+
+    <p>Given queries <em>Q</em>, keys <em>K</em>, and values <em>V</em> of shape <em>(N, d)</em>, the textbook formula is:</p>
+
+    <blockquote><em>Attention(Q, K, V) = softmax(Q Kᵀ / √d) V</em></blockquote>
+
+    <p>A naive implementation executes this literally: compute <em>S = Q Kᵀ</em>, store it, compute <em>P = softmax(S)</em>, store it, then compute <em>O = P V</em>. Each of those intermediate matrices has shape <em>(N, N)</em> — the full attention matrix. That's where the <strong>O(N²) memory cost</strong> comes from, and it's why long-context training OOMs so spectacularly: doubling the sequence length quadruples activation memory.</p>
+
+    <p>But the hidden cost is worse than memory. On modern GPUs, compute is essentially free compared to memory bandwidth. The naive attention kernel spends most of its time shuttling the <em>(N, N)</em> matrices between HBM (the big, slow GPU DRAM — 40–80 GB at ~2 TB/s) and SRAM (the tiny, fast on-chip cache — ~200 KB per SM at ~20 TB/s). The tensor cores sit idle waiting for HBM reads.</p>
+
+    <h4>The FlashAttention trick: tile, fuse, never materialize</h4>
+
+    <p>FlashAttention makes three changes that work only in combination:</p>
+
+    <ol>
+      <li><strong>Tiling.</strong> Split <em>Q</em>, <em>K</em>, <em>V</em> into small blocks that each fit in SRAM. Instead of computing the full <em>(N, N)</em> score matrix at once, compute it one tile at a time.</li>
+      <li><strong>Kernel fusion.</strong> Matmul → softmax → matmul are fused into a <em>single CUDA kernel</em>. Nothing writes back to HBM between those three operations, so the <em>(N, N)</em> intermediates live their whole life in SRAM and vanish.</li>
+      <li><strong>Online softmax.</strong> The softmax normalization constant is computed incrementally across tiles using a numerically-stable running-max trick (Milakov &amp; Gimelshein, 2018). This is the key mathematical insight — it's what lets you softmax a row piecewise instead of needing the whole row in memory at once.</li>
+    </ol>
+
+    <p>The result: activation memory for attention drops from <strong>O(N²) to O(N)</strong>, and wall-clock speed improves by 2–4× because HBM traffic collapses. Both wins come from the same source — you never materialize the full score matrix anywhere.</p>
+
+    <h4>Visual intuition</h4>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 740 380" xmlns="http://www.w3.org/2000/svg"
+           style="font-family: 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;">
+        <defs>
+          <marker id="fa-arrow" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#7c3043"/>
+          </marker>
+          <marker id="fa-arrow-big" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#c0392b"/>
+          </marker>
+        </defs>
+
+        <!-- ============ PANEL 1: Naive ============ -->
+        <text x="20" y="20" font-size="14" font-weight="700" fill="#3a3a3a">
+          Naive attention: round-trip to HBM for every intermediate
+        </text>
+
+        <!-- HBM strip -->
+        <rect x="20" y="32" width="700" height="38" rx="5" fill="#f0efeb" stroke="#999" stroke-width="1"/>
+        <text x="38" y="56" font-size="13" font-weight="700" fill="#6a6a6a">HBM</text>
+        <text x="702" y="56" text-anchor="end" font-size="11" fill="#999" font-style="italic">
+          40–80 GB · ~2 TB/s
+        </text>
+
+        <!-- SRAM strip (narrower — SRAM is tiny) -->
+        <rect x="140" y="122" width="460" height="38" rx="5"
+              fill="#ebe7e3" stroke="#7c3043" stroke-width="1.8"/>
+        <text x="158" y="146" font-size="13" font-weight="700" fill="#7c3043">SRAM</text>
+        <text x="582" y="146" text-anchor="end" font-size="11" fill="#6a6a6a" font-style="italic">
+          ~200 KB · ~20 TB/s
+        </text>
+
+        <!-- Three round-trips of HBM ↔ SRAM traffic -->
+        <!-- Trip 1: Q,K,V down -->
+        <line x1="200" y1="70" x2="200" y2="122" stroke="#7c3043" stroke-width="1.8" marker-end="url(#fa-arrow)"/>
+        <text x="200" y="92" text-anchor="middle" font-size="11" font-weight="700" fill="#7c3043">Q,K,V</text>
+        <!-- Trip 1: S(N²) up -->
+        <line x1="260" y1="122" x2="260" y2="70" stroke="#c0392b" stroke-width="3" marker-end="url(#fa-arrow-big)"/>
+        <text x="260" y="114" text-anchor="middle" font-size="11" font-weight="700" fill="#c0392b">S (N×N)</text>
+
+        <!-- Trip 2: S down -->
+        <line x1="340" y1="70" x2="340" y2="122" stroke="#c0392b" stroke-width="3" marker-end="url(#fa-arrow-big)"/>
+        <text x="340" y="92" text-anchor="middle" font-size="11" font-weight="700" fill="#c0392b">S (N×N)</text>
+        <!-- Trip 2: P(N²) up -->
+        <line x1="400" y1="122" x2="400" y2="70" stroke="#c0392b" stroke-width="3" marker-end="url(#fa-arrow-big)"/>
+        <text x="400" y="114" text-anchor="middle" font-size="11" font-weight="700" fill="#c0392b">P (N×N)</text>
+
+        <!-- Trip 3: P,V down -->
+        <line x1="480" y1="70" x2="480" y2="122" stroke="#c0392b" stroke-width="3" marker-end="url(#fa-arrow-big)"/>
+        <text x="480" y="92" text-anchor="middle" font-size="11" font-weight="700" fill="#c0392b">P (N×N)</text>
+        <!-- Trip 3: O up -->
+        <line x1="540" y1="122" x2="540" y2="70" stroke="#7c3043" stroke-width="1.8" marker-end="url(#fa-arrow)"/>
+        <text x="540" y="114" text-anchor="middle" font-size="11" font-weight="700" fill="#7c3043">O</text>
+
+        <!-- Panel 1 annotation -->
+        <text x="370" y="185" text-anchor="middle" font-size="12" font-style="italic" fill="#c0392b">
+          Four N×N round-trips — HBM bandwidth dominates wall-clock time
+        </text>
+
+        <!-- ============ PANEL 2: FlashAttention ============ -->
+        <text x="20" y="218" font-size="14" font-weight="700" fill="#3a3a3a">
+          FlashAttention: tile + fuse — N×N intermediates never touch HBM
+        </text>
+
+        <!-- HBM strip -->
+        <rect x="20" y="230" width="700" height="38" rx="5" fill="#f0efeb" stroke="#999" stroke-width="1"/>
+        <text x="38" y="254" font-size="13" font-weight="700" fill="#6a6a6a">HBM</text>
+        <text x="702" y="254" text-anchor="end" font-size="11" fill="#999" font-style="italic">
+          40–80 GB · ~2 TB/s
+        </text>
+
+        <!-- SRAM strip (taller — holds fused computation) -->
+        <rect x="140" y="310" width="460" height="56" rx="5"
+              fill="#ebe7e3" stroke="#7c3043" stroke-width="1.8"/>
+        <text x="158" y="334" font-size="13" font-weight="700" fill="#7c3043">SRAM</text>
+
+        <!-- Fused pipeline inside SRAM: tile matmul → online softmax → tile matmul -->
+        <g font-size="11" fill="#7c3043" font-weight="700">
+          <rect x="222" y="322" width="90" height="34" rx="3" fill="#faf9f7" stroke="#7c3043" stroke-width="1"/>
+          <text x="267" y="343" text-anchor="middle">tile matmul</text>
+          <text x="323" y="343" text-anchor="middle" font-size="14">→</text>
+          <rect x="334" y="322" width="98" height="34" rx="3" fill="#faf9f7" stroke="#7c3043" stroke-width="1"/>
+          <text x="383" y="343" text-anchor="middle">online softmax</text>
+          <text x="443" y="343" text-anchor="middle" font-size="14">→</text>
+          <rect x="454" y="322" width="90" height="34" rx="3" fill="#faf9f7" stroke="#7c3043" stroke-width="1"/>
+          <text x="499" y="343" text-anchor="middle">tile matmul</text>
+        </g>
+
+        <!-- Single trip down: Q,K,V tiles -->
+        <line x1="280" y1="268" x2="280" y2="310" stroke="#7c3043" stroke-width="1.8" marker-end="url(#fa-arrow)"/>
+        <text x="280" y="290" text-anchor="middle" font-size="11" font-weight="700" fill="#7c3043">Q,K,V tiles</text>
+
+        <!-- Single trip up: O -->
+        <line x1="480" y1="310" x2="480" y2="268" stroke="#7c3043" stroke-width="1.8" marker-end="url(#fa-arrow)"/>
+        <text x="480" y="290" text-anchor="middle" font-size="11" font-weight="700" fill="#7c3043">O</text>
+      </svg>
+      <figcaption>The GPU memory hierarchy. Naive attention makes four expensive N×N trips between HBM and SRAM; FlashAttention fuses matmul → softmax → matmul into one SRAM-resident kernel so the N×N score matrix never exists in HBM at all.</figcaption>
+    </figure>
+
+    <h4>Memory and speed impact</h4>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Variant</th>
+          <th>Attention Memory</th>
+          <th>Speed vs. Naive</th>
+          <th>Accuracy</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Naive <code>torch.nn.functional.softmax(Q@Kᵀ) @ V</code></td>
+          <td>O(N²)</td>
+          <td>1×</td>
+          <td>Reference</td>
+        </tr>
+        <tr>
+          <td>PyTorch <code>scaled_dot_product_attention</code> (SDPA)</td>
+          <td>O(N)</td>
+          <td>~2×</td>
+          <td>Exact</td>
+        </tr>
+        <tr>
+          <td>FlashAttention-2 (Ampere+)</td>
+          <td>O(N)</td>
+          <td>~2–4×</td>
+          <td>Exact</td>
+        </tr>
+        <tr>
+          <td>FlashAttention-3 (Hopper only)</td>
+          <td>O(N)</td>
+          <td>~1.5–2× over FA2</td>
+          <td>Exact (optional fp8)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>For a sequence length of <em>N = 8192</em>, a single attention layer with naive attention needs roughly <em>8192² × 4 bytes ≈ 256 MB</em> per head per batch element just for the score matrix. Multiply by layers × heads × batch, and you see why long-context training OOMs before you even get to the backward pass. FlashAttention makes that cost essentially vanish.</p>
+
+    <div class="callout danger">
+      <strong>Compatibility caveats:</strong>
+      <p>(1) FlashAttention-2 requires <em>Ampere or newer</em> (A100, H100, RTX 30/40-series). It will not run on T4 or V100 — fall back to <code>sdpa</code> there, which still gets you the memory-efficient path via xFormers-style kernels. (2) Must be fp16 or bf16; fp32 attention is not supported. (3) Custom attention masks with arbitrary shapes can fall back to the slow path — stick to causal or padding masks when possible. (4) Some head dimensions (e.g., 256) were unsupported in earlier FA2 releases — upgrade to the latest <code>flash-attn</code> wheel if you see dispatch failures.</p>
+    </div>
+
+    <div class="callout success">
+      <strong>Bottom line:</strong>
+      <p>FlashAttention is the rare optimization with no tradeoff — it's mathematically exact, faster, <em>and</em> uses less memory. Always enable it (via SDPA at minimum, FlashAttention-2 explicitly when you can) before you start tuning anything else related to long-sequence training. Combined with gradient checkpointing, it's what makes 8k+ context fine-tuning on a single GPU actually feasible.</p>
+    </div>
+
+    <h2 id="phase3">Phase 3 · Fix the Data Pipeline</h2>
+
+    <p>If GPU-Util is low, fix these <strong>before</strong> touching any VRAM optimization. No amount of memory tricks helps when the GPU sits idle 60% of the time.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Setting</th>
+          <th>Starting Value</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>num_workers</code></td>
+          <td>4</td>
+          <td>Tune up until GPU-Util stops improving</td>
+        </tr>
+        <tr>
+          <td><code>pin_memory</code></td>
+          <td>True</td>
+          <td>Always — enables fast H2D transfer</td>
+        </tr>
+        <tr>
+          <td><code>persistent_workers</code></td>
+          <td>True</td>
+          <td>Avoid worker respawn between epochs</td>
+        </tr>
+        <tr>
+          <td><code>prefetch_factor</code></td>
+          <td>2</td>
+          <td>Each worker prefetches 2 batches ahead</td>
+        </tr>
+        <tr>
+          <td><code>drop_last</code></td>
+          <td>True</td>
+          <td>Avoid variable-size final batch</td>
+        </tr>
+        <tr>
+          <td><code>non_blocking=True</code> on <code>.cuda()</code></td>
+          <td>Required</td>
+          <td>Overlaps H2D with prior step's compute</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>What are "workers," and how do they relate to VRAM?</h3>
+
+    <p>A <strong>DataLoader worker</strong> is a separate OS process (spawned by PyTorch via <code>multiprocessing</code>) whose sole job is to load the next batch from disk and run all CPU-side preprocessing on it — decoding images, resampling audio, tokenizing text, applying augmentations, collating into tensors. With <code>num_workers=0</code>, all of that runs in the main training process, so every time the GPU finishes a step it has to <em>stop and wait</em> while the CPU fetches and prepares the next batch. With <code>num_workers=N</code>, you have N parallel pipelines preparing batches ahead of time and dropping them into a shared queue that the GPU pulls from.</p>
+
+    <div class="callout warning">
+      <strong>Important caveat:</strong>
+      <p>Workers do <em>not</em> directly reduce VRAM usage. They live in CPU RAM, not GPU memory. What they do is make sure your GPU can actually <em>use</em> the VRAM headroom you worked so hard to fit into in Phase 2.</p>
+    </div>
+
+    <h4>The indirect link between workers and VRAM optimization</h4>
+
+    <p>Phase 2 is about fitting the largest possible batch into VRAM. But a huge batch is only useful if the GPU actually processes it continuously. Without enough workers, the pipeline looks like this:</p>
+
+    <pre class="code-block"><code><span class="comment"># num_workers=0 — GPU keeps stalling</span>
+[GPU busy]──▒▒▒──[GPU busy]──▒▒▒──[GPU busy]──▒▒▒──
+            ↑                 ↑                 ↑
+         CPU prep          CPU prep          CPU prep
+       (GPU idle, VRAM sitting unused)
+
+<span class="comment"># num_workers=4 — GPU stays saturated</span>
+[GPU busy][GPU busy][GPU busy][GPU busy][GPU busy]──
+     ↑         ↑         ↑         ↑         ↑
+  worker 1  worker 2  worker 3  worker 4  worker 1
+  (batches prepared in parallel, queued ahead)</code></pre>
+
+    <p>More workers help VRAM optimization in three concrete ways:</p>
+
+    <table>
+      <thead>
+        <tr><th>Effect</th><th>Why it matters for VRAM</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Keep GPU saturated</strong></td>
+          <td>A batch of 32 filling 90% of VRAM is wasted if the GPU crunches it in 80 ms and then sits idle for 400 ms waiting on the next one. Workers close that gap so the VRAM you reserved is actually doing work every millisecond.</td>
+        </tr>
+        <tr>
+          <td><strong>Enable honest batch-size search</strong></td>
+          <td>When binary-searching <code>per_device_batch_size</code> to near-OOM (Phase 2, Technique 4), slow single-worker loading can trick you into thinking training is slow because of the batch size — leading you to shrink it unnecessarily. With enough workers, the VRAM-bound ceiling becomes the true limit you measure against.</td>
+        </tr>
+        <tr>
+          <td><strong>Overlap H2D transfer with compute</strong></td>
+          <td>Combined with <code>pin_memory=True</code> and <code>non_blocking=True</code>, workers prepare the next batch in pinned (page-locked) host memory. This lets CUDA copy it to VRAM <em>while</em> the current step's kernels are still running — no idle gap between steps.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Rule of thumb for tuning N:</strong>
+      <p>Start at <code>num_workers=4</code>. Increase until GPU-Util stops improving, then stop. Too many workers wastes CPU RAM (each worker holds a copy of the dataset index and prefetched batches) and can cause contention on shared resources. A reasonable upper bound is <em>one worker per physical CPU core</em>, or slightly below that if you share the machine with other jobs.</p>
+    </div>
+
+    <div class="callout danger">
+      <strong>Watch out:</strong>
+      <p>If workers themselves are slow (heavy augmentation, decoding a 50 GB audio dataset from a spinning disk every epoch), adding more workers hits diminishing returns quickly. Before cranking N up, consider pre-processing offline (save Arrow/NPY shards) so each worker does <em>less</em> work per batch. That's usually a bigger win than parallelizing expensive work.</p>
+    </div>
+
+    <h3>Variable-length data (audio, text, video)</h3>
+
+    <div class="approach-grid">
+      <div class="approach-card">
+        <h4>Dynamic padding</h4>
+        <p>Pad to longest in batch, not global max.</p>
+        <p class="meta">Free, no accuracy cost</p>
+      </div>
+      <div class="approach-card">
+        <h4>Length bucketing</h4>
+        <p>Group similar lengths together. <code>group_by_length=True</code> in HF Trainer.</p>
+        <p class="meta">Free win</p>
+      </div>
+      <div class="approach-card">
+        <h4>Sequence packing</h4>
+        <p>Concatenate short samples into fixed-length seqs with attention masks.</p>
+        <p class="meta">2–5× throughput on instruction data</p>
+      </div>
+      <div class="approach-card">
+        <h4>Frame-budget batching</h4>
+        <p>Size batch by total tokens/frames, not sample count.</p>
+        <p class="meta">Essential for ASR, video</p>
+      </div>
+    </div>
+
+    <h2 id="phase4">Phase 4 · Verify &amp; Monitor</h2>
+
+    <p>After applying optimizations, confirm you are actually VRAM-bound and stable before committing to a long training run.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>VRAM Utilization</th>
+          <th>GPU-Util</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>&lt; 50%</td><td>&lt; 50%</td><td>Severely underutilized</td><td>Restart from Phase 1</td></tr>
+        <tr><td>&lt; 50%</td><td>&gt; 90%</td><td>Compute-bound, small model</td><td>Increase batch size</td></tr>
+        <tr><td>50–80%</td><td>&gt; 90%</td><td>Room to grow</td><td>Increase batch size</td></tr>
+        <tr><td>80–90%</td><td>&gt; 90%</td><td><strong>Optimal</strong> <span class="verdict best">ship it</span></td><td>Mission accomplished</td></tr>
+        <tr><td>&gt; 95%</td><td>&gt; 90%</td><td>OOM risk</td><td>Back off batch slightly</td></tr>
+        <tr><td>Any</td><td>Spiky</td><td>Pipeline bottleneck</td><td>Go to Phase 3</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warning">
+      <strong>Fragmentation fix:</strong>
+      <p>If <code>nvidia-smi</code> shows free memory but you still OOM, set <code>PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True</code> before launching Python.</p>
+    </div>
+
+    <h2 id="advanced">Advanced Techniques (2024–2026)</h2>
+
+    <p>The four phases above cover the classic playbook through late 2023 — mixed precision, gradient checkpointing, QLoRA, FSDP, flash attention. This section covers the <strong>next layer of techniques</strong> that have landed in PyTorch, torchao, torchtitan, and the research community since then. Reach for them when the four core phases have been applied and you still need more — or when you are starting a new project on modern hardware (H100/H200/Blackwell) and want to skip straight to the current state of the art.</p>
+
+    <div class="callout">
+      <strong>How this section is organized:</strong>
+      <p>Each subsection lists techniques with <em>what it does</em>, <em>impact numbers</em>, <em>when to reach for it</em>, <em>a minimal recipe</em>, and <em>compatibility / gotchas</em>. The priority table immediately below tells you which ones give the biggest single win if you only have time to add one.</p>
+    </div>
+
+    <h3 id="adv-priority">Top-10 priority: biggest single-technique wins</h3>
+
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Technique</th>
+          <th>Best for</th>
+          <th>Headline number</th>
+          <th>Verdict</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><a href="#adv-fsdp2">FSDP2 (<code>fully_shard</code>)</a></td>
+          <td>Every new multi-GPU project</td>
+          <td>~7% peak mem, clean TP/PP/CP composition</td>
+          <td><span class="verdict best">start here</span></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><a href="#adv-selective-ac">Selective activation recomputation</a></td>
+          <td>Anyone using full grad checkpointing</td>
+          <td>5× activation cut, +29% throughput</td>
+          <td><span class="verdict best">huge ROI</span></td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><a href="#adv-fp8-torchao">torchao fp8 + FSDP2 + compile</a></td>
+          <td>H100/H200 training ≥ 1B params</td>
+          <td>Up to 50% throughput vs bf16</td>
+          <td><span class="verdict best">Hopper only</span></td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><a href="#adv-fa3">FlashAttention-3</a></td>
+          <td>H100 long-context training</td>
+          <td>1.5–2× over FA2, fp8 path</td>
+          <td><span class="verdict best">Hopper only</span></td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td><a href="#adv-flexattention">FlexAttention</a></td>
+          <td>Custom masks (sliding, doc, ALiBi)</td>
+          <td>2.4× over manual-mask attention</td>
+          <td><span class="verdict viable">any GPU ≥ Ampere</span></td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td><a href="#adv-cpu-offload">Activation CPU offload</a></td>
+          <td>After checkpointing is maxed</td>
+          <td>~20× larger models than DDP</td>
+          <td><span class="verdict viable">async overlap</span></td>
+        </tr>
+        <tr>
+          <td>7</td>
+          <td><a href="#adv-torchcodec">torchcodec</a></td>
+          <td>Any ASR / audio / video pipeline</td>
+          <td>Replaces deprecated torchaudio.load</td>
+          <td><span class="verdict partial">migration now</span></td>
+        </tr>
+        <tr>
+          <td>8</td>
+          <td><a href="#adv-context-parallel">Context parallelism</a></td>
+          <td>Training beyond ~32k tokens</td>
+          <td>Up to 1M tokens on Llama3-8B / 32 H100</td>
+          <td><span class="verdict viable">long-context</span></td>
+        </tr>
+        <tr>
+          <td>9</td>
+          <td><a href="#adv-apollo">APOLLO / APOLLO-Mini</a></td>
+          <td>Full-param FT on consumer GPUs</td>
+          <td>LLaMA-7B pretrain &lt; 12 GB</td>
+          <td><span class="verdict viable">MLSys'25</span></td>
+        </tr>
+        <tr>
+          <td>10</td>
+          <td><a href="#adv-compile-modes"><code>torch.compile</code> + CUDA graphs</a></td>
+          <td>Small-batch / launch-bound training</td>
+          <td>1.3–2.0× across mid-large models</td>
+          <td><span class="verdict viable">free</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- ============================================================== -->
+    <h3 id="adv-parallelism">Advanced Parallelism (beyond FSDP/ZeRO-3)</h3>
+
+    <p>FSDP1 and DeepSpeed ZeRO are the "legacy" multi-GPU recipe. The PyTorch-native path since 2024 is built on <strong>DTensor</strong> — a distributed-tensor abstraction that lets FSDP2, tensor parallelism, sequence parallelism, context parallelism, and pipeline parallelism compose cleanly on a single DeviceMesh. This is the foundation of <code>torchtitan</code>, the reference training framework Meta/PyTorch publishes for scale-out training.</p>
+
+    <h4 id="adv-fsdp2">FSDP2 · per-parameter sharding via <code>fully_shard</code></h4>
+    <p>The successor to FSDP1. Instead of flattening and concatenating groups of tensors before chunking (FSDP1), FSDP2 chunks <em>each parameter individually</em> on dim-0 across the DP workers. Every parameter becomes its own DTensor. Result: ~<strong>7% lower peak GPU memory</strong> than FSDP1 at the same loss curve on Llama-2-7B, ~<strong>1.5% MFU gain</strong> on Llama-7B / 8×H100 in torchtitan, and deterministic memory usage without FSDP1's <code>limit_all_gathers=True</code> blocking pattern.</p>
+
+    <pre class="code-block"><code><span class="comment"># Per-layer sharding — FSDP2 recipe</span>
+from torch.distributed.fsdp import fully_shard
+
+for layer in model.layers:
+    fully_shard(layer)
+fully_shard(model)  <span class="comment"># shard top-level too</span></code></pre>
+
+    <p>With HuggingFace Accelerate, set <code>fsdp_version: 2</code> in the FSDP plugin config (available in <code>accelerate &gt;= 1.0</code>).</p>
+
+    <div class="callout success">
+      <strong>Why it matters:</strong>
+      <p>Every new multi-GPU training project should start on FSDP2. It's a drop-in ~7% memory win and the prerequisite for every other modern technique in this section (TP, SP, CP, PP, fp8 all-gather). Treat FSDP1 as legacy.</p>
+    </div>
+
+    <h4 id="adv-tensor-parallel">Tensor Parallelism via <code>torch.distributed.tensor.parallel</code></h4>
+    <p>Shards individual matmul ops (attention heads, MLP hidden dim) across GPUs so each GPU holds a slice of the weights <em>and</em> does a slice of the compute. Uses <code>ColwiseParallel</code> / <code>RowwiseParallel</code> to partition Linear-layer weights along columns or rows; an all-reduce combines results. Unlike FSDP, which temporarily all-gathers full weights for each op, TP keeps weights sharded during compute — so peak parameter memory per layer is permanently lower.</p>
+
+    <p>In torchtitan 3D runs: <strong>12.59% speedup on Llama 3.1 70B / 256 GPUs (2D)</strong>, <strong>30% on Llama 3.1 405B / 512 GPUs (3D)</strong> over optimized baselines.</p>
+
+    <pre class="code-block"><code>from torch.distributed.tensor.parallel import (
+    parallelize_module, ColwiseParallel, RowwiseParallel)
+from torch.distributed.device_mesh import init_device_mesh
+
+mesh = init_device_mesh("cuda", (dp_size, tp_size),
+                        mesh_dim_names=("dp", "tp"))
+tp_mesh = mesh["tp"]
+
+for layer in model.layers:
+    parallelize_module(layer, tp_mesh, {
+        "attention.wq": ColwiseParallel(),
+        "attention.wk": ColwiseParallel(),
+        "attention.wv": ColwiseParallel(),
+        "attention.wo": RowwiseParallel(),
+        "feed_forward.w1": ColwiseParallel(),
+        "feed_forward.w2": RowwiseParallel(),
+        "feed_forward.w3": ColwiseParallel(),
+    })</code></pre>
+
+    <div class="callout danger">
+      <strong>TP requires NVLink.</strong>
+      <p>Tensor parallelism all-reduces on every matmul. On NVLink-connected GPUs (A100 SXM, H100 SXM, DGX systems) this is fast; on PCIe-only boxes it is a <em>throughput disaster</em>. Never enable TP without a high-bandwidth intra-node interconnect.</p>
+    </div>
+
+    <h4 id="adv-sequence-parallel">Sequence Parallelism (paired with TP)</h4>
+    <p>In pure TP, attention and MLP weights are sharded, but <strong>LayerNorm and Dropout operate on the full activation tensor</strong> — which gets replicated across TP ranks, wasting memory. Sequence Parallelism splits these "replicated" regions along the sequence dim so each rank only holds <code>seq_len / tp_size</code> tokens of the norm/dropout activations. All-gather and reduce-scatter handle the transitions at TP region boundaries.</p>
+
+    <p>Impact (Korthikanti et al. 2022, <em>Reducing Activation Recomputation</em>): roughly <strong>half the activation memory</strong> of plain TP for layernorms/dropouts. Combined with selective activation recomputation (below), <strong>5× total activation reduction</strong> while still running &gt;90% of compute without recomputation.</p>
+
+    <pre class="code-block"><code>from torch.distributed.tensor.parallel import SequenceParallel
+
+parallelize_module(layer, tp_mesh, {
+    "attention_norm": SequenceParallel(),
+    "ffn_norm":       SequenceParallel(),
+    <span class="comment"># ... plus TP on the linear layers as above</span>
+})</code></pre>
+
+    <p class="meta">SP is <em>only</em> meaningful on top of TP — on its own it does nothing for DP-only training.</p>
+
+    <h4 id="adv-context-parallel">Context Parallelism · Ring Attention</h4>
+    <p>For sequences so long that per-token activation × seq_len doesn't fit on one GPU even with FlashAttention, Context Parallelism shards the <em>sequence dimension</em> across GPUs. Each GPU holds only <code>seq_len / CP_degree</code> tokens. Each GPU computes local attention against its Q shard, then receives remote KV shards in a ring pattern, updating the running softmax — the same tile-based online softmax FlashAttention already uses inside one GPU, just now across GPUs.</p>
+
+    <table>
+      <thead>
+        <tr><th>Scale point</th><th>Measured result</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Llama3-8B · 32× H100 · torchtitan</td>
+          <td>Enables sequence lengths up to <strong>1M tokens</strong></td>
+        </tr>
+        <tr>
+          <td>DeepSpeed Ulysses variant</td>
+          <td><strong>2.5× speedup</strong> at <strong>4× longer sequences</strong> vs the prior SP baseline</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <pre class="code-block"><code>from torch.distributed.tensor.experimental import context_parallel
+
+cp_mesh = mesh["cp"]
+with context_parallel(cp_mesh, buffers=[q, k, v], buffer_seq_dims=[2, 2, 2]):
+    out = F.scaled_dot_product_attention(q, k, v, is_causal=True)</code></pre>
+
+    <p class="meta">Naive ring attention is load-unbalanced for causal masks (early ranks idle). "Pass-KV" variants fix this — use torchtitan's default schedule. Only worth the complexity past ~32k tokens.</p>
+
+    <h4 id="adv-pipeline-parallel">Pipeline Parallelism · Zero-Bubble 1F1B</h4>
+    <p>Splits the model by <em>layers</em> across GPUs (stage 1 = layers 0–7, stage 2 = 8–15, …). Microbatches flow through the pipeline. The naive "GPipe" schedule has bubbles where GPUs idle; 1F1B interleaves one forward and one backward per microbatch; <strong>Zero-Bubble</strong> splits backward into "grad-input" and "grad-weight" so the optimizer step bypasses sync barriers.</p>
+
+    <p>Reported (Qi et al., ICLR 2024): <strong>up to 23% throughput gain over 1F1B</strong> at the same memory budget, <strong>31% with relaxed memory</strong>.</p>
+
+    <pre class="code-block"><code>from torch.distributed.pipelining import Schedule1F1B, pipeline, SplitPoint
+
+pipe = pipeline(model, mb_args=sample_input, split_spec={
+    "layers.8":  SplitPoint.BEGINNING,
+    "layers.16": SplitPoint.BEGINNING,
+    "layers.24": SplitPoint.BEGINNING,
+})
+stage = pipe.build_stage(stage_idx, device, pp_group)
+schedule = Schedule1F1B(stage, n_microbatches=8, loss_fn=loss_fn)
+<span class="comment"># Also: ScheduleInterleaved1F1B, ScheduleZBVZeroBubble</span></code></pre>
+
+    <p class="meta">Requires <code>n_microbatches ≥ pp_size × 2</code> or the bubble reappears. Reach for PP only when TP+FSDP has hit its ceiling on a single node, typically cross-node training with high inter-node latency where TP's all-reduce cost is prohibitive.</p>
+
+    <h4 id="adv-hsdp">HSDP · Hybrid Sharded Data Parallel</h4>
+    <p>Middle ground for multi-node training where inter-node bandwidth is slow. Uses a 2D device mesh: within a node, full FSDP (all-gather weights for each op — cheap over NVLink at 600–900 GB/s); across nodes, DDP (all-reduce gradients once per step — fits in slow Ethernet budget at 25–50 GB/s).</p>
+
+    <pre class="code-block"><code>from torch.distributed.device_mesh import init_device_mesh
+from torch.distributed.fsdp import fully_shard
+
+mesh = init_device_mesh("cuda", (num_nodes, gpus_per_node),
+                        mesh_dim_names=("replicate", "shard"))
+
+for layer in model.layers:
+    fully_shard(layer, mesh=mesh)
+fully_shard(model, mesh=mesh)</code></pre>
+
+    <div class="callout warning">
+      <strong>When to pick HSDP over full FSDP:</strong>
+      <p>Use HSDP when inter-node bandwidth is below ~100 Gbps (most non-Infiniband clusters). On Infiniband or NVLink-Switch clusters, pure FSDP usually wins because you actually <em>want</em> full sharding across all GPUs for peak memory reduction. Check <code>ibstat</code> or <code>nvidia-smi topo -m</code> before deciding.</p>
+    </div>
+
+    <!-- ============================================================== -->
+    <h3 id="adv-activation">Activation Memory — Deeper Cuts</h3>
+
+    <p>The original Phase 2 technique — <em>full</em> gradient checkpointing — trades ~20% wall-clock slowdown for 4–6× activation reduction. These techniques refine that tradeoff in both directions: recompute less (selective) or recompute not-at-all and instead <em>move</em> activations off GPU (offload).</p>
+
+    <h4 id="adv-selective-ac">Selective Activation Recomputation</h4>
+    <p>Instead of recomputing <em>all</em> checkpointed activations on backward, profile which ops have a bad <em>operation-per-byte</em> ratio and recompute only those. Attention's softmax/dropout/QK-dot have memory cost O(seq²) but modest compute → cheap to recompute. The linear projections are expensive to recompute but small → better to keep them. Selective recomputation checkpoints only the inputs to attention blocks.</p>
+
+    <table>
+      <thead>
+        <tr><th>Strategy</th><th>Activation mem</th><th>Recompute overhead</th><th>Throughput (530B model)</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Full recomputation (Phase 2 default)</td>
+          <td>O(√n)</td>
+          <td>~20%</td>
+          <td>Baseline</td>
+        </tr>
+        <tr>
+          <td>Selective recomputation</td>
+          <td>O(√n) — nearly same</td>
+          <td><strong>~2%</strong></td>
+          <td><strong>+29%, 54.2% MFU</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <pre class="code-block"><code><span class="comment"># torchtitan exposes two modes:</span>
+<span class="comment">#   selective_op    — checkpoint only matmul ops (skip elementwise/softmax)</span>
+<span class="comment">#   selective_layer — checkpoint every Nth transformer layer</span>
+<span class="comment"># CLI: --activation_checkpoint.mode=selective_op</span>
+
+from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
+    checkpoint_wrapper, CheckpointImpl, apply_activation_checkpointing)
+
+<span class="comment"># NO_REENTRANT is mandatory for selective</span></code></pre>
+
+    <p>Via Megatron-LM: <code>--recompute-granularity selective</code>. Source: Korthikanti et al., <em>Reducing Activation Recomputation in Large Transformer Models</em> (arXiv 2205.05198).</p>
+
+    <h4 id="adv-cpu-offload">Activation CPU Offload</h4>
+    <p>Pairs with gradient checkpointing: after the forward pass stashes a checkpoint's input, that input is copied to CPU pinned memory <em>on a dedicated CUDA stream</em> so GPU compute continues. Before backward reaches the segment, the activation is prefetched back asynchronously. Combined with activation checkpointing + parameter offload, FSDP can train models up to <strong>20× larger than plain DDP</strong> on the same hardware.</p>
+
+    <pre class="code-block"><code>from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
+    checkpoint_wrapper, CheckpointImpl)
+
+def wrap(module):
+    return checkpoint_wrapper(
+        module,
+        checkpoint_impl=CheckpointImpl.NO_REENTRANT,
+        offload_to_cpu=True,   <span class="comment"># ← the key flag</span>
+    )
+<span class="comment"># Apply to transformer layers before FSDP wrap</span></code></pre>
+
+    <p>Axolotl exposes this as <code>activation_offloading: true</code>. Throughput cost is modest with async overlap on (roughly 1.3–1.5× slower typical); without overlap it's much worse. <strong>Does not stack with recomputation on the same layer</strong> — pick one per layer.</p>
+
+    <!-- ============================================================== -->
+    <h3 id="adv-attention">Attention Kernels — FA3 &amp; FlexAttention</h3>
+
+    <p>The existing Phase 2 section covers SDPA and FlashAttention-2. Two newer kernels push further.</p>
+
+    <h4 id="adv-fa3">FlashAttention-3 · Hopper-native</h4>
+    <p>A ground-up rewrite of FlashAttention for H100. Uses (1) <strong>warp specialization</strong> to overlap matmul and softmax, (2) <strong>TMA</strong> (Tensor Memory Accelerator) for async memory movement, (3) hardware <strong>fp8 matmul</strong> with block quantization + incoherent processing for better accuracy.</p>
+
+    <table>
+      <thead>
+        <tr><th>Metric</th><th>FA2 (H100)</th><th>FA3 (H100)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Forward TFLOPs/s (fp16)</td><td>~370</td><td><strong>~740</strong> (2× speedup)</td></tr>
+        <tr><td>Backward speedup vs FA2</td><td>1×</td><td><strong>1.5–1.75×</strong></td></tr>
+        <tr><td>H100 utilization</td><td>35%</td><td><strong>75%</strong></td></tr>
+        <tr><td>fp8 throughput</td><td>—</td><td><strong>1.3 PFLOPs/s</strong></td></tr>
+        <tr><td>fp8 numerical accuracy</td><td>—</td><td><strong>2.6× better RMSE</strong> than naive fp8 attention</td></tr>
+      </tbody>
+    </table>
+
+    <pre class="code-block"><code>pip install "flash-attn&gt;=3.0.0"   <span class="comment"># or build from Dao-AILab/flash-attention</span></code></pre>
+
+    <p>HuggingFace Transformers routes via <code>attn_implementation="flash_attention_2"</code>; recent <code>transformers</code> + <code>flash-attn 3</code> actually dispatches to FA3 on SM90. <strong>H100 (Hopper) only</strong> — Ampere (A100) keeps using FA2.</p>
+
+    <h4 id="adv-flexattention">FlexAttention · programmable masks without Triton</h4>
+    <p><code>torch.nn.attention.flex_attention</code> takes <code>score_mod</code> and <code>mask_mod</code> callables plus Q/K/V tensors. Under <code>torch.compile</code>, PyTorch generates a <em>block-sparse FlashAttention kernel</em> that skips fully-masked blocks via a <code>BlockMask</code>. You write the mask in plain Python; you get FlashAttention-quality performance. Enables sliding-window attention, ALiBi, document-packing masks, tanh soft-cap, prefix-LM — each as a one-line change.</p>
+
+    <p><strong>Impact:</strong> ~2.4× faster training than manual-mask attention in torchtune. Fully-masked blocks are <em>skipped</em> — for sliding-window attention with window &lt;&lt; seq_len, memory and compute scale by the mask sparsity ratio.</p>
+
+    <pre class="code-block"><code>from torch.nn.attention.flex_attention import flex_attention, create_block_mask
+
+def sliding_window_mask(b, h, q_idx, kv_idx):
+    return (q_idx - kv_idx).abs() &lt;= 512
+
+block_mask = create_block_mask(sliding_window_mask, B=None, H=None,
+                                Q_LEN=seq_len, KV_LEN=seq_len)
+
+out = flex_attention(q, k, v, block_mask=block_mask)</code></pre>
+
+    <div class="callout warning">
+      <strong>Compile is mandatory.</strong>
+      <p>FlexAttention's eager path is slow — the whole point is that <code>torch.compile</code> fuses your Python callable into a block-sparse kernel. Always wrap the model (or at least the attention call site) in <code>torch.compile</code>. Requires PyTorch ≥ 2.5.</p>
+    </div>
+
+    <!-- ============================================================== -->
+    <h3 id="adv-fp8">fp8 Training &amp; MX Formats</h3>
+
+    <p>Phase 2 stops at bf16. Modern Hopper and Blackwell GPUs have hardware support for 8-bit floats, and the PyTorch-native path (via <code>torchao</code>) has matured to the point where fp8 is a serious production option.</p>
+
+    <h4 id="adv-fp8-torchao">torchao float8 + FSDP2 + torch.compile</h4>
+    <p><code>torchao.float8.convert_to_float8_training</code> recursively replaces <code>nn.Linear</code> with <code>Float8Linear</code>. Matmul weights, inputs, and grad outputs are quantized to E4M3 / E5M2 per step with <strong>rowwise scaling</strong>; attention and layernorm stay in bf16. Pairs with FSDP2's fp8 all-gather to also speed cross-GPU communication.</p>
+
+    <table>
+      <thead>
+        <tr><th>Setup</th><th>Speedup vs bf16 FSDP1 baseline</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>70B / 405B models, H100/H200</td><td>Up to <strong>50% throughput</strong></td></tr>
+        <tr><td>2K-H200 cluster, rowwise recipe</td><td><strong>1.34–1.43×</strong></td></tr>
+        <tr><td>fp8 all-gather alone (comms win)</td><td><strong>~20% of the total speedup</strong></td></tr>
+      </tbody>
+    </table>
+
+    <pre class="code-block"><code>from torchao.float8 import convert_to_float8_training, Float8LinearConfig
+
+config = Float8LinearConfig.from_recipe_name("rowwise")  <span class="comment"># or "tensorwise"</span>
+convert_to_float8_training(
+    model,
+    config=config,
+    module_filter_fn=lambda mod, fqn: "lm_head" not in fqn,
+)
+
+<span class="comment"># torch.compile is MANDATORY for performance:</span>
+model = torch.compile(model)
+
+<span class="comment"># And FSDP2 for the all-gather speedup:</span>
+for layer in model.layers:
+    fully_shard(layer, mp_policy=MixedPrecisionPolicy(param_dtype=torch.bfloat16))
+fully_shard(model)</code></pre>
+
+    <div class="callout danger">
+      <strong>Three non-negotiables:</strong>
+      <p>(1) <strong>Exclude <code>lm_head</code> and embeddings from fp8</strong> — huge accuracy drop otherwise. (2) <strong><code>torch.compile</code> is mandatory</strong> — without it, fp8 actually regresses vs bf16. (3) <strong>Hopper or newer</strong> — A100 has no fp8 Tensor Cores; using fp8 there falls back to simulation. Also: QLoRA is conceptually incompatible with fp8 training (QLoRA already quantizes).</p>
+    </div>
+
+    <h4 id="adv-mxfp">MXFP8 / MX Formats (Blackwell)</h4>
+    <p>Block-scaled FP8 / FP6 / FP4 formats native to Blackwell (B100, B200, RTX 50-series). A shared 8-bit exponent per 32-element block — finer-grained than Hopper's tensor-level or rowwise scaling, giving better numerics and simpler recipes. Lets you drop to <strong>MXFP6 or MXFP4</strong> for inference and potentially training.</p>
+    <p class="meta">Torchtitan has an evolving MXFP8 recipe in <code>docs/mxfp8.md</code>. Hardware-locked to Blackwell; on Hopper, use the torchao fp8 recipe above instead.</p>
+
+    <!-- ============================================================== -->
+    <h3 id="adv-optimizers">Modern Optimizers</h3>
+
+    <p>Beyond 8-bit AdamW / GaLore / LOMO (already in Phase 2). All of these target the 8P-bytes-per-parameter AdamW optimizer-state cost — the largest single line item in the VRAM breakdown for full-param training. <strong>For LoRA / QLoRA most of these are irrelevant</strong> because optimizer state is already tiny.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Optimizer</th>
+          <th>What it does</th>
+          <th>Memory vs AdamW</th>
+          <th>Best for</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr id="adv-apollo">
+          <td><strong>APOLLO / APOLLO-Mini</strong></td>
+          <td>Random-projection approximation of AdamW's channel-wise LR adaptation. No SVD.</td>
+          <td><strong>&lt; 12 GB for LLaMA-7B pretraining</strong>; 3× throughput via 4× larger batch</td>
+          <td>Full-param FT on consumer GPUs. MLSys'25.</td>
+        </tr>
+        <tr id="adv-muon">
+          <td><strong>Muon</strong></td>
+          <td>SGD-momentum + Newton-Schulz orthogonalization of 2D parameter updates</td>
+          <td>~33% optimizer state savings (momentum only, no <code>v</code>)</td>
+          <td>Pretraining where optimizer memory &amp; convergence speed matter. ~35% fewer wall-clock hours than AdamW at 1.5B. FSDP integration still evolving.</td>
+        </tr>
+        <tr id="adv-qgalore">
+          <td><strong>Q-GaLore</strong></td>
+          <td>GaLore + INT4 projection + INT8 weights + adaptive subspace skips</td>
+          <td>50% less than GaLore/LoRA; <strong>pretrain LLaMA-7B on a single 16 GB RTX 4060 Ti</strong></td>
+          <td>Full-param training on consumer GPUs; best single-GPU pretraining story.</td>
+        </tr>
+        <tr id="adv-badam">
+          <td><strong>BAdam</strong></td>
+          <td>Block coordinate descent: run Adam on one transformer layer at a time</td>
+          <td><strong>Full-param Llama-3-8B on a single RTX 3090 (24 GB)</strong>; Llama-3-70B on 4×A100-80GB</td>
+          <td>Full-FT quality on consumer GPUs when LoRA is not enough. NeurIPS 2024.</td>
+        </tr>
+        <tr id="adv-lion">
+          <td><strong>Lion</strong></td>
+          <td>Sign-momentum. <code>sign(momentum)</code> × LR. Discovered via symbolic AutoML.</td>
+          <td>~33% optimizer state savings (momentum only)</td>
+          <td>Less exotic alternative to Muon for pretraining. LR × 1/3 to 1/10 vs AdamW, WD × 3-10.</td>
+        </tr>
+        <tr id="adv-schedulefree">
+          <td><strong>Schedule-Free AdamW</strong></td>
+          <td>Iterate averaging replaces LR schedule + warmup</td>
+          <td>Minor (no scheduler state)</td>
+          <td>Long pretraining where picking a schedule length is awkward. Must call <code>.train()</code> / <code>.eval()</code> — #1 footgun.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h4>APOLLO quick recipe</h4>
+    <pre class="code-block"><code>pip install apollo-torch</code></pre>
+    <pre class="code-block"><code>from apollo_torch import APOLLOAdamW
+
+optimizer = APOLLOAdamW(
+    model.parameters(),
+    lr=1e-4,
+    scale_type="channel",   <span class="comment"># "tensor" for APOLLO-Mini</span>
+    rank=256,               <span class="comment"># 1 for Mini</span>
+    update_proj_gap=200,
+    scale=1.0,
+    proj_type="std",
+)</code></pre>
+
+    <h4>BAdam quick recipe</h4>
+    <pre class="code-block"><code>pip install badam</code></pre>
+    <pre class="code-block"><code>from badam import BlockOptimizer
+
+base = torch.optim.AdamW(model.parameters(), lr=1e-5)
+optimizer = BlockOptimizer(
+    base_optimizer=base,
+    named_parameters_list=list(model.named_parameters()),
+    switch_block_every=100,    <span class="comment"># steps per block</span>
+    switch_mode="ascending",   <span class="comment"># layer 0, 1, 2, …</span>
+    active_modules=[],         <span class="comment"># block boundary = transformer layer</span>
+)</code></pre>
+
+    <h4>Muon quick recipe</h4>
+    <pre class="code-block"><code>from muon import Muon
+<span class="comment"># Muon only handles 2D hidden params; use AdamW for embeddings/norms/lm_head</span>
+hidden_params = [p for n, p in model.named_parameters()
+                 if p.ndim &gt;= 2 and "embed" not in n and "lm_head" not in n]
+other_params  = [p for n, p in model.named_parameters() if p not in hidden_params]
+
+optimizers = [
+    Muon(hidden_params, lr=0.02, momentum=0.95),
+    torch.optim.AdamW(other_params, lr=3e-4),
+]</code></pre>
+
+    <h4 id="adv-cpuoffload-optim">torchao <code>CPUOffloadOptimizer</code> — modern paged_adamw replacement</h4>
+    <p>PyTorch-native, <code>torch.compile</code>-friendly replacement for bitsandbytes' <code>paged_adamw_8bit</code>. Stashes optimizer state <em>and</em> gradients on CPU pinned memory; runs the optimizer step on CPU. Benchmark: <strong>39.1 GB peak vs 51.6 GB fused AdamW vs 39.3 GB bitsandbytes 8-bit</strong> — matches bitsandbytes in memory while being pure PyTorch. Expect ~1.5–2× slower per step than an in-GPU optimizer.</p>
+
+    <pre class="code-block"><code>from torchao.prototype.low_bit_optim import CPUOffloadOptimizer
+
+optimizer = CPUOffloadOptimizer(
+    model.parameters(),
+    optimizer_class=torch.optim.AdamW,
+    fused=True,           <span class="comment"># CPU-side fused AdamW</span>
+    offload_gradients=True,
+)</code></pre>
+
+    <h4 id="adv-torchao-lowbit">torchao low-bit AdamW (8-bit, 4-bit)</h4>
+    <p>Pure-PyTorch + <code>torch.compile</code> quantized optimizer state. Benchmarks match bitsandbytes at 8-bit; <strong>4-bit halves state again</strong>, unlocking something bitsandbytes doesn't ship. Easier install, no bnb version drama, works with FSDP.</p>
+
+    <pre class="code-block"><code>from torchao.prototype.low_bit_optim import AdamW8bit, AdamW4bit
+optimizer = AdamW4bit(model.parameters(), lr=1e-4)  <span class="comment"># ~8× savings vs fp32 state</span></code></pre>
+
+    <h4>Stochastic rounding + Kahan summation (full-FT only)</h4>
+    <p>When updating bf16 weights in-place (no fp32 master copy), nearest-rounding kills small updates. Stochastic rounding makes the update unbiased in expectation; Kahan summation carries the rounding error in a separate 16-bit accumulator. Net: <strong>drop the 4P-bytes fp32 master copy → gain 4P</strong>, pay 2P back for Kahan accumulator → <strong>save 2P bytes</strong>. Only worth it for full-param training ≥ 1B. The <code>optimi</code> library implements this cleanly.</p>
+
+    <pre class="code-block"><code>from optimi import AdamW
+optimizer = AdamW(model.parameters(), lr=1e-4, kahan_summation=True)</code></pre>
+
+    <!-- ============================================================== -->
+    <h3 id="adv-peft">PEFT Variants — beyond LoRA / QLoRA / AdaLoRA</h3>
+
+    <p>Modern alternatives to vanilla LoRA. <strong>Most of these are quality upgrades, not memory wins</strong> — it's important to know which are which. The table below makes that explicit.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Variant</th>
+          <th>What it does</th>
+          <th>Memory effect</th>
+          <th>Use when</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>DoRA</strong></td>
+          <td>Decomposes <code>W = m · (W₀+BA) / ‖·‖</code>; magnitude + LoRA direction trained separately</td>
+          <td><strong>Higher</strong> training VRAM (efficient-DoRA variant reclaims ~24% on LLaMA)</td>
+          <td>LoRA quality insufficient AND VRAM headroom exists. <em>Not</em> a memory-saving technique.</td>
+        </tr>
+        <tr>
+          <td><strong>rsLoRA</strong></td>
+          <td>Scales α/√r instead of α/r — unlocks high-rank LoRA</td>
+          <td>Same as LoRA (<strong>zero</strong>)</td>
+          <td>Running LoRA at r=64 or higher and seeing disappointing quality.</td>
+        </tr>
+        <tr>
+          <td><strong>PiSSA</strong></td>
+          <td>Init A, B with top-r singular vectors of W₀; freeze residual</td>
+          <td>Same as LoRA; <strong>reduces QLoRA quantization error</strong> (residual has smaller singular values)</td>
+          <td>QLoRA runs where 4-bit quantization is hurting quality. NeurIPS 2024 Spotlight.</td>
+        </tr>
+        <tr>
+          <td><strong>LoftQ</strong></td>
+          <td>Alternates quantizing (W − BA) and SVDing → LoRA absorbs quantization error at init</td>
+          <td>Same as LoRA</td>
+          <td>QLoRA accuracy ceilings. Pair with (or instead of) PiSSA.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <pre class="code-block"><code>from peft import LoraConfig, get_peft_model
+
+<span class="comment"># DoRA — quality up, VRAM up</span>
+config = LoraConfig(r=8, lora_alpha=16, use_dora=True,
+                    target_modules=["q_proj", "v_proj", ...], ...)
+
+<span class="comment"># rsLoRA — unlock high-rank LoRA</span>
+config = LoraConfig(r=64, lora_alpha=16, use_rslora=True, ...)
+
+<span class="comment"># PiSSA — better init for LoRA/QLoRA</span>
+config = LoraConfig(r=16, init_lora_weights="pissa", ...)
+
+<span class="comment"># LoftQ — quantization-aware init</span>
+config = LoraConfig(r=16, init_lora_weights="loftq", ...)</code></pre>
+
+    <div class="callout danger">
+      <strong>DoRA is not a memory win.</strong>
+      <p>It is routinely pitched as "the next LoRA," but training-time VRAM is <em>higher</em> than plain LoRA, not lower. Frame DoRA as a quality upgrade that <em>costs</em> memory. If you're VRAM-constrained, stay on LoRA/QLoRA and reach for rsLoRA or PiSSA instead.</p>
+    </div>
+
+    <!-- ============================================================== -->
+    <h3 id="adv-compile">Compiler &amp; CUDA Graphs</h3>
+
+    <h4 id="adv-compile-modes"><code>torch.compile</code> · three modes to know</h4>
+    <p>The existing Phase 2 playbook mentions <code>torch.compile</code> only as a footnote. It deserves its own section with the three-mode distinction:</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Mode</th>
+          <th>Use case</th>
+          <th>Speedup</th>
+          <th>Memory</th>
+          <th>Compile time</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>default</code></td>
+          <td>General training</td>
+          <td>1.2–1.5×</td>
+          <td>base</td>
+          <td>fast</td>
+        </tr>
+        <tr>
+          <td><code>reduce-overhead</code></td>
+          <td>Small-batch / launch-bound training</td>
+          <td><strong>1.3–1.8×</strong></td>
+          <td>slightly more (CUDA graph workspace)</td>
+          <td>moderate</td>
+        </tr>
+        <tr>
+          <td><code>max-autotune</code></td>
+          <td>Inference / very long training runs</td>
+          <td>1.5–2.0×+</td>
+          <td>base</td>
+          <td>slow (minutes)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <pre class="code-block"><code><span class="comment"># LoRA on a memory-limited GPU: small batch, launch-bound → reduce-overhead</span>
+model = torch.compile(model, mode="reduce-overhead")
+<span class="comment"># Or via HF Trainer</span>
+training_args.torch_compile_mode = "reduce-overhead"</code></pre>
+
+    <div class="callout warning">
+      <strong>CUDA-graph gotchas:</strong>
+      <p>CUDA graph capture fails on dynamic shapes. Pin sequence lengths (<code>pad_to_multiple_of</code> + fixed max seq, or frame-budget batching that pads to a max) before enabling <code>reduce-overhead</code>. Shape changes trigger recompile storms that destroy throughput. Also: bitsandbytes 4-bit matmul under <code>torch.compile</code> is still version-sensitive — verify before shipping.</p>
+    </div>
+
+    <h4>Thunder (Lightning AI) — niche alternative fusion backend</h4>
+    <p><code>thunder.jit(model)</code> traces a Python program and dispatches ops across multiple executors (nvFuser, torch.compile, cuDNN, TransformerEngine). Reports ~40% speedup vs eager, up to <strong>3.42× faster text generation, 1.69× faster fwd+bwd</strong> on DeepSeek-R1-Distill-Llama-1.5B. Interops with <code>torch.compile</code> (can be stacked). Niche; most users can stay on <code>torch.compile</code>. Include as "worth trying if curious."</p>
+
+    <!-- ============================================================== -->
+    <h3 id="adv-datapipe">Data Pipeline Accelerators</h3>
+
+    <p>Phase 3 covers the DataLoader basics. These libraries push further when CPU preprocessing is the measured bottleneck.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Library</th>
+          <th>Best for</th>
+          <th>Headline win</th>
+          <th>Cost</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr id="adv-dali">
+          <td><strong>NVIDIA DALI</strong></td>
+          <td>Image-heavy training with on-the-fly augmentation</td>
+          <td><strong>72% / 37% / 43%</strong> training time improvement (ResNet18/50/152)</td>
+          <td>Pipeline DSL; learning curve</td>
+        </tr>
+        <tr id="adv-torchcodec">
+          <td><strong>torchcodec</strong></td>
+          <td>Audio / video pipelines; replaces deprecated <code>torchaudio.load</code></td>
+          <td>CUDA video decode; unified API; <strong>best PyTorch video decoder</strong></td>
+          <td>Minimal — migration is mechanical</td>
+        </tr>
+        <tr id="adv-ffcv">
+          <td><strong>FFCV</strong></td>
+          <td>Pure vision pipelines where DataLoader is the bottleneck</td>
+          <td>Outperforms DataLoader, WebDataset, DALI in authors' benchmarks</td>
+          <td>One-time dataset conversion to <code>.beton</code>; slower ecosystem churn</td>
+        </tr>
+        <tr id="adv-energon">
+          <td><strong>Megatron Energon</strong></td>
+          <td>Multimodal pretraining (image+text+audio)</td>
+          <td>Distributed sampling, blend-weighted sources, deterministic resume</td>
+          <td>Overkill for single-modality; WebDataset-shaped datasets</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h4>torchcodec recipe (project-relevant)</h4>
+    <pre class="code-block"><code>from torchcodec.decoders import AudioDecoder
+
+decoder = AudioDecoder("audio.wav")
+samples = decoder.get_samples_played_in_range(start_seconds=0, stop_seconds=30)
+<span class="comment"># samples.data: tensor, samples.sample_rate: int</span>
+
+<span class="comment"># Backward-compat path (calls torchcodec under the hood):</span>
+import torchaudio
+waveform, sr = torchaudio.load_with_torchcodec("audio.wav")</code></pre>
+
+    <div class="callout warning">
+      <strong>torchaudio.load is deprecated in torchaudio 2.9.</strong>
+      <p>Any ASR / audio pipeline still calling <code>torchaudio.load</code> will keep working via a backward-compat shim until 2.9, then break. Plan the migration now. The shim is <code>torchaudio.load_with_torchcodec(...)</code> — mechanical drop-in for existing call sites.</p>
+    </div>
+
+    <h4>NVIDIA DALI recipe</h4>
+    <pre class="code-block"><code>from nvidia.dali import pipeline_def, fn
+from nvidia.dali.plugin.pytorch import DALIGenericIterator
+
+@pipeline_def
+def image_pipeline():
+    images, labels = fn.readers.file(file_root=data_dir, name="Reader")
+    images = fn.decoders.image(images, device="mixed", output_type=types.RGB)
+    images = fn.resize(images, device="gpu", size=(224, 224))
+    return images, labels
+
+pipe = image_pipeline(batch_size=64, num_threads=4, device_id=0)
+loader = DALIGenericIterator(pipe, ["images", "labels"], reader_name="Reader")</code></pre>
+
+    <!-- ============================================================== -->
+    <h3 id="adv-system">Allocator &amp; System-Level Tuning</h3>
+
+    <h4 id="adv-alloc-conf">Full <code>PYTORCH_CUDA_ALLOC_CONF</code> cheat sheet</h4>
+    <p>The existing playbook mentions <code>expandable_segments:True</code> only. Several other options address different failure modes:</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Option</th>
+          <th>Effect</th>
+          <th>When to use</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>expandable_segments:True</code></td>
+          <td>Reduces fragmentation by using growable VMM segments</td>
+          <td>OOM after many steps (the default fix)</td>
+        </tr>
+        <tr>
+          <td><code>max_split_size_mb:N</code></td>
+          <td>Native allocator won't split blocks larger than N MB</td>
+          <td>Large contiguous allocations failing despite reported free memory</td>
+        </tr>
+        <tr>
+          <td><code>garbage_collection_threshold:0.8</code></td>
+          <td>Proactively frees old unused blocks past 80% usage</td>
+          <td>Slow memory creep without a clear leak</td>
+        </tr>
+        <tr>
+          <td><code>backend:cudaMallocAsync</code></td>
+          <td>Switches to CUDA's async allocator</td>
+          <td>Experimental — different fragmentation profile; ignores <code>garbage_collection_threshold</code></td>
+        </tr>
+        <tr>
+          <td><code>roundup_power2_divisions:[N]</code></td>
+          <td>Round allocation sizes to power-of-2 / N</td>
+          <td>Allocator-heavy workloads with lots of odd sizes</td>
+        </tr>
+        <tr>
+          <td><code>pinned_use_background_threads:True</code></td>
+          <td>Async pinned CPU-mem allocation</td>
+          <td>Large pinned allocations blocking the main thread</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>Recommended default for training:</strong></p>
+    <pre class="code-block"><code>export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True,garbage_collection_threshold:0.8"</code></pre>
+
+    <p class="meta"><strong>Gotcha:</strong> <code>garbage_collection_threshold</code> is <em>ignored</em> when <code>backend:cudaMallocAsync</code> is set. Pick one backend.</p>
+
+    <h4 id="adv-nccl">NCCL buffer tuning</h4>
+    <p>Per-GPU NCCL comm buffers consume VRAM. The default <code>NCCL_BUFFSIZE</code> is 4 MiB; cutting it to 2 MiB saves a few hundred MB per rank when multi-GPU training is VRAM-tight. Benchmark before committing — too small can tank comms throughput.</p>
+
+    <pre class="code-block"><code>export NCCL_BUFFSIZE=2097152   <span class="comment"># 2 MiB, half of default</span></code></pre>
+
+    <h4 id="adv-zero-infinity">DeepSpeed ZeRO-Infinity · NVMe offload (last-resort tier)</h4>
+    <p>Extension of ZeRO-3 that offloads parameters, gradients, and optimizer states to <strong>NVMe SSDs</strong> instead of just CPU RAM. Async prefetching overlaps NVMe→CPU→GPU movement with compute. Enables <strong>trillion-parameter training on a single DGX-2 node</strong>; 30+ trillion on 32 nodes. Bandwidth-limited by NVMe, so per-step is much slower than in-GPU training.</p>
+    <p class="meta">Reach for this only when (params + grads + optim) exceeds total CPU RAM — rare outside pretraining research. For 99% of users, FSDP2 + CPU offload is sufficient. DeepSpeed ecosystem only; FSDP2 has no NVMe-tier offload as of early 2026.</p>
+
+    <!-- ============================================================== -->
+    <h3 id="adv-diag">Advanced Diagnostics · <code>nsys</code></h3>
+
+    <p>PyTorch Profiler (Phase 1 Step 4) is sufficient for most bottleneck analysis. When it isn't — GPU-Util oscillating but the profiler breakdown shows "nothing obvious" — NVIDIA <strong>Nsight Systems</strong> (<code>nsys</code>) captures CPU, GPU, Python, CUDA, and NCCL activity on one timeline, revealing whether the gap is launch overhead, Python GIL, H2D transfer, or NCCL comm.</p>
+
+    <pre class="code-block"><code>nsys profile \
+  --pytorch=autograd-shapes-nvtx \
+  --python-sampling=true \
+  --backtrace=none \
+  -o training_profile \
+  python train.py --max-steps 20
+
+<span class="comment"># Then open training_profile.nsys-rep in the Nsight Systems GUI</span></code></pre>
+
+    <p><strong>Published result:</strong> a 2025 case study reports a <strong>3.2× training speedup</strong> from nsys-driven optimizations — a training job that took a week now finishes in 2 days.</p>
+
+    <p class="meta">Profile a <em>short</em> run (20–50 steps) — <code>.nsys-rep</code> files balloon fast. Open on a workstation, not over SSH.</p>
+
+    <!-- ============================================================== -->
+    <h3 id="adv-recipes">Framework Recipes worth Copying</h3>
+
+    <h4>Axolotl defaults</h4>
+    <p>Axolotl's default configuration contains several subtleties the core playbook doesn't call out:</p>
+    <ul>
+      <li><strong><code>sample_packing: true</code> paired with <code>pad_to_sequence_len: true</code></strong> — Axolotl intentionally pads packed sequences to a <em>fixed</em> length. Reason: varying packed lengths cause VRAM spikes even if each batch is smaller than fully padded. This contradicts the usual "dynamic padding wins" advice — but packing's whole point is that everything is already the same length.</li>
+      <li><strong><code>flash_attention: true</code></strong> automatically routes packed sequences through the FA2 varlen API.</li>
+      <li><strong><code>gradient_checkpointing: true</code> + <code>activation_offloading: true</code></strong> — the tight-VRAM combo.</li>
+      <li><strong><code>eval_sample_packing: false</code></strong> — packing during eval is often broken; disable explicitly.</li>
+      <li><strong><code>sequence_parallel_degree: N</code></strong> — Ulysses-style SP, currently in beta.</li>
+    </ul>
+
+    <h4>torchtitan reference recipe</h4>
+    <p>The canonical modern recipe for scale-out PyTorch training, maintained by Meta/PyTorch. Combines everything in this section:</p>
+    <ul>
+      <li>FSDP2 (per-parameter <code>fully_shard</code>)</li>
+      <li>TP + SP + CP composable via <code>DeviceMesh</code></li>
+      <li>Pipeline parallelism with Zero-Bubble schedules</li>
+      <li>Selective activation checkpointing (<code>selective_op</code> mode recommended default)</li>
+      <li><code>torchao</code> float8 training on H100</li>
+      <li><code>torch.compile</code> mandatory</li>
+      <li>Native sharded checkpointing</li>
+    </ul>
+    <p class="meta">Full reference config: <code>torchtitan/train_configs/llama3_8b.toml</code>. Reach for torchtitan when pretraining or doing full-param FT at ≥ 16 GPUs and you want the PyTorch-native path (not DeepSpeed).</p>
+
+    <h2 id="symptoms">Quick Symptom Lookup</h2>
+
+    <table>
+      <thead>
+        <tr><th>Symptom</th><th>Start At</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>OOM immediately on model load</td><td>Model too large — use QLoRA/NF4 or bigger GPU</td></tr>
+        <tr><td>OOM during forward pass</td><td>Batch too large or no grad checkpointing</td></tr>
+        <tr><td>OOM during backward pass</td><td>Activation memory — enable gradient checkpointing</td></tr>
+        <tr><td>OOM only during eval</td><td>Lower <code>per_device_eval_batch_size</code>, use <code>torch.no_grad()</code></td></tr>
+        <tr><td>OOM on one batch but not others</td><td>Variable-length data — use frame-budget batching</td></tr>
+        <tr><td>GPU-Util 0–100% oscillation</td><td>Data pipeline starving GPU → Phase 3</td></tr>
+        <tr><td>GPU-Util steady but low (~30%)</td><td>CPU-bound preprocessing → Phase 3; also consider <a href="#adv-dali">DALI</a> for image pipelines</td></tr>
+        <tr><td><code>bf16</code> errors or slow on T4/V100</td><td>Wrong precision for architecture → Phase 2 Technique 1</td></tr>
+        <tr><td>Memory grows over epochs</td><td>Retained graphs — likely missing <code>.item()</code> on loss</td></tr>
+        <tr><td>OOM after many steps (not first)</td><td>Fragmentation — set <code>expandable_segments:True</code> (see <a href="#adv-alloc-conf">full cheat sheet</a>)</td></tr>
+        <tr><td>Grad checkpointing costs too much wall-clock</td><td><a href="#adv-selective-ac">Selective activation recomputation</a> — keeps 80–90% of the savings at ~2% cost</td></tr>
+        <tr><td>Already grad-checkpointed, still doesn't fit</td><td><a href="#adv-cpu-offload">Activation CPU offload</a> — async overlap via <code>checkpoint_wrapper(offload_to_cpu=True)</code></td></tr>
+        <tr><td>Sequence length &gt; 32k tokens OOMs even with FA2</td><td><a href="#adv-context-parallel">Context parallelism</a> — shards sequence dim across GPUs</td></tr>
+        <tr><td>Need custom attention mask (sliding window, doc-packing, ALiBi)</td><td><a href="#adv-flexattention">FlexAttention</a> — <code>torch.nn.attention.flex_attention</code> with <code>score_mod</code> / <code>mask_mod</code></td></tr>
+        <tr><td>H100 / H200 training, bf16 throughput ceiling</td><td><a href="#adv-fp8-torchao">torchao fp8 + FSDP2 + torch.compile</a> — up to 50% speedup, exclude <code>lm_head</code>!</td></tr>
+        <tr><td>H100 attention kernel slower than expected</td><td><a href="#adv-fa3">FlashAttention-3</a> — Hopper-native warp specialization + TMA</td></tr>
+        <tr><td>FSDP1 throughput / memory not ideal</td><td>Migrate to <a href="#adv-fsdp2">FSDP2 (<code>fully_shard</code>)</a> — ~7% lower peak mem, cleaner compile interop</td></tr>
+        <tr><td>Multi-node training, inter-node bandwidth &lt; 100 Gbps</td><td><a href="#adv-hsdp">HSDP</a> — shard within node, replicate across nodes</td></tr>
+        <tr><td>Need TP but single layer still too big (huge <code>lm_head</code>, MoE)</td><td><a href="#adv-tensor-parallel">Tensor parallelism</a> via <code>ColwiseParallel</code>/<code>RowwiseParallel</code></td></tr>
+        <tr><td>Full-param FT on consumer GPU — LoRA quality not enough</td><td><a href="#adv-apollo">APOLLO</a>, <a href="#adv-qgalore">Q-GaLore</a>, or <a href="#adv-badam">BAdam</a></td></tr>
+        <tr><td>Optimizer state is the bottleneck, can't use LoRA</td><td><a href="#adv-torchao-lowbit">torchao AdamW4bit</a> or <a href="#adv-cpuoffload-optim"><code>CPUOffloadOptimizer</code></a></td></tr>
+        <tr><td>QLoRA quality hitting a ceiling (quantization loss)</td><td>Try <a href="#adv-peft">PiSSA</a> or <a href="#adv-peft">LoftQ</a> init — absorbs quant error into adapters</td></tr>
+        <tr><td>LoRA at r=64+ underperforming</td><td><a href="#adv-peft">rsLoRA</a> — change scaling to α/√r (one-flag fix)</td></tr>
+        <tr><td>Small-batch training, kernel launch overhead dominates</td><td><a href="#adv-compile-modes"><code>torch.compile(mode="reduce-overhead")</code></a> — CUDA graph capture</td></tr>
+        <tr><td>ASR / audio pipeline still uses <code>torchaudio.load</code></td><td>Migrate to <a href="#adv-torchcodec">torchcodec</a> — deprecated in torchaudio 2.9</td></tr>
+        <tr><td>PyTorch Profiler says "nothing obvious" but GPU stalls</td><td><a href="#adv-diag"><code>nsys profile</code></a> — system-wide CPU + GPU + Python timeline</td></tr>
+        <tr><td>Sequence packing causes spiky VRAM across batches</td><td>Axolotl-style <code>pad_to_sequence_len: true</code> — see <a href="#adv-recipes">framework recipes</a></td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="preflight">Pre-flight Checklist</h2>
+
+    <p>Run through this before launching any expensive training run. Click to check off — state persists in your browser.</p>
+
+    <p><em>Core checklist (applies to every run):</em></p>
+    <ul class="checklist">
+      <li data-key="nvidia-smi-clear">Ran <code>nvidia-smi</code> — no other job using this GPU</li>
+      <li data-key="memory-below-80">GPU memory usage below 80% before launch</li>
+      <li data-key="precision-matches-gpu">Mixed precision matches GPU architecture (fp16 on T4/V100, bf16 on Ampere+)</li>
+      <li data-key="grad-checkpoint">Gradient checkpointing enabled with <code>use_reentrant=False</code></li>
+      <li data-key="sdpa-attention">SDPA or FlashAttention-2 enabled for long sequences</li>
+      <li data-key="batch-maxed">Binary-searched <code>per_device_batch_size</code> to near-OOM</li>
+      <li data-key="grad-accum">Gradient accumulation set to reach target effective batch</li>
+      <li data-key="num-workers">DataLoader <code>num_workers</code> tuned against GPU-Util</li>
+      <li data-key="pin-memory">pin_memory + non_blocking transfers enabled</li>
+      <li data-key="peak-vram-in-range">Peak VRAM is 80–90% of total (Phase 4 check)</li>
+      <li data-key="gpu-util-steady">GPU-Util steady &gt; 90%, no oscillation</li>
+      <li data-key="wandb-logging">W&amp;B logging + babysit-training monitoring set up</li>
+      <li data-key="checkpoint-recovery">Checkpoint recovery tested (kill + resume works)</li>
+    </ul>
+
+    <p><em>Advanced checklist (if you're using the 2024–2026 techniques):</em></p>
+    <ul class="checklist">
+      <li data-key="adv-fsdp2">Multi-GPU runs use FSDP2 (<code>fully_shard</code>), not legacy FSDP1</li>
+      <li data-key="adv-selective-ac">Gradient checkpointing uses <em>selective</em> recomputation where possible</li>
+      <li data-key="adv-alloc-conf"><code>PYTORCH_CUDA_ALLOC_CONF</code> exports <code>expandable_segments:True,garbage_collection_threshold:0.8</code></li>
+      <li data-key="adv-compile-mode"><code>torch.compile</code> mode chosen deliberately (<code>default</code> / <code>reduce-overhead</code> / <code>max-autotune</code>)</li>
+      <li data-key="adv-fp8-lmhead">If using fp8: <code>lm_head</code> and embeddings are excluded, <code>torch.compile</code> is on, hardware is Hopper+</li>
+      <li data-key="adv-fa3">FlashAttention-3 in use on H100/H200 for long-context training</li>
+      <li data-key="adv-flexattention">Custom masks (sliding window, doc packing, ALiBi) go through FlexAttention, not hand-rolled masks</li>
+      <li data-key="adv-cp">Sequences &gt; 32k tokens routed through context parallelism</li>
+      <li data-key="adv-packing-fixed">If sequence-packing, packed sequences padded to <em>fixed</em> length (avoids spike OOMs)</li>
+      <li data-key="adv-torchcodec">Audio/video pipelines use torchcodec, not deprecated <code>torchaudio.load</code></li>
+      <li data-key="adv-optimizer-choice">Optimizer choice considers memory: LoRA → AdamW/8-bit, full-FT tight → APOLLO/BAdam/Q-GaLore</li>
+      <li data-key="adv-no-dora-for-memory">Not using DoRA expecting a VRAM win (it <em>costs</em> VRAM)</li>
+      <li data-key="adv-tp-nvlink">If using TP: verified NVLink topology with <code>nvidia-smi topo -m</code></li>
+      <li data-key="adv-nsys-if-stalled">If GPU-Util is stalling and PyTorch Profiler is inconclusive, ran <code>nsys profile</code></li>
+    </ul>
+
+    <button class="reset-btn" onclick="resetChecklist()">Reset all checkboxes</button>
+
+    <h2 id="faq">FAQ</h2>
+
+    <details>
+      <summary>Should I use fp16 or bf16?</summary>
+      <p>Bf16 if your GPU is Ampere or newer (A100, H100, RTX 30/40 series). Fp16 on older (T4, V100). Bf16 has the same dynamic range as fp32 so it avoids the gradient scaling headaches of fp16 — but Turing/Volta don't have the Tensor Cores for it and will silently fall back to software emulation.</p>
+    </details>
+
+    <details>
+      <summary>Why is my GPU at 100% utilization but training is slow?</summary>
+      <p>You are compute-bound, not VRAM-bound. Your GPU kernels are the bottleneck. Try <code>torch.compile</code>, FlashAttention-2, or fused kernels (Liger/Unsloth). If none of those help, the model is simply compute-heavy for this hardware.</p>
+    </details>
+
+    <details>
+      <summary>My peak VRAM is 60% — should I increase batch size?</summary>
+      <p>Yes, until you hit 80–90%. Binary search: double the batch until OOM, then back off. The exception is when your effective batch is already above what the task needs (e.g., using &gt; 32 effective for a small LR-sensitive task).</p>
+    </details>
+
+    <details>
+      <summary>When should I reach for QLoRA vs regular LoRA?</summary>
+      <p>Regular LoRA first — it's simpler and has no quantization error. Reach for QLoRA (NF4) when LoRA alone won't fit, typically for 7B+ models on consumer GPUs. The 4-bit base weights cut frozen memory by ~4×, at the cost of slightly slower forward passes.</p>
+    </details>
+
+    <details>
+      <summary>Do I need FSDP or DeepSpeed?</summary>
+      <p>Almost always the last resort. For single-GPU LoRA on models under 7B, every technique above is simpler and enough. Multi-GPU full fine-tuning is where sharding actually pays off — prefer FSDP over DeepSpeed for new PyTorch projects since it's native and better integrated with Accelerate/Trainer.</p>
+    </details>
+
+    <details>
+      <summary>FSDP1 or FSDP2 — which one should I use?</summary>
+      <p><strong>FSDP2.</strong> Treat FSDP1 as legacy for new code. FSDP2's per-parameter <code>fully_shard</code> API gives ~7% lower peak memory on Llama-2-7B at the same loss curve, ~1.5% MFU gain on Llama-7B / 8×H100, and much cleaner composition with TP / SP / CP / PP via a DeviceMesh. It's also the prerequisite for fp8 all-gather and modern torchtitan recipes. The only reason to stay on FSDP1 is backward compatibility with existing sharded checkpoints — and migrating those is a one-time job. See <a href="#adv-fsdp2">the FSDP2 section</a>.</p>
+    </details>
+
+    <details>
+      <summary>Does fp8 training actually help me?</summary>
+      <p>Only on Hopper (H100/H200) or Blackwell, and only for models ≥ ~1B parameters, and only if you're willing to run <code>torch.compile</code>. Under those conditions, torchao float8 + FSDP2 can give up to 50% throughput over bf16. <strong>If any of those conditions fails</strong> — A100, small model, no compile — bf16 is still the right answer. Always exclude <code>lm_head</code> and embeddings from fp8 conversion, or accuracy collapses. See <a href="#adv-fp8-torchao">torchao fp8</a>.</p>
+    </details>
+
+    <details>
+      <summary>Selective vs full activation recomputation — which should I pick?</summary>
+      <p><strong>Selective</strong> if your framework supports it (torchtitan, Megatron, or a manual FSDP2 wrap). It keeps nearly all of full checkpointing's memory win but at ~2% compute overhead instead of ~20%. The trick is that it only recomputes the <em>cheap-to-recompute, expensive-in-memory</em> ops — primarily attention softmax and dropout — and keeps the expensive matmuls. For HF Trainer without patching, you're stuck on full checkpointing. See <a href="#adv-selective-ac">selective recomputation</a>.</p>
+    </details>
+
+    <details>
+      <summary>My LoRA isn't good enough but full fine-tuning doesn't fit — now what?</summary>
+      <p>In order of effort: (1) Try <strong>rsLoRA</strong> with a higher rank (one-flag fix to unlock r=64/128). (2) Try <strong>PiSSA</strong> or <strong>LoftQ</strong> init if you're on QLoRA — they absorb quantization error. (3) Switch to a full-param technique with small optimizer state: <strong>APOLLO</strong> (MLSys'25, best throughput), <strong>Q-GaLore</strong> (consumer GPU pretraining), or <strong>BAdam</strong> (block coordinate descent — full Llama-3-8B on a single 3090). (4) As a last resort, add FSDP2 + CPU offload or a second GPU. Do <em>not</em> default to DoRA — it increases training VRAM, it doesn't decrease it.</p>
+    </details>
+
+    <details>
+      <summary>My ASR pipeline uses <code>torchaudio.load</code> — is that still fine?</summary>
+      <p>For now, yes — but plan the migration. <code>torchaudio.load</code> is deprecated and will be <em>removed</em> in torchaudio 2.9. The replacement is <a href="#adv-torchcodec">torchcodec</a>, which is also the PyTorch-native path for video decoding and has a CUDA decode path for compressed formats. The mechanical drop-in is <code>torchaudio.load_with_torchcodec(...)</code>, which calls torchcodec under the hood; the cleaner long-term path is using <code>torchcodec.decoders.AudioDecoder</code> directly.</p>
+    </details>
+
+    <footer>
+      <p><small>Last updated: 2026-04-11 · Source: <code>maximize-vram</code> skill + 2024–2026 gap research · Demo rendered in <em>Palatino Burgundy</em> style</small></p>
+    </footer>
+
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrapper -->
+
+<script>
+  // ========== Scroll-spy sidebar ==========
+  (function() {
+    var sidebarLinks = document.querySelectorAll('#sidebar-toc a');
+    var sections = [];
+    sidebarLinks.forEach(function(link) {
+      var id = link.getAttribute('href').slice(1);
+      var el = document.getElementById(id);
+      if (el) sections.push({ id: id, el: el, link: link });
+    });
+
+    function onScroll() {
+      var scrollY = window.scrollY + 80;
+      var current = null;
+      for (var i = 0; i < sections.length; i++) {
+        if (sections[i].el.offsetTop <= scrollY) {
+          current = sections[i];
+        }
+      }
+      sidebarLinks.forEach(function(l) { l.classList.remove('active'); });
+      if (current) current.link.classList.add('active');
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  })();
+
+  // ========== Checklist with localStorage ==========
+  var STORAGE_KEY = 'maximize-vram-playbook-checklist';
+  var checklistItems = document.querySelectorAll('ul.checklist li[data-key]');
+
+  function loadChecklist() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+      checklistItems.forEach(function(li) {
+        if (saved[li.dataset.key]) li.classList.add('checked');
+      });
+    } catch (e) {}
+  }
+
+  function saveChecklist() {
+    var state = {};
+    checklistItems.forEach(function(li) {
+      if (li.classList.contains('checked')) state[li.dataset.key] = true;
+    });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  checklistItems.forEach(function(li) {
+    li.addEventListener('click', function(e) {
+      if (e.target.tagName === 'A') return;
+      li.classList.toggle('checked');
+      saveChecklist();
+    });
+  });
+
+  function resetChecklist() {
+    checklistItems.forEach(function(li) { li.classList.remove('checked'); });
+    localStorage.removeItem(STORAGE_KEY);
+  }
+  window.resetChecklist = resetChecklist;
+
+  loadChecklist();
+
+  // ========== VRAM breakdown chart ==========
+  (function() {
+    var palatino = 'Palatino Linotype, Palatino, Book Antiqua, Georgia, serif';
+    var chartTitleFont = { size: 17, family: palatino };
+    var axisTitleFont = { size: 15, family: palatino, weight: '600' };
+    var axisTickFont = { size: 13, family: palatino };
+    var legendFont = { size: 13, family: palatino };
+
+    var categoryColors = ['#7c3043', '#b85c3a', '#c9944a', '#5a7d5a', '#2a6496'];
+
+    new Chart(document.getElementById('vramBreakdownChart'), {
+      type: 'bar',
+      data: {
+        labels: [
+          'Model weights (fp16)',
+          'FP32 master copy',
+          'Gradients (fp16)',
+          'Optimizer states (AdamW)',
+          'Activations (variable)'
+        ],
+        datasets: [{
+          label: 'Bytes per parameter',
+          data: [2, 4, 2, 8, 6],
+          backgroundColor: categoryColors,
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        aspectRatio: 2.2,
+        indexAxis: 'y',
+        plugins: {
+          title: {
+            display: true,
+            text: 'Where VRAM goes during AdamW + mixed-precision training',
+            font: chartTitleFont,
+            padding: { bottom: 14 }
+          },
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(ctx) {
+                return ctx.parsed.x + ' bytes × P parameters';
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            title: { display: true, text: 'Bytes per parameter', font: axisTitleFont, padding: { top: 8 } },
+            ticks: { font: axisTickFont },
+            beginAtZero: true
+          },
+          y: {
+            ticks: { font: axisTickFont }
+          }
+        }
+      }
+    });
+  })();
+</script>
+</body>
+</html>
