@@ -460,7 +460,8 @@ def run_cell(cell, args, shared_flags):
 def write_grid_csv(metrics_list, path):
     cols = [
         "cell_id", "label", "verdict", "peak_vram_gb", "mean_gpu_util",
-        "median_step_time_s", "tokens_per_sec", "final_loss",
+        "median_step_time_s", "real_samples_per_step", "samples_per_sec",
+        "tokens_per_sec", "final_loss",
         "gradient_checkpointing_enabled", "optim_runtime", "effective_batch_size",
         "n_steady_samples", "wallclock_sec", "complexity_score",
         "flags_json", "verdict_reason",
@@ -476,6 +477,8 @@ def write_grid_csv(metrics_list, path):
                 f"{m['peak_vram_gb']:.3f}" if isinstance(m.get("peak_vram_gb"), (int, float)) else "",
                 f"{m['mean_gpu_util']:.2f}" if isinstance(m.get("mean_gpu_util"), (int, float)) else "",
                 f"{m['median_step_time_s']:.3f}" if isinstance(m.get("median_step_time_s"), (int, float)) else "",
+                m.get("real_samples_per_step") if m.get("real_samples_per_step") is not None else "",
+                f"{m['samples_per_sec']:.3f}" if isinstance(m.get("samples_per_sec"), (int, float)) else "",
                 f"{m['tokens_per_sec']:.3f}" if isinstance(m.get("tokens_per_sec"), (int, float)) else "",
                 f"{m['final_loss']:.4f}" if isinstance(m.get("final_loss"), (int, float)) else "",
                 m.get("gradient_checkpointing_enabled"),
