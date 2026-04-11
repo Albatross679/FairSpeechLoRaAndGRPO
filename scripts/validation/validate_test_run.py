@@ -2,7 +2,7 @@
 Validate test run predictions: check WER is reasonable and output is not chatty.
 
 Usage:
-    python scripts/validate_test_run.py --output_dir results/fairspeech_test
+    python scripts/validation/validate_test_run.py --output_dir results/fairspeech_test
 
 Exit code 0 = all checks pass, 1 = one or more models failed validation.
 """

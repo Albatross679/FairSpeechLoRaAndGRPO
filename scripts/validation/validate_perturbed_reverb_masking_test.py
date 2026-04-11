@@ -3,7 +3,7 @@
 Validate perturbed reverb and masking test runs on Fair-Speech (5 samples each).
 
 Usage:
-    python scripts/validate_perturbed_reverb_masking_test.py
+    python scripts/validation/validate_perturbed_reverb_masking_test.py
 
 Checks:
   1. All 27 reverb + 27 masking prediction files exist (9 models x 3 levels each)

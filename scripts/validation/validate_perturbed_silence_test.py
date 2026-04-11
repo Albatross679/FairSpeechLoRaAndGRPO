@@ -4,8 +4,8 @@ Validate perturbed silence test run: checks all 9 models × 3 silence levels
 completed and results are sane.
 
 Usage:
-    python scripts/validate_perturbed_silence_test.py
-    python scripts/validate_perturbed_silence_test.py --output_dir results/perturbed_silence_test
+    python scripts/validation/validate_perturbed_silence_test.py
+    python scripts/validation/validate_perturbed_silence_test.py --output_dir results/perturbed_silence_test
 
 Checks:
   1. All 27 prediction files exist (9 models × 3 silence levels)

@@ -6,7 +6,7 @@ Handles 5 demographic axes: ethnicity, gender, age, first_language (L1), socioec
 Computes WER, MMR, gap%, error decomposition, and bootstrap CIs per group.
 
 Usage:
-    python scripts/compute_fairness_metrics_fs.py \
+    python scripts/metrics/compute_fairness_metrics_fs.py \
         --results_dir results/fairspeech/ \
         --output_dir results/fairspeech/analysis/
 """

@@ -4,9 +4,9 @@ Validate Fair-Speech train/eval splits: demographic completeness, group sizes,
 speaker leakage, audio file existence, text normalization, and distribution drift.
 
 Usage:
-    python scripts/validate_splits.py
-    python scripts/validate_splits.py --plots
-    python scripts/validate_splits.py --train /path/to/fs_train.csv --eval /path/to/fs_eval.csv
+    python scripts/validation/validate_splits.py
+    python scripts/validation/validate_splits.py --plots
+    python scripts/validation/validate_splits.py --train /path/to/fs_train.csv --eval /path/to/fs_eval.csv
 
 Exit code 0 = all checks pass, 1 = one or more critical issues found.
 """

@@ -11,9 +11,9 @@ Computes:
   - All tables and figure data from README
 
 Usage:
-    python scripts/compute_perturbation_metrics.py --dataset fs
-    python scripts/compute_perturbation_metrics.py --dataset cv
-    python scripts/compute_perturbation_metrics.py --dataset fs --dry-run
+    python scripts/metrics/compute_perturbation_metrics.py --dataset fs
+    python scripts/metrics/compute_perturbation_metrics.py --dataset cv
+    python scripts/metrics/compute_perturbation_metrics.py --dataset fs --dry-run
 """
 
 import argparse

@@ -14,8 +14,8 @@ Figures generated:
   P6. WER degradation curves by perturbation type (all models)
 
 Usage:
-    python scripts/generate_perturbation_plots.py
-    python scripts/generate_perturbation_plots.py --output_dir results/figures/
+    python scripts/plots/generate_perturbation_plots.py
+    python scripts/plots/generate_perturbation_plots.py --output_dir results/figures/
 """
 
 import argparse

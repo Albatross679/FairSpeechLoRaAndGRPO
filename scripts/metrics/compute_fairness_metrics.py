@@ -10,7 +10,7 @@ This script:
 5. Generates publication-ready tables and figures
 
 Usage:
-    python scripts/compute_fairness_metrics.py \
+    python scripts/metrics/compute_fairness_metrics.py \
         --results_dir results/ \
         --output_dir results/analysis/ \
         --models whisper_medium whisper_large_v3 wav2vec2_large

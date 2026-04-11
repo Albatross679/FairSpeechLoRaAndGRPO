@@ -6,7 +6,7 @@ Reads test.tsv, verifies audio files exist, standardizes demographic labels,
 and produces a single CSV manifest with full demographic metadata.
 
 Usage:
-    python scripts/prepare_dataset.py
+    python scripts/data/prepare_dataset.py
 """
 
 import csv

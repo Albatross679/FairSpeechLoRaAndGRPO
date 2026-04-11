@@ -3,8 +3,8 @@
 Validate CV perturbed test run: checks all 9 models × 12 perturbation conditions.
 
 Usage:
-    python scripts/validate_cv_perturbed_test.py
-    python scripts/validate_cv_perturbed_test.py --output_dir results/perturbed_cv_test
+    python scripts/validation/validate_cv_perturbed_test.py
+    python scripts/validation/validate_cv_perturbed_test.py --output_dir results/perturbed_cv_test
 
 Checks:
   1. All 108 prediction files exist (9 models × 12 conditions)

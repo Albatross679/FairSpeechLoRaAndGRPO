@@ -9,21 +9,42 @@ NLP class project investigating fairness in Automatic Speech Recognition (ASR) s
 ```
 NLPClassProject/
 ├── .claude/           # Claude Code settings and memory
-├── .git/
-├── .gitignore
-├── .vscode/           # VS Code workspace settings
+├── .planning/         # GSD planning artifacts (roadmaps, phases, research)
 ├── CLAUDE.md          # This file
+├── pyproject.toml     # Project config
 ├── fileClasses/       # FileClass definitions (Metadata Menu schema)
-├── scripts/           # All Python and shell scripts
+├── scripts/
+│   ├── data/          # prepare_*, extract_*, generate_perturbations
+│   ├── inference/     # run_inference.py (MODEL_REGISTRY dispatch)
+│   ├── metrics/       # compute_fairness_*, compute_perturbation_*, error_decomposition_*
+│   ├── plots/         # generate_*_plots, regenerate_figures_large_fonts
+│   ├── validation/    # validate_splits, validate_*_perturbed_test, validate_test_run
+│   ├── analysis/      # whisper_hallucination_analysis, parse_bootstrap_cis, prepare_overleaf
+│   ├── setup/         # shell: download_musan, download_rirs, setup_nemo, launch_priority_batch
+│   └── training/      # LoRA / GRPO training infrastructure (package: scripts.training)
+├── docs/              # HTML explainers and project-overview
+├── datasets/          # (gitignored) audio and manifests
+├── outputs/           # (gitignored) training run artifacts
 ├── logs/              # One file per log entry (<topic>.md)
 ├── experiments/       # One file per experiment (<topic>.md)
 ├── issues/            # One file per issue (<topic>.md)
 ├── knowledge/         # Domain knowledge and reference (<topic>.md)
 ├── references/        # One file per reference (<topic>.md)
 ├── tasks/             # PRDs and task specs (prd-<feature>.md)
-├── colm2026_conference.pdf   # Conference paper PDF
+├── tests/             # pytest modules
+├── colm2026_conference.pdf       # Conference paper PDF
 └── llm-asr-fairness-midterm.pdf  # Midterm report PDF
 ```
+
+**Subdirectory roles in `scripts/`** (reorganized 2026-04-11):
+- **data/** — anything that produces a manifest or audio file that downstream steps consume
+- **inference/** — the `MODEL_REGISTRY` dispatch and the only script that touches GPUs for eval
+- **metrics/** — consumes prediction CSVs → produces analysis JSONs
+- **plots/** — consumes analysis JSONs → produces figures
+- **validation/** — sanity checks for splits and perturbation runs (exit code based)
+- **analysis/** — one-off deep-dives and paper-prep utilities
+- **setup/** — one-time install and data download scripts (bash)
+- **training/** — LoRA/GRPO training; imported as the `scripts.training` Python package. **Do not move files inside** — package path is load-bearing for cross-imports.
 
 
 ## Credentials
@@ -62,7 +83,7 @@ In addition, each fileClass has specific properties that MUST be set:
 
 ## Architecture
 
-Script-oriented pipeline: `prepare_*.py` → `generate_perturbations.py` → `run_inference.py` → `compute_*_metrics.py` → `generate_*_plots.py`. Validation scripts (`validate_*.py`) catch inference failures. Data flows as CSV manifests → prediction CSVs → analysis JSONs → figures. Model dispatch via `MODEL_REGISTRY` dict in `run_inference.py`.
+Script-oriented pipeline: `scripts/data/prepare_*.py` → `scripts/data/generate_perturbations.py` → `scripts/inference/run_inference.py` → `scripts/metrics/compute_*.py` → `scripts/plots/generate_*.py`. Validation scripts (`scripts/validation/validate_*.py`) catch inference failures. Data flows as CSV manifests → prediction CSVs → analysis JSONs → figures. Model dispatch via `MODEL_REGISTRY` dict in `scripts/inference/run_inference.py`.
 
 ## GPU Safety
 
@@ -70,6 +91,27 @@ Before launching any GPU-intensive task:
 1. Run `nvidia-smi` to check current GPU utilization and memory
 2. Do NOT launch if GPU memory usage > 80% (another job may be running)
 3. Use `CUDA_VISIBLE_DEVICES` to target specific GPUs when multiple are available
+
+## ML Training Phase Plan Structure (GSD)
+
+When `/gsd-plan-phase` (or any GSD planner) creates `PLAN.md` files for a phase
+whose goal involves **long machine learning training** — SFT, RL, full-scale
+fine-tuning, or any training run expected to take more than ~1 hour of GPU
+time — the plan set MUST be structured in this order:
+
+1. **Infrastructure building** — data manifests, dataset download/verification,
+   environment setup, training script wiring, checkpointing, logging (W&B),
+   smoke tests, and dry-run validation gates.
+2. **VRAM maximization** — find a configuration (batch size, gradient
+   accumulation, sequence length, precision, LoRA rank, gradient checkpointing,
+   etc.) that maximizes GPU memory utilization without OOM. Refer to the
+   `maximize-vram` skill.
+3. **Launch training** — kick off the full-scale run with monitoring
+   (W&B dashboards, `babysit-training` skill) and checkpoint recovery.
+
+Each step should be its own plan file (or its own wave) so that infrastructure
+and VRAM tuning complete and are verified *before* the expensive training run
+launches. Do not collapse these three steps into a single plan.
 
 ## HTML Style
 

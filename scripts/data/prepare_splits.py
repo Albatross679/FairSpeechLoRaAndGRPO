@@ -9,8 +9,8 @@ using StratifiedGroupKFold (80/20), and saves fs_train.csv and fs_eval.csv.
 Common Voice test split is retained as-is (no new split created).
 
 Usage:
-    python scripts/prepare_splits.py
-    python scripts/prepare_splits.py --seed 42 --output-dir /path/to/output
+    python scripts/data/prepare_splits.py
+    python scripts/data/prepare_splits.py --seed 42 --output-dir /path/to/output
 """
 
 import argparse

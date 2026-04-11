@@ -6,10 +6,10 @@ Tests H3: Whisper scaling pathology on accented and minority speech.
 
 Usage:
     # For Common Voice (accent-based):
-    python scripts/whisper_hallucination_analysis.py --dataset cv
+    python scripts/analysis/whisper_hallucination_analysis.py --dataset cv
 
     # For Fair-Speech (ethnicity-based):
-    python scripts/whisper_hallucination_analysis.py --dataset fs
+    python scripts/analysis/whisper_hallucination_analysis.py --dataset fs
 """
 
 import argparse

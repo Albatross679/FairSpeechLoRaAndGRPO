@@ -8,9 +8,9 @@ Supports:
   Gen 3: qwen3-asr-1.7b  (Qwen/Qwen3-ASR-1.7B) via qwen-asr package
 
 Usage:
-    python scripts/run_inference.py --model wav2vec2-large --device cuda
-    python scripts/run_inference.py --model whisper-large-v3 --device cuda
-    python scripts/run_inference.py --model qwen3-asr-1.7b --device cuda
+    python scripts/inference/run_inference.py --model wav2vec2-large --device cuda
+    python scripts/inference/run_inference.py --model whisper-large-v3 --device cuda
+    python scripts/inference/run_inference.py --model qwen3-asr-1.7b --device cuda
 """
 
 import argparse

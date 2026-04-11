@@ -4,7 +4,7 @@ Error decomposition for Fair-Speech: substitution/insertion/deletion rates
 by ethnicity and L1 group across all models. Extends the CV error_decomposition.py.
 
 Usage:
-    python scripts/error_decomposition_fs.py \
+    python scripts/metrics/error_decomposition_fs.py \
         --results_dir results/fairspeech/
         [--output_dir results/fairspeech/analysis/]
 """

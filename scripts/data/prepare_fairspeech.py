@@ -6,7 +6,7 @@ Reads fairspeech_metadata.tsv, verifies audio files exist, standardizes
 demographic labels, applies text normalization, and produces a CSV manifest.
 
 Usage:
-    python scripts/prepare_fairspeech.py
+    python scripts/data/prepare_fairspeech.py
 """
 
 import csv

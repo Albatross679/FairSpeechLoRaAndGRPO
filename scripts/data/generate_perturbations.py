@@ -10,13 +10,13 @@ Perturbation types:
 
 Usage:
     # Generate all perturbations for Fair-Speech:
-    python scripts/generate_perturbations.py --dataset fs
+    python scripts/data/generate_perturbations.py --dataset fs
 
     # Single perturbation+level for Common Voice:
-    python scripts/generate_perturbations.py --dataset cv --perturbation snr_20db
+    python scripts/data/generate_perturbations.py --dataset cv --perturbation snr_20db
 
     # Dry run (no audio written):
-    python scripts/generate_perturbations.py --dataset fs --dry-run --max-samples 10
+    python scripts/data/generate_perturbations.py --dataset fs --dry-run --max-samples 10
 """
 
 import argparse

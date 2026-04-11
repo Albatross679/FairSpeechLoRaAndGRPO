@@ -120,6 +120,7 @@ footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-s
       <li><a href="#midterm">3. Midterm Findings</a></li>
       <li><a href="#lora-baseline">4. Standard LoRA Baseline</a></li>
       <li><a href="#next">5. Next Steps</a></li>
+      <li><a href="#issues">6. Issues</a></li>
     </ul>
   </aside>
 
@@ -136,6 +137,7 @@ footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-s
         <li><a href="#midterm">3. Midterm Findings (COLM 2026)</a></li>
         <li><a href="#lora-baseline">4. Standard LoRA Baseline</a></li>
         <li><a href="#next">5. Next Steps</a></li>
+        <li><a href="#issues">6. Issues</a></li>
       </ul>
     </nav>
 
@@ -196,8 +198,8 @@ footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-s
           <td>1.88M validated; 2.20M clips total</td>
           <td>3,766 hrs</td>
           <td>84 GB (MP3)</td>
-          <td>Accent (6&ndash;8 groups, $n \geq 50$), gender (5), age (9 bins)</td>
-          <td><code>client_id</code> (3,001 unique)</td>
+          <td>Accent (14 canonical groups $n \geq 50$), gender (5), age (9 bins)</td>
+          <td><code>client_id</code> (37,957 unique in train manifest)</td>
           <td>MDC REST API; requires <code>MDC_CLIENT_ID</code> + <code>MDC_API_KEY</code></td>
         </tr>
         <tr>
@@ -282,10 +284,43 @@ footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-s
     </table>
     <p>
       Audio stored as MP3 clips in a flat directory. The test split has ~16,400 utterances across 6 accent groups ($n \geq 50$ each),
-      including a large Indian-accent subgroup ($n = 511$) that enabled fine-grained hallucination analysis.
-      The train split has 8 accent groups with $n \geq 50$ (us, england, canada, indian, australia, african, newzealand, Northumbrian).
+      including a large Indian-accent subgroup ($n = 511$) that enabled fine-grained hallucination analysis for the midterm paper.
+      For Phase 3+ training we use the full train split (1,133,318 utterances after filtering to audio-on-disk): all
+      14 canonical accent groups clear $n \geq 50$ &mdash;
+      us (283,509), england (89,538), indian (82,564), canada (58,297), australia (34,400), african (22,236),
+      scotland (13,420), newzealand (6,125), ireland (5,935), filipino (4,346), hongkong (3,305), singapore (2,903),
+      malaysia (1,336), wales (915) &mdash;
+      plus ~430K utterances without accent labels (kept for general ASR training, excluded from fairness metrics).
       The raw <code>client_id</code> column is preserved as <code>speaker_id</code> in processed manifests
-      (3,001 unique speakers across 18.9K utterances in train).
+      (37,957 unique speakers across 1,133,318 utterances in the train manifest).
+    </p>
+
+    <h4>Audio format (on-disk sample rate)</h4>
+    <p>
+      Common Voice 25 ships as <strong>mono MP3</strong> at a <em>mixed</em> sample rate &mdash; not uniformly 48&nbsp;kHz as is
+      sometimes assumed. Empirical distribution from a random sample of 200 clips out of 2,196,455 in
+      <code>clips/</code>:
+    </p>
+    <table>
+      <thead>
+        <tr><th>Sample rate</th><th>Share (n = 200)</th><th>Channels</th><th>Container / codec</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>48,000 Hz</strong></td><td>63.0% (126)</td><td>mono</td><td>MPEG Layer III</td></tr>
+        <tr><td><strong>32,000 Hz</strong></td><td>36.5% (73)</td><td>mono</td><td>MPEG Layer III</td></tr>
+        <tr><td>44,100 Hz</td><td>0.5% (1)</td><td>mono</td><td>MPEG Layer III</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Average clip duration in the sample was 5.18&nbsp;s (consistent with the ~5&nbsp;s nominal CV cap).
+      The heterogeneity matters for the Phase&nbsp;03-03 pre-decode plan: every clip must be resampled to
+      16&nbsp;kHz mono before model ingestion, so leaving source rates native would inflate pre-decoded storage by
+      <strong>2&ndash;3&times;</strong> over a 16&nbsp;kHz int16 target. Back-of-envelope for the ~1.16M-clip train split
+      at 16&nbsp;kHz int16 mono:
+      1,160,000 &times; 5.18&nbsp;s &times; 16,000&nbsp;Hz &times; 2&nbsp;bytes &asymp; <strong>~192&nbsp;GB</strong>
+      (vs ~400&nbsp;GB if kept at native source rates). This is the number that governs whether Option&nbsp;1
+      (WebDataset pre-decode) fits on the A6000 host's scratch disk &mdash; see
+      <a href="docs/gpu-occupancy-handling.html">docs/gpu-occupancy-handling.html</a>.
     </p>
 
     <h3>LibriSpeech test-clean schema</h3>
@@ -509,20 +544,28 @@ footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-s
     <p>
       We established a <strong>standard LoRA baseline</strong> ($\lambda = 0$, no fairness objective)
       through a prototyping pipeline that progressively scaled from 1 batch to 2,000 samples,
-      with each stage gating the next.
-      All work ran on a single <strong>Lightning.ai Studio</strong> instance:
+      with each stage gating the next. The baseline prototyping pipeline ran on a single
+      <strong>Lightning.ai Studio</strong> instance; follow-on fairness-aware fine-tuning work
+      migrated to a <strong>Thunder Compute</strong> instance with a much larger VRAM budget,
+      unlocking bigger batch sizes and removing the gradient-accumulation workarounds the T4 required.
     </p>
     <table>
-      <thead><tr><th>Resource</th><th>Specification</th></tr></thead>
+      <thead>
+        <tr>
+          <th>Resource</th>
+          <th>Baseline prototyping (Lightning.ai)</th>
+          <th>Fairness-aware fine-tuning (Thunder Compute)</th>
+        </tr>
+      </thead>
       <tbody>
-        <tr><td>GPU</td><td>NVIDIA Tesla T4 (15 GB VRAM)</td></tr>
-        <tr><td>CPU</td><td>Intel Xeon Platinum 8259CL, 4 vCPUs @ 2.50 GHz</td></tr>
-        <tr><td>RAM</td><td>16 GB</td></tr>
-        <tr><td>Disk</td><td>229 GB (overlay)</td></tr>
-        <tr><td>CUDA</td><td>12.8</td></tr>
-        <tr><td>PyTorch</td><td>2.8.0+cu128</td></tr>
-        <tr><td>OS</td><td>Ubuntu 24.04 LTS</td></tr>
-        <tr><td>Platform</td><td>Lightning.ai Studio</td></tr>
+        <tr><td>GPU</td><td>NVIDIA Tesla T4 (15 GB VRAM)</td><td>NVIDIA RTX A6000 (49 GB VRAM)</td></tr>
+        <tr><td>CPU</td><td>Intel Xeon Platinum 8259CL, 4 vCPUs @ 2.50 GHz</td><td>AMD EPYC 9554, 2&times;62 cores (124 threads)</td></tr>
+        <tr><td>RAM</td><td>16 GB</td><td>32 GB</td></tr>
+        <tr><td>Disk</td><td>229 GB (overlay)</td><td>196 GB (overlay)</td></tr>
+        <tr><td>CUDA</td><td>12.8</td><td>12.8 (driver 580.95.05)</td></tr>
+        <tr><td>PyTorch</td><td>2.8.0+cu128</td><td>2.10.0+cu128</td></tr>
+        <tr><td>OS</td><td>Ubuntu 24.04 LTS</td><td>Ubuntu 22.04.5 LTS</td></tr>
+        <tr><td>Platform</td><td>Lightning.ai Studio</td><td>Thunder Compute (virtualized GPU pod)</td></tr>
       </tbody>
     </table>
 
@@ -774,6 +817,149 @@ footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd; font-s
       (FairLoRA, Group-DRO, ICASSP 2026 fairness-prompted), and a $\lambda$ sweep to trace the
       accuracy&ndash;fairness Pareto frontier.
     </p>
+
+    <!-- Issues -->
+    <h2 id="issues">6. Issues</h2>
+    <p>
+      Running log of open engineering issues encountered during the project.
+      Each entry records the symptom, root cause, impact, and proposed fix.
+    </p>
+
+    <p>
+      Phase 03-02's VRAM tuning grid (see <a href="docs/gpu-occupancy-handling.html">docs/gpu-occupancy-handling.html</a>)
+      pinned down the single "data loading bottleneck" symptom to <strong>two independent root causes</strong>
+      that need to be reasoned about separately. Conflating them is the most common planning mistake &mdash;
+      one fix does not solve the other. Both are logged below. The full comparison of mitigation options
+      lives in <a href="docs/pre-decoding-methods.html">docs/pre-decoding-methods.html</a>.
+    </p>
+
+    <h3>6.1 Decode cost &mdash; MP3 decompression saturates the CPU</h3>
+    <table>
+      <thead>
+        <tr><th>Field</th><th>Details</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Status</strong></td>
+          <td>Open &mdash; blocks Plan 03-03 launch</td>
+        </tr>
+        <tr>
+          <td><strong>First observed</strong></td>
+          <td>Phase 03-02 VRAM tuning grid (2026-04-10)</td>
+        </tr>
+        <tr>
+          <td><strong>Symptom</strong></td>
+          <td>Mean GPU utilization capped at 41&ndash;42% across 8&times; variation in per-step compute (cell C at 2.01&nbsp;s/step vs cell E at 16.08&nbsp;s/step both at ~42%). Disabling gradient checkpointing <em>lowered</em> util instead of raising it &mdash; textbook I/O-bound signature.</td>
+        </tr>
+        <tr>
+          <td><strong>Root cause</strong></td>
+          <td>
+            Every training step, dataloader workers decompress MP3 on CPU and resample to 16&nbsp;kHz.
+            MP3 decode is single-threaded per file, competes with every other dataloader operation,
+            and saturates all 4 cores on this host before the GPU can be kept fed. Fused-vs-non-fused
+            AdamW is a no-op for util (+0.7&nbsp;pp A&rarr;B) confirming the optimizer is not on the
+            critical path.
+          </td>
+        </tr>
+        <tr>
+          <td><strong>Impact</strong></td>
+          <td>
+            Roughly a <strong>2&times; wall-clock tax on every future training run</strong> on this host.
+            Plan 03-03 at 41% util would take ~73&nbsp;h for 2 epochs &mdash; cheaper to fix than to endure.
+            Cost compounds with every Phase 4+ experiment (RL, GRPO, &lambda; sweeps).
+          </td>
+        </tr>
+        <tr>
+          <td><strong>Proposed fix</strong></td>
+          <td>
+            Pre-decode the audio <strong>once, offline</strong>, to a cheap-to-load storage format
+            (int16 PCM, FLAC lossless, or log-mel fp16). Training workers then do <code>read &rarr; tensor</code>
+            with zero MP3 math on the hot path. See
+            <a href="docs/pre-decoding-methods.html#storage-formats">pre-decoding-methods.html &sect;2</a>
+            for the format comparison table.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>6.2 File-layout cost &mdash; millions of tiny files on overlayfs</h3>
+    <table>
+      <thead>
+        <tr><th>Field</th><th>Details</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Status</strong></td>
+          <td>Open &mdash; independent of 6.1, both must be fixed</td>
+        </tr>
+        <tr>
+          <td><strong>First observed</strong></td>
+          <td>Phase 03-02 VRAM tuning grid (2026-04-10)</td>
+        </tr>
+        <tr>
+          <td><strong>Symptom</strong></td>
+          <td>Adding dataloader workers past a point does not help &mdash; they compete for inode lookups instead of running decoders in parallel. Page cache fragmented across millions of small files, so epoch-2+ is not meaningfully faster than epoch-1.</td>
+        </tr>
+        <tr>
+          <td><strong>Root cause</strong></td>
+          <td>
+            Common Voice 25 is stored as <strong>2.20M individual MP3 files</strong> in a flat <code>clips/</code>
+            directory. Every epoch forces millions of <code>open()</code> / <code>seek()</code> / <code>read()</code>
+            syscalls over random inodes. The overlayfs layer on this VM amplifies the per-syscall cost.
+            Sequential I/O on a 1&nbsp;GB tar shard is 10&ndash;100&times; faster than random I/O across small files.
+            Fair-Speech (~26K WAVs) and LibriSpeech test-clean (2.6K FLACs) share the same layout but are
+            small enough not to dominate the symptom.
+          </td>
+        </tr>
+        <tr>
+          <td><strong>Impact</strong></td>
+          <td>
+            Even with a cheap-to-decode storage format, raw-file layout would still starve the GPU on
+            this host. Fixing 6.1 without 6.2 leaves a smaller but still-measurable bottleneck.
+          </td>
+        </tr>
+        <tr>
+          <td><strong>Proposed fix</strong></td>
+          <td>
+            Package pre-decoded samples into <strong>WebDataset tar shards</strong> (~1&nbsp;GB each).
+            One <code>open()</code> per shard, sequential reads, workers stream one shard at a time,
+            page cache works normally. Note: WebDataset is a <em>packaging</em> layer &mdash; it solves
+            this issue but does nothing for 6.1. See
+            <a href="docs/pre-decoding-methods.html#packaging">pre-decoding-methods.html &sect;4</a>
+            and <a href="docs/webdataset-explained.html">webdataset-explained.html</a>.
+          </td>
+        </tr>
+        <tr>
+          <td><strong>Blocking constraint</strong></td>
+          <td>
+            Current VM has <strong>~96&nbsp;GB free</strong> on the main overlay disk. A 16&nbsp;kHz int16
+            mono pre-decode of the 1.16M-clip train split is <strong>~192&nbsp;GB</strong> (revised down
+            from earlier 250&ndash;400&nbsp;GB estimates after the empirical CV-25 sample-rate probe &mdash;
+            sources are a 63/37 mix of 48&nbsp;kHz and 32&nbsp;kHz, not uniformly 48&nbsp;kHz). Options:
+            (a) log-mel fp16 shards (~96&nbsp;GB, fits, but freezes feature config),
+            (b) FLAC lossless shards (~100&ndash;115&nbsp;GB, partial decode cost remains),
+            (c) delete raw MP3s locally after shard generation (keep Backblaze B2 backup),
+            (d) migrate to a host with 8+ cores and NVMe (Option&nbsp;5 from <code>io_remediation_report.md</code>).
+          </td>
+        </tr>
+        <tr>
+          <td><strong>Next action</strong></td>
+          <td>
+            Run the zero-cost pre-flight first (<code>num_workers=2</code> + warm page cache). If util still
+            below 55%, add a new plan under Phase 03 to execute the chosen combination from
+            <a href="docs/pre-decoding-methods.html#decision">pre-decoding-methods.html &sect;5</a>.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Why log both now:</strong> the bottleneck is not specific to one experiment &mdash; it will
+      resurface on every phase that touches CommonVoice-25 training. Keeping 6.1 and 6.2 as separate
+      entries prevents the common mistake of "switched to WebDataset, problem solved" (which only
+      addresses 6.2) or "pre-decoded to int16, problem solved" (which only addresses 6.1). Both fixes
+      need to land together to clear the 55% utilization floor.
+    </div>
 
     <footer>
       <p><small>Last updated: April 8, 2026</small></p>

@@ -17,7 +17,7 @@ Produces ONLY:
 Data, colors, labels are identical to originals. Only font sizes and figsize change.
 
 Usage:
-    venv/bin/python scripts/regenerate_figures_large_fonts.py
+    venv/bin/python scripts/plots/regenerate_figures_large_fonts.py
 """
 
 import json

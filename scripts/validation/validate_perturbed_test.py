@@ -4,8 +4,8 @@ Validate perturbed SNR test run: checks all 9 models × 3 SNR levels completed
 and results are sane.
 
 Usage:
-    python scripts/validate_perturbed_test.py
-    python scripts/validate_perturbed_test.py --output_dir results/perturbed_test
+    python scripts/validation/validate_perturbed_test.py
+    python scripts/validation/validate_perturbed_test.py --output_dir results/perturbed_test
 
 Checks:
   1. All 27 prediction files exist (9 models × 3 SNR levels)

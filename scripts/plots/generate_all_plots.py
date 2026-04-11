@@ -6,7 +6,7 @@ This is a unified plotting script that generates Figures 1–12 from
 the pre-computed analysis JSONs. Each figure is saved as PNG (300 DPI).
 
 Usage:
-    python scripts/generate_all_plots.py [--cv_analysis results/commonvoice/analysis/full_analysis.json]
+    python scripts/plots/generate_all_plots.py [--cv_analysis results/commonvoice/analysis/full_analysis.json]
                                          [--fs_analysis results/fairspeech/analysis/full_analysis_fs.json]
                                          [--output_dir results/figures/]
 """

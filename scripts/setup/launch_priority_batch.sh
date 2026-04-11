@@ -8,8 +8,8 @@
 #   5. Remaining conditions
 #
 # Usage:
-#   bash scripts/launch_priority_batch.sh         # Priority 1+2 (54 jobs)
-#   bash scripts/launch_priority_batch.sh --all    # All 216 jobs
+#   bash scripts/setup/launch_priority_batch.sh         # Priority 1+2 (54 jobs)
+#   bash scripts/setup/launch_priority_batch.sh --all    # All 216 jobs
 
 set -uo pipefail
 
