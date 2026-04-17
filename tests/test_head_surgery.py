@@ -157,10 +157,11 @@ def test_generate_config_pinned_to_midterm_defaults():
 
 
 def test_indian_accent_ids_count():
-    # Adapted for CV25: strict single-label match gives 510 rows (CV24 had 511).
+    # Adapted for CV25 + on-disk presence: strict single-label filter gives 510,
+    # intersected with 484 clips that survived the truncated B2 tarball.
     ids = rc.load_indian_accent_ids()
-    assert len(ids) == 510
-    assert len(set(ids)) == 510, "utterance IDs must be unique"
+    assert len(ids) == 484
+    assert len(set(ids)) == 484, "utterance IDs must be unique"
 
 
 def test_indian_accent_ids_sorted_and_stable():

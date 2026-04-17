@@ -46,7 +46,9 @@ _IDS_JSON = (
     / "tests" / "fixtures" / "head_surgery" / "indian_accent_ids.json"
 )
 
-EXPECTED_N_INDIAN_ACCENT_IDS = 510  # CV25 strict single-label match
+EXPECTED_N_INDIAN_ACCENT_IDS = 484  # CV25 strict single-label match, intersected with on-disk clips
+# NOTE: the initial CV25 strict filter yielded 510 IDs; 26 are absent because the
+# B2 tarball was truncated during extraction. See indian_accent_ids.json "note" field.
 
 
 @lru_cache(maxsize=1)
