@@ -33,20 +33,20 @@ SAMPLE_RATE = 16000
 
 
 def load_audio_16k(path) -> np.ndarray:
-    """Load an audio file and resample to 16 kHz mono (matches midterm pipeline).
+    """Load an audio file and resample to 16 kHz mono.
 
     CV mp3s are 48 kHz; passing them to the Whisper processor with
     sampling_rate=16000 without resampling warps the spectrogram 3× and
     produces hallucination loops (observed as 58% insertion rate on an early
     Stage A run). Use this helper everywhere audio is loaded.
+
+    librosa is used rather than torchaudio because modern torchaudio requires
+    torchcodec for mp3 decoding, and the torchcodec wheel on this system fails
+    to load its native library. librosa + audioread handles mp3 out of the box.
     """
-    import torchaudio
-    waveform, orig_sr = torchaudio.load(str(path))
-    if waveform.shape[0] > 1:
-        waveform = waveform.mean(dim=0, keepdim=True)
-    if orig_sr != SAMPLE_RATE:
-        waveform = torchaudio.transforms.Resample(orig_sr, SAMPLE_RATE)(waveform)
-    return waveform.squeeze(0).numpy()
+    import librosa
+    audio, _ = librosa.load(str(path), sr=SAMPLE_RATE, mono=True)
+    return audio
 
 
 # ── Whisper loading & inference (reuses midterm config) ──────────────────
