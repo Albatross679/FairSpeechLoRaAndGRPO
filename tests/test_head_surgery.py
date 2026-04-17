@@ -1,10 +1,14 @@
 # tests for scripts/head_surgery — see tasks/prd-head-surgery-diagnosis.md
 
+import json
+from pathlib import Path
+
 import pytest
 import torch
 from transformers import WhisperForConditionalGeneration
 
 from scripts.head_surgery.head_mask_hook import BatchedHeadMaskHook, SerialHeadMaskHook
+from scripts.head_surgery import repro_config as rc
 
 
 @pytest.fixture(scope="module")
@@ -127,3 +131,39 @@ def test_batched_hook_requires_set_batch_mask_before_forward(whisper_cpu):
                 model(input_features=input_features, decoder_input_ids=decoder_input_ids)
     finally:
         hook.remove()
+
+
+def test_model_revision_pinned():
+    assert rc.MODEL_ID == "openai/whisper-large-v3"
+    assert isinstance(rc.MODEL_REVISION, str) and len(rc.MODEL_REVISION) >= 7, \
+        "MODEL_REVISION must be a HuggingFace revision (commit SHA or branch)"
+
+
+def test_seed_is_deterministic():
+    assert rc.SEED == 20260417
+
+
+def test_generate_config_pinned_to_midterm_defaults():
+    g = rc.GENERATE_CONFIG
+    assert g["max_new_tokens"] == 440
+    assert g["language"] == "en"
+    assert g["task"] == "transcribe"
+    assert g["num_beams"] == 1
+    assert g["do_sample"] is False
+    assert g["temperature"] == 0.0
+    assert g["repetition_penalty"] == 1.0
+    assert g["no_repeat_ngram_size"] == 0
+    assert g["length_penalty"] == 1.0
+
+
+def test_indian_accent_ids_count():
+    # Adapted for CV25: strict single-label match gives 510 rows (CV24 had 511).
+    ids = rc.load_indian_accent_ids()
+    assert len(ids) == 510
+    assert len(set(ids)) == 510, "utterance IDs must be unique"
+
+
+def test_indian_accent_ids_sorted_and_stable():
+    ids = rc.load_indian_accent_ids()
+    assert ids == sorted(ids), "IDs must be sorted for stable iteration"
+    assert ids == rc.load_indian_accent_ids()
