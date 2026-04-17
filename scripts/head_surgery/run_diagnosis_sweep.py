@@ -134,6 +134,91 @@ def gate_G1(metrics: dict) -> None:
         print("[G1 PASS] baseline reproduces midterm within tolerance.")
 
 
+# ── Stage B: pilot sweep (serial hook) ───────────────────────────────────
+
+PILOT_N_UTTS = 50
+
+
+def _rng_sample_ids(ids: List[str], n: int, seed: int) -> List[str]:
+    rng = np.random.default_rng(seed)
+    idx = rng.choice(len(ids), size=n, replace=False)
+    return [ids[int(i)] for i in sorted(idx.tolist())]
+
+
+def run_pilot(manifest_csv: str, pilot_layer: int = 15, n_utts: int = PILOT_N_UTTS,
+              batch_size: int = 8, device: str = "cuda") -> dict:
+    import soundfile as sf
+    from scripts.inference.run_inference import normalize_text
+
+    ids_all = rc.load_indian_accent_ids()
+    pilot_ids = _rng_sample_ids(ids_all, n_utts, rc.SEED)
+    subset, id_col = load_manifest_for_ids(pilot_ids, manifest_csv)
+    audio_col = next(c for c in subset.columns if c in ("audio_path", "audio", "path"))
+    ref_col = next(c for c in subset.columns if c in ("reference", "transcript", "sentence"))
+
+    model, processor = load_whisper(device=device)
+    audios = [sf.read(str(p))[0] for p in subset[audio_col]]
+    refs = subset[ref_col].astype(str).tolist()
+    ids = subset[id_col].astype(str).tolist()
+
+    # For each head h in [0, num_heads), install serial hook (pilot_layer, h),
+    # run inference on the 50 audios, compute insertion rate.
+    per_head: Dict[int, dict] = {}
+    for h in range(rc.NUM_DECODER_SELF_ATTN_HEADS):
+        hyps: List[str] = []
+        with SerialHeadMaskHook(model, pilot_layer, h):
+            for i in range(0, len(audios), batch_size):
+                batch_audios = audios[i:i + batch_size]
+                texts = _infer_whisper_batch(model, processor, batch_audios, device)
+                hyps.extend(t.strip() for t in texts)
+        pairs = [(normalize_text(r), normalize_text(hy)) for r, hy in zip(refs, hyps)]
+        br = insertion_rate_breakdown(pairs)
+        per_head[h] = {"hyps": hyps, **br}
+        print(f"[pilot] L={pilot_layer} h={h}: insertion_rate={br['total']*100:.2f}%")
+
+    # Also the no-mask baseline on the same 50 utts
+    hyps_base: List[str] = []
+    for i in range(0, len(audios), batch_size):
+        batch_audios = audios[i:i + batch_size]
+        hyps_base.extend(t.strip() for t in _infer_whisper_batch(model, processor, batch_audios, device))
+    base_pairs = [(normalize_text(r), normalize_text(hy)) for r, hy in zip(refs, hyps_base)]
+    base_br = insertion_rate_breakdown(base_pairs)
+
+    # Write pilot_sweep.csv — one row per (head, utterance)
+    rows = []
+    for h, v in per_head.items():
+        for uid, ref, hyp in zip(ids, refs, v["hyps"]):
+            rows.append({"layer": pilot_layer, "head": h, "id": uid, "reference": ref, "hypothesis": hyp})
+    for uid, ref, hyp in zip(ids, refs, hyps_base):
+        rows.append({"layer": -1, "head": -1, "id": uid, "reference": ref, "hypothesis": hyp})
+    pd.DataFrame(rows).to_csv(OUT_DIR / "pilot_sweep.csv", index=False)
+
+    metrics = {
+        "pilot_layer": pilot_layer,
+        "n_utts": n_utts,
+        "baseline_insertion_rate": base_br["total"],
+        "per_head": {str(h): {"total": v["total"], "repetition": v["repetition"],
+                               "syntactic": v["syntactic"], "content": v["content"]}
+                      for h, v in per_head.items()},
+    }
+    (OUT_DIR / "pilot_metrics.json").write_text(json.dumps(metrics, indent=2))
+    return metrics
+
+
+def gate_G2(metrics: dict) -> None:
+    base = metrics["baseline_insertion_rate"]
+    deltas = [v["total"] - base for v in metrics["per_head"].values()]
+    n_pos = sum(1 for d in deltas if d > 0)
+    n_non_pos = sum(1 for d in deltas if d <= 0)
+    print(f"[G2] pilot deltas (masked - baseline): {n_pos} heads ↑, {n_non_pos} heads ↓/=")
+    if n_pos == 0 or n_non_pos == 0:
+        raise SystemExit(f"[G2 FAIL] all pilot deltas are same sign ({n_pos} ↑, {n_non_pos} ↓/=). "
+                         f"Either the hook is a no-op or the pipeline has a bug. Investigate before Stage C.")
+    if all(abs(d) < 1e-6 for d in deltas):
+        raise SystemExit("[G2 FAIL] all pilot deltas are ~0 — hook is likely a no-op.")
+    print("[G2 PASS] pilot shows head-level signal.")
+
+
 # ── CLI dispatch ─────────────────────────────────────────────────────────
 
 def _cli():
@@ -145,12 +230,23 @@ def _cli():
     p_base.add_argument("--batch-size", type=int, default=8)
     p_base.add_argument("--device", default="cuda")
 
-    # pilot / full parsers added in later tasks
+    p_pilot = sub.add_parser("pilot")
+    p_pilot.add_argument("--manifest", required=True)
+    p_pilot.add_argument("--pilot-layer", type=int, default=15)
+    p_pilot.add_argument("--n-utts", type=int, default=PILOT_N_UTTS)
+    p_pilot.add_argument("--batch-size", type=int, default=8)
+    p_pilot.add_argument("--device", default="cuda")
+
+    # full parser added in later tasks
     args = p.parse_args()
 
     if args.cmd == "baseline":
         m = run_baseline(args.manifest, batch_size=args.batch_size, device=args.device)
         gate_G1(m)
+    elif args.cmd == "pilot":
+        m = run_pilot(args.manifest, pilot_layer=args.pilot_layer, n_utts=args.n_utts,
+                      batch_size=args.batch_size, device=args.device)
+        gate_G2(m)
     else:
         raise SystemExit(f"unknown cmd {args.cmd}")
 
