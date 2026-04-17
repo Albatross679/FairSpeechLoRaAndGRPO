@@ -187,3 +187,30 @@ def test_insertion_rate_breakdown_zero_on_identical():
     br = insertion_rate_breakdown(pairs)
     assert br["total"] == 0.0
     assert br["total_ref_words"] == 4
+
+
+def test_baseline_breakdown_matches_midterm_ratios(tmp_path):
+    """On Stage A output, verify repetition/syntactic/content ratios ≈ 43/48/9.
+
+    Skipped if Stage A artifacts are not present (CI or fresh clone).
+    """
+    import pandas as pd
+    baseline_csv = Path("outputs/head_surgery/baseline_predictions.csv")
+    if not baseline_csv.exists():
+        pytest.skip("outputs/head_surgery/baseline_predictions.csv missing — run Stage A first")
+    df = pd.read_csv(baseline_csv)
+
+    from scripts.inference.run_inference import normalize_text
+    pairs = [(normalize_text(r), normalize_text(h))
+             for r, h in zip(df["reference"], df["hypothesis"])]
+    br = insertion_rate_breakdown(pairs)
+    total = br["repetition"] + br["syntactic"] + br["content"]
+    if total == 0:
+        pytest.skip("no insertions observed — classifier or predictions empty")
+    rep_pct = br["repetition"] / total * 100
+    syn_pct = br["syntactic"] / total * 100
+    con_pct = br["content"] / total * 100
+    # Midterm split: 43 / 48 / 9. Allow ±10pp tolerance for run-to-run variance.
+    assert abs(rep_pct - 43) < 10, f"repetition% = {rep_pct:.1f}, midterm = 43"
+    assert abs(syn_pct - 48) < 10, f"syntactic% = {syn_pct:.1f}, midterm = 48"
+    assert abs(con_pct - 9) < 10, f"content% = {con_pct:.1f}, midterm = 9"
