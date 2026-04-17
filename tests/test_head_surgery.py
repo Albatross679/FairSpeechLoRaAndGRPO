@@ -4,7 +4,7 @@ import pytest
 import torch
 from transformers import WhisperForConditionalGeneration
 
-from scripts.head_surgery.head_mask_hook import SerialHeadMaskHook
+from scripts.head_surgery.head_mask_hook import BatchedHeadMaskHook, SerialHeadMaskHook
 
 
 @pytest.fixture(scope="module")
@@ -74,3 +74,56 @@ def test_serial_hook_remove_restores_behavior(whisper_cpu):
     hook.install(); hook.remove()
     after = _decoder_self_attn_out_proj_input(model, input_features, decoder_input_ids, 0)
     assert torch.allclose(ref, after), "hook.remove() did not fully detach the hook"
+
+
+def test_batched_hook_per_sample_zeros_correct_heads(whisper_cpu):
+    model = whisper_cpu
+    num_heads = model.config.decoder_attention_heads
+    head_dim = model.config.d_model // num_heads
+    bsz = 3
+    input_features = torch.randn(bsz, model.config.num_mel_bins, 3000)
+    decoder_input_ids = torch.tensor([[model.config.decoder_start_token_id]] * bsz)
+
+    # Build a per-sample mask: sample 0 masks head 2; sample 1 masks head 5; sample 2 masks none.
+    per_sample_mask = torch.ones(bsz, num_heads)
+    per_sample_mask[0, 2] = 0.0
+    per_sample_mask[1, 5] = 0.0
+
+    hook = BatchedHeadMaskHook(model, layer_idx=0)
+    hook.install()
+    hook.set_batch_mask(per_sample_mask)
+    try:
+        captured = []
+        target = model.model.decoder.layers[0].self_attn.out_proj
+        h2 = target.register_forward_pre_hook(
+            lambda _m, args: captured.append(args[0].detach().clone())
+        )
+        with torch.no_grad():
+            model(input_features=input_features, decoder_input_ids=decoder_input_ids)
+        h2.remove()
+    finally:
+        hook.remove()
+
+    # The second hook registered sees the already-masked tensor (hooks run in
+    # registration order; our batched hook registered first).
+    x = captured[0].view(bsz, -1, num_heads, head_dim)
+    assert torch.allclose(x[0, :, 2, :], torch.zeros_like(x[0, :, 2, :])), "sample 0 head 2 not zero"
+    assert torch.allclose(x[1, :, 5, :], torch.zeros_like(x[1, :, 5, :])), "sample 1 head 5 not zero"
+    # Sample 2 has no masked heads — no head should be all-zero by coincidence.
+    for h in range(num_heads):
+        assert not torch.allclose(x[2, :, h, :], torch.zeros_like(x[2, :, h, :])), \
+            f"sample 2 head {h} unexpectedly zero"
+
+
+def test_batched_hook_requires_set_batch_mask_before_forward(whisper_cpu):
+    model = whisper_cpu
+    bsz = 1
+    input_features = torch.randn(bsz, model.config.num_mel_bins, 3000)
+    decoder_input_ids = torch.tensor([[model.config.decoder_start_token_id]])
+    hook = BatchedHeadMaskHook(model, layer_idx=0).install()
+    try:
+        with pytest.raises(RuntimeError, match="set_batch_mask"):
+            with torch.no_grad():
+                model(input_features=input_features, decoder_input_ids=decoder_input_ids)
+    finally:
+        hook.remove()
