@@ -214,3 +214,27 @@ def test_baseline_breakdown_matches_midterm_ratios(tmp_path):
     assert abs(rep_pct - 43) < 10, f"repetition% = {rep_pct:.1f}, midterm = 43"
     assert abs(syn_pct - 48) < 10, f"syntactic% = {syn_pct:.1f}, midterm = 48"
     assert abs(con_pct - 9) < 10, f"content% = {con_pct:.1f}, midterm = 9"
+
+
+from scripts.head_surgery.score_heads import paired_bootstrap_delta_p
+
+
+def test_paired_bootstrap_reports_significance_when_effect_large():
+    import numpy as np
+    rng = np.random.default_rng(0)
+    n = 200
+    base_counts = rng.poisson(2, size=n)       # baseline insertions per utterance
+    masked_counts = np.maximum(0, base_counts - rng.poisson(1.5, size=n))  # masked reduces strongly
+    ref_words = rng.integers(5, 15, size=n)
+    p = paired_bootstrap_delta_p(base_counts, masked_counts, ref_words, n_iter=2000, seed=0)
+    assert p < 0.05, f"expected significant Delta; got p={p}"
+
+
+def test_paired_bootstrap_reports_null_when_effect_zero():
+    import numpy as np
+    rng = np.random.default_rng(1)
+    n = 200
+    counts = rng.poisson(2, size=n)
+    ref_words = rng.integers(5, 15, size=n)
+    p = paired_bootstrap_delta_p(counts.copy(), counts.copy(), ref_words, n_iter=2000, seed=0)
+    assert p > 0.5, f"expected no significance; got p={p}"
