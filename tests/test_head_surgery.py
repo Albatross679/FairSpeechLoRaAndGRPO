@@ -143,17 +143,19 @@ def test_seed_is_deterministic():
     assert rc.SEED == 20260417
 
 
-def test_generate_config_pinned_to_midterm_defaults():
+def test_generate_config_pinned_to_midterm_kwargs():
+    # GENERATE_CONFIG must match EXACTLY the kwargs passed by the midterm pipeline
+    # (scripts/inference/run_inference.py:356). Any extras (e.g. temperature=0.0,
+    # do_sample=False) silently disable Whisper's temperature-fallback mechanism
+    # and cause hallucination loops. Validated empirically: explicit temperature=0.0
+    # produced 58% insertion rate on CV25; removing it restored the expected
+    # single-digit rate.
     g = rc.GENERATE_CONFIG
-    assert g["max_new_tokens"] == 440
-    assert g["language"] == "en"
-    assert g["task"] == "transcribe"
-    assert g["num_beams"] == 1
-    assert g["do_sample"] is False
-    assert g["temperature"] == 0.0
-    assert g["repetition_penalty"] == 1.0
-    assert g["no_repeat_ngram_size"] == 0
-    assert g["length_penalty"] == 1.0
+    assert g == {
+        "max_new_tokens": 440,
+        "language": "en",
+        "task": "transcribe",
+    }, f"GENERATE_CONFIG drifted from midterm: {g}"
 
 
 def test_indian_accent_ids_count():

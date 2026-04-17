@@ -28,16 +28,18 @@ MODEL_REVISION = "06f233fe06e710322aca913c1bc4249a0d71fce1"
 SEED = 20260417
 
 # ── Generation config ──────────────────────────────────────────────────────
+# Exactly the kwargs the midterm passes (scripts/inference/run_inference.py:356).
+# Everything else is left to the HF/Whisper generation_config defaults — critically,
+# the temperature-fallback tuple (0.0, 0.2, …, 1.0) that Whisper applies automatically
+# to recover from repetition loops. A previous version of this config explicitly set
+# temperature=0.0 and do_sample=False, which silently disabled the fallback and
+# produced a 58% hallucination rate on Stage A. If reproducibility ever requires
+# pinning every default, do it by snapshotting the resolved GenerationConfig at
+# runtime — do not guess at the defaults.
 GENERATE_CONFIG = {
     "max_new_tokens": 440,
     "language": "en",
     "task": "transcribe",
-    "num_beams": 1,
-    "do_sample": False,
-    "temperature": 0.0,
-    "repetition_penalty": 1.0,
-    "no_repeat_ngram_size": 0,
-    "length_penalty": 1.0,
 }
 
 # ── Evaluation subset ──────────────────────────────────────────────────────
