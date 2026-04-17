@@ -50,8 +50,7 @@ EXPECTED_N_INDIAN_ACCENT_IDS = 510  # CV25 strict single-label match
 
 
 @lru_cache(maxsize=1)
-def load_indian_accent_ids() -> List[str]:
-    """CV25 Indian-accent utterance IDs (sorted, T9 snapshot)."""
+def _load_indian_accent_ids_cached() -> Tuple[str, ...]:
     payload = json.loads(_IDS_JSON.read_text())
     ids = sorted(payload["ids"])
     if len(ids) != EXPECTED_N_INDIAN_ACCENT_IDS:
@@ -60,7 +59,20 @@ def load_indian_accent_ids() -> List[str]:
             f"(CV25 strict single-label snapshot); got {len(ids)}. "
             f"Refresh the fixture from datasets/cv-corpus-25.0-2026-03-09/en/test.tsv."
         )
-    return ids
+    if len(set(ids)) != len(ids):
+        raise RuntimeError(
+            f"Indian-accent IDs are not unique: {len(ids)} total, {len(set(ids))} distinct."
+        )
+    return tuple(ids)
+
+
+def load_indian_accent_ids() -> List[str]:
+    """CV25 Indian-accent utterance IDs (sorted, T9 snapshot).
+
+    Returns a fresh list each call; the cache stores an immutable tuple, so
+    callers cannot corrupt the frozen snapshot by mutating the returned list.
+    """
+    return list(_load_indian_accent_ids_cached())
 
 
 # ── Whisper-large-v3 architecture constants ────────────────────────────────
