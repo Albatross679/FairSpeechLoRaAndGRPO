@@ -219,6 +219,117 @@ def gate_G2(metrics: dict) -> None:
     print("[G2 PASS] pilot shows head-level signal.")
 
 
+# ── Stage C: full batched sweep ──────────────────────────────────────────
+
+def _batched_pilot_replay(model, processor, audios, refs, pilot_layer, batch_size, device) -> dict:
+    """Replay Stage B's 20 head-masked passes using BatchedHeadMaskHook (Gate G3)."""
+    from scripts.inference.run_inference import normalize_text
+    per_head: Dict[int, dict] = {}
+    num_heads = rc.NUM_DECODER_SELF_ATTN_HEADS
+    hook = BatchedHeadMaskHook(model, layer_idx=pilot_layer).install()
+    try:
+        for h in range(num_heads):
+            hyps: List[str] = []
+            for i in range(0, len(audios), batch_size):
+                chunk = audios[i:i + batch_size]
+                mask = torch.ones(len(chunk), num_heads)
+                mask[:, h] = 0.0
+                hook.set_batch_mask(mask)
+                hyps.extend(t.strip() for t in _infer_whisper_batch(model, processor, chunk, device))
+            pairs = [(normalize_text(r), normalize_text(hy)) for r, hy in zip(refs, hyps)]
+            per_head[h] = {"hyps": hyps, **insertion_rate_breakdown(pairs)}
+    finally:
+        hook.remove()
+    return per_head
+
+
+def gate_G3(serial_metrics: dict, batched_per_head: dict) -> None:
+    """Assert batched per-head insertion rates match serial within tolerance."""
+    tol = rc.GATE_G3_WER_TOLERANCE
+    deltas = []
+    for h, v in batched_per_head.items():
+        serial_rate = serial_metrics["per_head"][str(h)]["total"]
+        batched_rate = v["total"]
+        d = abs(serial_rate - batched_rate)
+        deltas.append(d)
+        if d > tol:
+            raise SystemExit(
+                f"[G3 FAIL] head {h}: serial={serial_rate*100:.3f}% batched={batched_rate*100:.3f}% "
+                f"(|Δ|={d*100:.3f}% > {tol*100:.3f}%). Batched hook is not bytes-equivalent to serial."
+            )
+    print(f"[G3 PASS] batched matches serial on pilot (max |Δ|={max(deltas)*100:.4f}%).")
+
+
+def run_full(manifest_csv: str, batch_size: int, device: str = "cuda") -> dict:
+    import soundfile as sf
+    from scripts.inference.run_inference import normalize_text
+
+    pilot_metrics = json.loads((OUT_DIR / "pilot_metrics.json").read_text())
+    pilot_layer = pilot_metrics["pilot_layer"]
+
+    ids_all = rc.load_indian_accent_ids()
+    subset, id_col = load_manifest_for_ids(ids_all, manifest_csv)
+    audio_col = next(c for c in subset.columns if c in ("audio_path", "audio", "path"))
+    ref_col = next(c for c in subset.columns if c in ("reference", "transcript", "sentence"))
+    audios = [sf.read(str(p))[0] for p in subset[audio_col]]
+    refs = subset[ref_col].astype(str).tolist()
+    ids = subset[id_col].astype(str).tolist()
+
+    model, processor = load_whisper(device=device)
+
+    # Gate G3 — batched replay of pilot slice
+    pilot_ids = _rng_sample_ids(ids_all, pilot_metrics["n_utts"], rc.SEED)
+    pilot_indices = [ids.index(p) for p in pilot_ids]
+    pilot_audios = [audios[i] for i in pilot_indices]
+    pilot_refs = [refs[i] for i in pilot_indices]
+    batched_replay = _batched_pilot_replay(model, processor, pilot_audios, pilot_refs,
+                                           pilot_layer, batch_size, device)
+    gate_G3(pilot_metrics, batched_replay)
+
+    # Full 640-cell sweep
+    rows = []
+    num_heads = rc.NUM_DECODER_SELF_ATTN_HEADS
+    t0 = time.time()
+    for L in range(rc.NUM_DECODER_LAYERS):
+        hook = BatchedHeadMaskHook(model, layer_idx=L).install()
+        try:
+            for h in range(num_heads):
+                hyps: List[str] = []
+                for i in range(0, len(audios), batch_size):
+                    chunk = audios[i:i + batch_size]
+                    mask = torch.ones(len(chunk), num_heads)
+                    mask[:, h] = 0.0
+                    hook.set_batch_mask(mask)
+                    hyps.extend(t.strip() for t in _infer_whisper_batch(model, processor, chunk, device))
+                pairs = [(normalize_text(r), normalize_text(hy)) for r, hy in zip(refs, hyps)]
+                br = insertion_rate_breakdown(pairs)
+                for uid, ref, hyp in zip(ids, refs, hyps):
+                    rows.append({"layer": L, "head": h, "id": uid,
+                                 "reference": ref, "hypothesis": hyp,
+                                 "condition_insertion_rate_total": br["total"]})
+                elapsed = time.time() - t0
+                done = L * num_heads + h + 1
+                total = rc.NUM_DECODER_LAYERS * num_heads
+                print(f"[sweep] L={L} h={h} ins={br['total']*100:.2f}% "
+                      f"[{done}/{total}, {elapsed/60:.1f}min]")
+        finally:
+            hook.remove()
+
+    out_csv = OUT_DIR / "sweep.csv"
+    pd.DataFrame(rows).to_csv(out_csv, index=False)
+
+    # Gate G4 — completeness
+    df = pd.read_csv(out_csv)
+    expected = rc.NUM_DECODER_LAYERS * num_heads * len(ids)
+    if len(df) != expected:
+        raise SystemExit(f"[G4 FAIL] sweep has {len(df)} rows, expected {expected}")
+    if df["hypothesis"].isna().any() or (df["hypothesis"].fillna("") == "").any():
+        n_empty = df["hypothesis"].fillna("").eq("").sum()
+        print(f"[G4 WARN] {n_empty} empty hypotheses in sweep (will be treated as insertion-rate NaN)")
+    print(f"[G4 PASS] sweep complete: {len(df)} rows.")
+    return {"rows": len(df), "out_csv": str(out_csv), "minutes": round((time.time() - t0) / 60, 1)}
+
+
 # ── CLI dispatch ─────────────────────────────────────────────────────────
 
 def _cli():
@@ -237,7 +348,12 @@ def _cli():
     p_pilot.add_argument("--batch-size", type=int, default=8)
     p_pilot.add_argument("--device", default="cuda")
 
-    # full parser added in later tasks
+    p_full = sub.add_parser("full")
+    p_full.add_argument("--manifest", required=True)
+    p_full.add_argument("--batch-size", type=int, required=True,
+                        help="Use outputs/head_surgery/tune_batch_size.json:chosen_batch_size")
+    p_full.add_argument("--device", default="cuda")
+
     args = p.parse_args()
 
     if args.cmd == "baseline":
@@ -247,6 +363,8 @@ def _cli():
         m = run_pilot(args.manifest, pilot_layer=args.pilot_layer, n_utts=args.n_utts,
                       batch_size=args.batch_size, device=args.device)
         gate_G2(m)
+    elif args.cmd == "full":
+        run_full(args.manifest, batch_size=args.batch_size, device=args.device)
     else:
         raise SystemExit(f"unknown cmd {args.cmd}")
 
