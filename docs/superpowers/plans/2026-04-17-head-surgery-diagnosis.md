@@ -9,6 +9,7 @@
 **Tech Stack:** Python 3.10+, PyTorch 2.10, HuggingFace Transformers 5.5.4, jiwer 4.0, `openai-whisper` 20250625 (for `EnglishTextNormalizer`), pytest 8.
 
 **Phases:**
+0. Data extraction (Task 0): targeted MP3 extraction from the 81 GB Common Voice 25 tarball. Only 19 GB of free disk, so full extraction is not an option; the ~3,094 needed clips total ~275 MB.
 1. Foundations (Tasks 1–3): scaffolding + reproducibility contract.
 2. Masking primitives (Tasks 4–5): serial + batched hooks.
 3. Baseline + tune + pilot (Tasks 6–8): Stages A, A.5, B.
@@ -17,7 +18,180 @@
 6. Adjunct arms (Tasks 12–13): Stages E, F.
 7. Report & wrap-up (Tasks 14–16): Stage G + documentation.
 
+**Dataset drift note:** The midterm reports 511 Indian-accent utterances. Common Voice 25 test split (`datasets/cv-corpus-25.0-2026-03-09/en/test.tsv`) contains 510 pure-India-accent rows (plus 9 compound-label rows like `United States English|India and South Asia …`). We use the 510 pure-India rows. The 9.62% insertion-rate target (Gate G1) still holds within the ±0.5pp tolerance. All "511" references in the PRD and plan should be read as "the frozen Indian-accent subset — 510 on CV25".
+
 **Project conventions (read before starting):** [CLAUDE.md](../../../CLAUDE.md) requires a `logs/<topic>.md` file with `fileClass: Log` frontmatter for any behavioral change. Add a log entry at the end of each phase. Python test files live under `tests/`; fixtures under `tests/fixtures/`. Gitignored artifacts land under `outputs/head_surgery/`.
+
+---
+
+## Task 0: Targeted extraction of Common Voice 25 audio from the tarball
+
+The 81 GB `datasets/cv-corpus-25.0-en.tar.gz` contains 2.57M MP3 clips (~76 GB extracted). We only need (a) the 510 pure-India-accent clips and (b) the 2,584 non-Indian accent-labeled clips. Total ≈ 3,094 MP3s ≈ 275 MB. Disk free = 19 GB, so full extraction is infeasible; targeted extraction is the only path.
+
+**Files:**
+- Create: `scripts/head_surgery/_extract_cv25_audio.py` (one-shot)
+- Create: `datasets/cv-corpus-25.0-2026-03-09/en/_wanted_paths.txt`
+- Populates: `datasets/cv-corpus-25.0-2026-03-09/en/clips/` (gitignored; gets ~3,094 MP3s)
+- Creates: `datasets/cv-corpus-25.0-2026-03-09/en/cv_test_manifest.csv` — the 510 Indian-accent + non-Indian rows reformatted for the `scripts/inference/run_inference.py` contract
+- Creates: `datasets/cv-corpus-25.0-2026-03-09/en/cv_non_indian_manifest.csv` — separate manifest used by the Stage D regression guard
+
+- [ ] **Step 1: Write the path-list and manifest generator**
+
+Create `scripts/head_surgery/_extract_cv25_audio.py`:
+
+```python
+"""One-shot: build the wanted-paths list and audio manifests for head-surgery diagnosis.
+
+Reads datasets/cv-corpus-25.0-2026-03-09/en/test.tsv, selects:
+  - pure Indian-accent rows (accents exactly == INDIAN_CANONICAL, ~510 rows)
+  - non-Indian accent-labeled rows (accents non-empty AND does not match 'India.*South Asia')
+Writes:
+  datasets/cv-corpus-25.0-2026-03-09/en/_wanted_paths.txt
+    Each line: clips/<mp3 filename>  — fed to tar --files-from
+  datasets/cv-corpus-25.0-2026-03-09/en/cv_test_manifest.csv
+    Columns: id, audio_path, reference, accent  (510 Indian rows)
+  datasets/cv-corpus-25.0-2026-03-09/en/cv_non_indian_manifest.csv
+    Columns: id, audio_path, reference, accent  (~2,584 non-Indian rows)
+
+Not imported by runtime code. Commit the manifest CSVs; the wanted-paths
+file is an ephemeral build artifact (kept for reproducibility traceability).
+"""
+from __future__ import annotations
+
+import csv
+from pathlib import Path
+
+ROOT = Path("datasets/cv-corpus-25.0-2026-03-09/en")
+TSV = ROOT / "test.tsv"
+WANTED = ROOT / "_wanted_paths.txt"
+IND_MANIFEST = ROOT / "cv_test_manifest.csv"
+NONIND_MANIFEST = ROOT / "cv_non_indian_manifest.csv"
+
+INDIAN_CANONICAL = "India and South Asia (India, Pakistan, Sri Lanka)"
+
+
+def main() -> None:
+    ind_rows: list[dict] = []
+    nonind_rows: list[dict] = []
+    with TSV.open() as f:
+        reader = csv.DictReader(f, delimiter="\t")
+        for row in reader:
+            accent = (row.get("accents") or "").strip()
+            path = row.get("path", "").strip()
+            sentence = row.get("sentence", "").strip()
+            if not path or not sentence:
+                continue
+            record = {
+                "id": path,  # mp3 filename is stable and unique
+                "audio_path": str(ROOT / "clips" / path),
+                "reference": sentence,
+                "accent": accent,
+            }
+            if accent == INDIAN_CANONICAL:
+                ind_rows.append(record)
+            elif accent and "India" not in accent:
+                # Skip blanks and any compound label that includes India.
+                nonind_rows.append(record)
+
+    WANTED.parent.mkdir(parents=True, exist_ok=True)
+    with WANTED.open("w") as f:
+        for r in ind_rows + nonind_rows:
+            f.write(f"en/clips/{Path(r['audio_path']).name}\n")
+
+    for target, rows in ((IND_MANIFEST, ind_rows), (NONIND_MANIFEST, nonind_rows)):
+        with target.open("w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=["id", "audio_path", "reference", "accent"])
+            w.writeheader()
+            w.writerows(rows)
+
+    print(f"Indian-accent rows: {len(ind_rows)}  -> {IND_MANIFEST}")
+    print(f"Non-Indian rows:    {len(nonind_rows)}  -> {NONIND_MANIFEST}")
+    print(f"Wanted paths:       {len(ind_rows)+len(nonind_rows)}  -> {WANTED}")
+    if not 505 <= len(ind_rows) <= 515:
+        raise SystemExit(f"Indian count {len(ind_rows)} outside expected band [505, 515]; inspect test.tsv")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+- [ ] **Step 2: Run the manifest generator**
+
+Run: `python scripts/head_surgery/_extract_cv25_audio.py`
+Expected:
+```
+Indian-accent rows: 510  -> datasets/.../cv_test_manifest.csv
+Non-Indian rows:    2584 -> datasets/.../cv_non_indian_manifest.csv
+Wanted paths:       3094 -> datasets/.../_wanted_paths.txt
+```
+
+- [ ] **Step 3: Extract the wanted MP3s from the tarball**
+
+The tarball is gzip-compressed, so `tar` has to read it sequentially (cannot seek). `--occurrence=1` lets tar exit after finding every listed file once, which saves time since most clips are bunched together in the archive's clips directory.
+
+Run:
+```bash
+cd datasets
+tar -xzf cv-corpus-25.0-en.tar.gz \
+    -C cv-corpus-25.0-2026-03-09/ \
+    --strip-components=0 \
+    --occurrence=1 \
+    --files-from=cv-corpus-25.0-2026-03-09/en/_wanted_paths.txt \
+    --verbose 2>&1 | tail -5
+```
+
+Expected: ~3,094 lines of `en/clips/...` printed (suppressed to `tail -5`). Wall time: 20–60 min on disk-bound hardware (the gz stream must be decoded linearly until the last needed file is found).
+
+Note on path layout: `test.tsv` stores `path` as just the filename (e.g., `common_voice_en_36734620.mp3`). Inside the tarball those live at `en/clips/common_voice_en_36734620.mp3`. The `_wanted_paths.txt` file written in Step 1 uses the `en/clips/...` form that matches the tarball layout; the `-C cv-corpus-25.0-2026-03-09/` flag roots the extraction so the final path becomes `datasets/cv-corpus-25.0-2026-03-09/en/clips/<filename>.mp3` — which is what the manifests reference.
+
+- [ ] **Step 4: Verify extraction count and spot-check a clip**
+
+Run: `ls datasets/cv-corpus-25.0-2026-03-09/en/clips/ | wc -l`
+Expected: `3094` (or within ±5 — CV tarball-to-manifest drift is rare but possible).
+
+Run:
+```bash
+python -c "
+import soundfile as sf, pandas as pd
+m = pd.read_csv('datasets/cv-corpus-25.0-2026-03-09/en/cv_test_manifest.csv')
+row = m.iloc[0]
+audio, sr = sf.read(row['audio_path'])
+print(f'id={row[\"id\"]} sr={sr} n_samples={len(audio)} duration={len(audio)/sr:.2f}s ref={row[\"reference\"][:40]!r}')
+"
+```
+Expected: a valid duration and a truncated reference string. If `soundfile` cannot read MP3, install `ffmpeg` system package or use `librosa.load` instead (already a dependency). The project's `scripts/inference/run_inference.py` uses `soundfile`; if that fails here, add `pip install audioread` or use `librosa.load(path, sr=16000)` in the inference helpers.
+
+- [ ] **Step 5: Disk-usage sanity check**
+
+Run: `du -sh datasets/cv-corpus-25.0-2026-03-09/en/clips/; df -h /workspace/project | tail -1`
+Expected: ~200–350 MB for the clips dir; free space on `/workspace/project` should be ≥ 18 GB (we've consumed < 1 GB).
+
+- [ ] **Step 6: Ensure the clips and tarball stay out of git**
+
+Run: `grep -E "^datasets|^outputs" .gitignore`
+Expected: at least one line matching each. If `datasets/` is not ignored, append it.
+
+- [ ] **Step 7: Commit the manifest CSVs and the extractor script (NOT the clips, NOT the tarball)**
+
+```bash
+git add scripts/head_surgery/_extract_cv25_audio.py \
+        datasets/cv-corpus-25.0-2026-03-09/en/cv_test_manifest.csv \
+        datasets/cv-corpus-25.0-2026-03-09/en/cv_non_indian_manifest.csv \
+        .gitignore
+git commit -m "$(cat <<'EOF'
+feat(head_surgery): targeted CV25 extraction + manifests (Task 0)
+
+Extracts only the ~3,094 needed MP3 clips (510 Indian-accent + 2,584
+non-Indian accent-labeled) from the 81 GB CV25 tarball. Full extraction
+would require 76 GB; only 19 GB free. Manifest CSVs are committed; clips
+stay gitignored.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+> **Note for downstream tasks:** from here on, `<CV24_MANIFEST_PATH>` in later task commands = `datasets/cv-corpus-25.0-2026-03-09/en/cv_test_manifest.csv`, and `<CV24_NON_INDIAN_MANIFEST_PATH>` = `datasets/cv-corpus-25.0-2026-03-09/en/cv_non_indian_manifest.csv`.
 
 ---
 
@@ -96,90 +270,50 @@ EOF
 
 ---
 
-## Task 2: Snapshot the 511 Indian-accent utterance IDs
+## Task 2: Snapshot the Indian-accent utterance IDs
 
-The 511 IDs are the frozen evaluation subset (T9). Produce them once by reading the CV24 test manifest, filter to self-reported Indian accent, and commit the ID list as a JSON fixture. If the manifest is unavailable locally (e.g., working on a machine without `datasets/` synced), stop here — the engineer must sync the CV24 manifest before proceeding.
+Freezes the ID list used by `repro_config.load_indian_accent_ids()` (T9). Task 0 already produced `cv_test_manifest.csv` with exactly the Indian-accent rows we need; this task just extracts its `id` column into a JSON fixture that's not tied to on-disk manifest paths (so the snapshot stays valid even if `datasets/` is moved or re-generated).
 
 **Files:**
 - Create: `tests/fixtures/head_surgery/indian_accent_ids.json`
-- Create: `scripts/head_surgery/_extract_indian_ids.py` (one-shot, not re-run)
 
-- [ ] **Step 1: Locate the CV24 manifest**
+- [ ] **Step 1: Build the fixture from the committed manifest**
 
-Run: `find datasets -maxdepth 4 -name "cv_test_manifest.csv" 2>/dev/null; find /users -maxdepth 6 -name "cv_test_manifest.csv" 2>/dev/null`
-Expected: one absolute path. If none found, set environment variable `CV24_MANIFEST=/path/to/cv_test_manifest.csv` before the next step.
-
-- [ ] **Step 2: Write the one-shot ID extractor**
-
-Create `scripts/head_surgery/_extract_indian_ids.py`:
-
-```python
-"""One-shot: snapshot the 511 Indian-accent CV24 test-split utterance IDs.
-
-Not imported by any runtime code. Run once, commit the JSON output, then
-keep this script around as documentation of how the snapshot was made.
-"""
-import json
-import os
-import sys
+Run:
+```bash
+python -c "
+import json, pandas as pd
 from pathlib import Path
-
-import pandas as pd
-
-MANIFEST = os.environ.get(
-    "CV24_MANIFEST",
-    "/users/PAS2030/srishti/asr_fairness/data/cv_test_manifest.csv",
-)
-OUT = Path(__file__).parent.parent.parent / "tests" / "fixtures" / "head_surgery" / "indian_accent_ids.json"
-INDIAN_LABEL_CANDIDATES = {
-    "india and south asia (india, pakistan, sri lanka)",
-    "indian",
-    "india",
-    "indian and south asian",
-}
-
-def main():
-    df = pd.read_csv(MANIFEST)
-    accent_col = next((c for c in df.columns if "accent" in c.lower()), None)
-    if accent_col is None:
-        raise SystemExit(f"No accent column in {MANIFEST}; columns={list(df.columns)}")
-    id_col = next((c for c in df.columns if c in ("utt_id", "utterance_id", "client_id", "path")), None)
-    if id_col is None:
-        raise SystemExit(f"No utterance-id column in {MANIFEST}; columns={list(df.columns)}")
-    labels = df[accent_col].fillna("").str.lower().str.strip()
-    mask = labels.isin(INDIAN_LABEL_CANDIDATES) | labels.str.contains("india", na=False)
-    subset = df[mask].sort_values(id_col).reset_index(drop=True)
-    ids = subset[id_col].astype(str).tolist()
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps({"source_manifest": MANIFEST,
-                               "accent_column": accent_col,
-                               "id_column": id_col,
-                               "n": len(ids),
-                               "ids": ids}, indent=2))
-    print(f"wrote {OUT} (n={len(ids)})")
-    if len(ids) != 511:
-        print(f"WARNING: expected 511, got {len(ids)} — investigate filter", file=sys.stderr)
-
-if __name__ == "__main__":
-    main()
+m = pd.read_csv('datasets/cv-corpus-25.0-2026-03-09/en/cv_test_manifest.csv')
+ids = sorted(m['id'].astype(str).tolist())
+out = Path('tests/fixtures/head_surgery/indian_accent_ids.json')
+out.parent.mkdir(parents=True, exist_ok=True)
+out.write_text(json.dumps({
+    'source_manifest': 'datasets/cv-corpus-25.0-2026-03-09/en/cv_test_manifest.csv',
+    'corpus': 'Common Voice 25 (snapshot 2026-03-09)',
+    'accent_filter': 'India and South Asia (India, Pakistan, Sri Lanka)',
+    'n': len(ids),
+    'midterm_reported_n': 511,
+    'note': 'Midterm used a CV snapshot that contained 511; CV25 test.tsv contains 510 pure-India-accent rows plus 9 compound-label rows (excluded).',
+    'ids': ids,
+}, indent=2))
+print(f'wrote {out} (n={len(ids)})')
+assert 505 <= len(ids) <= 515, f'n={len(ids)} outside expected band'
+"
 ```
+Expected: `wrote tests/fixtures/head_surgery/indian_accent_ids.json (n=510)`.
 
-- [ ] **Step 3: Run the extractor and verify n=511**
-
-Run: `python scripts/head_surgery/_extract_indian_ids.py`
-Expected: `wrote tests/fixtures/head_surgery/indian_accent_ids.json (n=511)` and no WARNING. If count differs, inspect the manifest's accent column values and adjust `INDIAN_LABEL_CANDIDATES`.
-
-- [ ] **Step 4: Commit the snapshot (NOT the extractor)**
-
-The extractor depends on a path outside the repo. Commit only the resulting JSON.
+- [ ] **Step 2: Commit the snapshot**
 
 ```bash
-git add tests/fixtures/head_surgery/indian_accent_ids.json scripts/head_surgery/_extract_indian_ids.py
+git add tests/fixtures/head_surgery/indian_accent_ids.json
 git commit -m "$(cat <<'EOF'
-feat(head_surgery): snapshot 511 Indian-accent CV24 IDs
+feat(head_surgery): freeze Indian-accent ID snapshot (n=510 on CV25)
 
-Freezes the diagnosis evaluation subset (T9). The one-shot extractor stays
-in the repo as documentation; downstream code reads the JSON fixture.
+Pulls IDs from datasets/cv-corpus-25.0-2026-03-09/en/cv_test_manifest.csv
+(produced by Task 0). Midterm reports n=511 on a nearby CV snapshot; CV25
+test.tsv has 510 pure-India-accent rows — within gate tolerance for the
+9.62% target.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -232,10 +366,12 @@ def test_generate_config_pinned_to_midterm_defaults():
     assert g["length_penalty"] == 1.0
 
 
-def test_indian_accent_ids_count_511():
+def test_indian_accent_ids_count_in_band():
     ids = rc.load_indian_accent_ids()
-    assert len(ids) == 511
-    assert len(set(ids)) == 511, "utterance IDs must be unique"
+    # Midterm reports 511; CV25 test.tsv contains 510 pure-India rows.
+    # Either is acceptable within the gate tolerance.
+    assert len(ids) in (510, 511), f"got n={len(ids)}, expected 510 or 511"
+    assert len(set(ids)) == len(ids), "utterance IDs must be unique"
 
 
 def test_indian_accent_ids_sorted_and_stable():
@@ -303,13 +439,19 @@ _IDS_JSON = (
 
 @lru_cache(maxsize=1)
 def load_indian_accent_ids() -> List[str]:
-    """511 sorted Common Voice 24 Indian-accent utterance IDs (T9 snapshot)."""
+    """Sorted Common Voice Indian-accent utterance IDs (T9 snapshot).
+
+    Midterm reports n=511 on an earlier CV snapshot; CV25 test.tsv contains
+    510 pure-India-accent rows. Either is accepted here — the 9.62% Gate G1
+    target is robust to the one-row difference.
+    """
     payload = json.loads(_IDS_JSON.read_text())
     ids = sorted(payload["ids"])
-    if len(ids) != 511:
+    if not 505 <= len(ids) <= 515:
         raise RuntimeError(
-            f"Expected 511 Indian-accent IDs (midterm §2.2); got {len(ids)}. "
-            f"Re-run scripts/head_surgery/_extract_indian_ids.py to refresh."
+            f"Indian-accent ID count {len(ids)} outside expected band [505, 515] "
+            f"(midterm ref = 511; CV25 snapshot = 510). "
+            f"Rebuild the fixture via Task 2 Step 1."
         )
     return ids
 
@@ -2644,6 +2786,7 @@ EOF
 
 | PRD ID | Feature | Implemented in Task |
 |---|---|---|
+| (infra) | CV25 targeted audio extraction + manifests | Task 0 |
 | T1 | Per-head masking hook (serial + batched) | Tasks 4, 5 |
 | T2 | 640-cell sweep | Task 9 |
 | T3 | Driving-ness metric + bootstrap + guard | Task 11 |

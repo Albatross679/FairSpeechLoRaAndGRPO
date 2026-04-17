@@ -26,9 +26,9 @@ Reduce Whisper-large-v3's accent-specific hallucination by **identifying** the d
 
 ## 2. Target dataset and baseline
 
-- **Target subset:** 511 self-reported Indian-accent utterances from the Common Voice 24 test split (the same subset used by the midterm; n=511 is the natural group size after the n≥50 inclusion filter). All 511 used; no subsampling.
+- **Target subset:** the frozen set of self-reported Indian-accent utterances from Common Voice's test split. The midterm reports n=511 on the CV snapshot it used; the Common Voice 25 snapshot that ships on this machine (`datasets/cv-corpus-25.0-2026-03-09`) contains 510 pure-India-accent rows after filtering, plus 9 compound-label rows (`United States English|India and South Asia …`) that are excluded. **We use the 510 pure-India rows.** No subsampling within the chosen subset.
 - **Model:** `openai/whisper-large-v3`, HuggingFace revision hash frozen in `repro_config.py`.
-- **Baseline anchor:** midterm's 9.62% insertion rate on the 511 utterances. Stage A must reproduce this within ±0.5pp or the milestone halts to investigate config drift.
+- **Baseline anchor:** midterm's 9.62% insertion rate. Stage A must reproduce this within ±0.5pp on the 510-utterance subset or the milestone halts to investigate config drift. The 9.62% target is robust to the one-utterance difference at this tolerance.
 
 ## 3. What ships (MVP: T1–T9)
 
