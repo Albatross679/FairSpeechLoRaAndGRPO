@@ -2258,7 +2258,6 @@ def run_vad_arm(silence_manifests_csv: str, batch_size: int, device: str = "cuda
         _infer_whisper_batch, load_whisper, OUT_DIR,
     )
     from scripts.inference.run_inference import normalize_text
-    from scripts.head_surgery import repro_config as rc as _rc
 
     df = pd.read_csv(silence_manifests_csv)
     severity_col = next(c for c in df.columns if c in ("severity", "perturbation"))
