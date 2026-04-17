@@ -21,6 +21,7 @@ from scripts.head_surgery.head_mask_hook import BatchedHeadMaskHook
 from scripts.head_surgery.run_diagnosis_sweep import (
     OUT_DIR,
     _infer_whisper_batch,
+    load_audio_16k,
     load_manifest_for_ids,
     load_whisper,
 )
@@ -73,7 +74,7 @@ def tune(manifest_csv: str, mask_layer: int = 15, device: str = "cuda",
     ids = rc.load_indian_accent_ids()
     subset, _ = load_manifest_for_ids(ids, manifest_csv)
     audio_col = next(c for c in subset.columns if c in ("audio_path", "audio", "path"))
-    audios = [sf.read(str(p))[0] for p in subset[audio_col].head(max(CANDIDATE_BATCH_SIZES))]
+    audios = [load_audio_16k(p) for p in subset[audio_col].head(max(CANDIDATE_BATCH_SIZES))]
 
     model, processor = load_whisper(device=device)
     device_total = (

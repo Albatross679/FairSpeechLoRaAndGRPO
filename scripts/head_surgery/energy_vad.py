@@ -58,10 +58,9 @@ def filter_silence(audio: np.ndarray, sr: int,
 
 def run_vad_arm(silence_manifests_csv: str, batch_size: int, device: str = "cuda") -> dict:
     """For each severity × db_floor cell, filter audio and rerun Whisper baseline."""
-    import soundfile as sf
     from scripts.head_surgery.insertion_classifier import insertion_rate_breakdown
     from scripts.head_surgery.run_diagnosis_sweep import (
-        _infer_whisper_batch, load_whisper, OUT_DIR,
+        _infer_whisper_batch, load_audio_16k, load_whisper, OUT_DIR,
     )
     from scripts.inference.run_inference import normalize_text
 
@@ -76,8 +75,8 @@ def run_vad_arm(silence_manifests_csv: str, batch_size: int, device: str = "cuda
         for sev_val, g in df.groupby(severity_col):
             audios_filt = []
             for p in g[audio_col]:
-                a, sr = sf.read(str(p))
-                audios_filt.append(filter_silence(a, sr, db_floor=db_floor))
+                a = load_audio_16k(p)
+                audios_filt.append(filter_silence(a, 16000, db_floor=db_floor))
             refs = [normalize_text(r) for r in g[ref_col]]
             hyps = []
             for j in range(0, len(audios_filt), batch_size):

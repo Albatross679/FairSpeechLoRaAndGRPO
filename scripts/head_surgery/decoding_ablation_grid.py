@@ -22,7 +22,7 @@ import torch
 from scripts.head_surgery import repro_config as rc
 from scripts.head_surgery.insertion_classifier import insertion_rate_breakdown
 from scripts.head_surgery.run_diagnosis_sweep import (
-    OUT_DIR, load_manifest_for_ids, load_whisper,
+    OUT_DIR, load_audio_16k, load_manifest_for_ids, load_whisper,
 )
 from scripts.inference.run_inference import normalize_text
 
@@ -55,7 +55,7 @@ def run_decoding_grid(manifest_csv: str, batch_size: int, device: str = "cuda") 
     subset, id_col = load_manifest_for_ids(ids, manifest_csv)
     audio_col = next(c for c in subset.columns if c in ("audio_path", "audio", "path"))
     ref_col = next(c for c in subset.columns if c in ("reference", "transcript", "sentence"))
-    audios = [sf.read(str(p))[0] for p in subset[audio_col]]
+    audios = [load_audio_16k(p) for p in subset[audio_col]]
     refs = subset[ref_col].astype(str).tolist()
     utt_ids = subset[id_col].astype(str).tolist()
 

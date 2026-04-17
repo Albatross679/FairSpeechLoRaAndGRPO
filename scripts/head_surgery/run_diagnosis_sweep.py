@@ -29,6 +29,25 @@ from scripts.head_surgery.insertion_classifier import insertion_rate_breakdown
 OUT_DIR = Path("outputs/head_surgery")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
+SAMPLE_RATE = 16000
+
+
+def load_audio_16k(path) -> np.ndarray:
+    """Load an audio file and resample to 16 kHz mono (matches midterm pipeline).
+
+    CV mp3s are 48 kHz; passing them to the Whisper processor with
+    sampling_rate=16000 without resampling warps the spectrogram 3× and
+    produces hallucination loops (observed as 58% insertion rate on an early
+    Stage A run). Use this helper everywhere audio is loaded.
+    """
+    import torchaudio
+    waveform, orig_sr = torchaudio.load(str(path))
+    if waveform.shape[0] > 1:
+        waveform = waveform.mean(dim=0, keepdim=True)
+    if orig_sr != SAMPLE_RATE:
+        waveform = torchaudio.transforms.Resample(orig_sr, SAMPLE_RATE)(waveform)
+    return waveform.squeeze(0).numpy()
+
 
 # ── Whisper loading & inference (reuses midterm config) ──────────────────
 
@@ -95,7 +114,7 @@ def run_baseline(manifest_csv: str, batch_size: int = 8, device: str = "cuda") -
     t0 = time.time()
     for i in range(0, len(subset), batch_size):
         batch = subset.iloc[i:i + batch_size]
-        audios = [sf.read(str(p))[0] for p in batch[audio_col]]
+        audios = [load_audio_16k(p) for p in batch[audio_col]]
         hyps = _infer_whisper_batch(model, processor, audios, device)
         for (_, row), hyp in zip(batch.iterrows(), hyps):
             predictions.append((str(row[id_col]), str(row[ref_col]), hyp.strip()))
@@ -157,7 +176,7 @@ def run_pilot(manifest_csv: str, pilot_layer: int = 15, n_utts: int = PILOT_N_UT
     ref_col = next(c for c in subset.columns if c in ("reference", "transcript", "sentence"))
 
     model, processor = load_whisper(device=device)
-    audios = [sf.read(str(p))[0] for p in subset[audio_col]]
+    audios = [load_audio_16k(p) for p in subset[audio_col]]
     refs = subset[ref_col].astype(str).tolist()
     ids = subset[id_col].astype(str).tolist()
 
@@ -271,7 +290,7 @@ def run_full(manifest_csv: str, batch_size: int, device: str = "cuda") -> dict:
     subset, id_col = load_manifest_for_ids(ids_all, manifest_csv)
     audio_col = next(c for c in subset.columns if c in ("audio_path", "audio", "path"))
     ref_col = next(c for c in subset.columns if c in ("reference", "transcript", "sentence"))
-    audios = [sf.read(str(p))[0] for p in subset[audio_col]]
+    audios = [load_audio_16k(p) for p in subset[audio_col]]
     refs = subset[ref_col].astype(str).tolist()
     ids = subset[id_col].astype(str).tolist()
 

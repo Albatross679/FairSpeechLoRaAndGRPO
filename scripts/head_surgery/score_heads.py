@@ -141,7 +141,7 @@ def compute_regression_guard(
     import soundfile as sf
     from scripts.head_surgery.head_mask_hook import BatchedHeadMaskHook
     from scripts.head_surgery.run_diagnosis_sweep import (
-        _infer_whisper_batch, load_whisper,
+        _infer_whisper_batch, load_audio_16k, load_whisper,
     )
     from scripts.inference.run_inference import normalize_text
     import torch
@@ -149,7 +149,7 @@ def compute_regression_guard(
     non_ind = pd.read_csv(non_indian_manifest_csv)
     audio_col = next(c for c in non_ind.columns if c in ("audio_path", "audio", "path"))
     ref_col = next(c for c in non_ind.columns if c in ("reference", "transcript", "sentence"))
-    audios = [sf.read(str(p))[0] for p in non_ind[audio_col]]
+    audios = [load_audio_16k(p) for p in non_ind[audio_col]]
     refs = [normalize_text(r) for r in non_ind[ref_col]]
 
     model, processor = load_whisper(device=device)
