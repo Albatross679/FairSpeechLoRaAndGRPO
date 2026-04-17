@@ -167,3 +167,22 @@ def test_indian_accent_ids_sorted_and_stable():
     ids = rc.load_indian_accent_ids()
     assert ids == sorted(ids), "IDs must be sorted for stable iteration"
     assert ids == rc.load_indian_accent_ids()
+
+
+from scripts.head_surgery.insertion_classifier import (
+    categorize_insertions,
+    insertion_rate_breakdown,
+)
+
+
+def test_insertion_classifier_rep_category():
+    result = categorize_insertions("the cat sat", "the the cat sat")
+    cats = [r["category"] for r in result]
+    assert "repetition" in cats or "syntactic_completion" in cats
+
+
+def test_insertion_rate_breakdown_zero_on_identical():
+    pairs = [("hello world", "hello world"), ("good morning", "good morning")]
+    br = insertion_rate_breakdown(pairs)
+    assert br["total"] == 0.0
+    assert br["total_ref_words"] == 4
