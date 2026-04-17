@@ -216,6 +216,29 @@ def test_baseline_breakdown_matches_midterm_ratios(tmp_path):
     assert abs(con_pct - 9) < 10, f"content% = {con_pct:.1f}, midterm = 9"
 
 
+from scripts.head_surgery.energy_vad import filter_silence
+
+
+def test_filter_silence_drops_zero_region():
+    import numpy as np
+    sr = 16000
+    speech = np.random.default_rng(0).normal(0, 0.1, size=sr).astype(np.float32)  # 1s speech
+    silence = np.zeros(int(0.5 * sr), dtype=np.float32)
+    clip = np.concatenate([speech, silence, speech])
+    filtered = filter_silence(clip, sr, db_floor=-35.0, min_silence_ms=200)
+    assert len(filtered) < len(clip) - int(0.3 * sr), \
+        f"VAD did not drop expected silence: kept {len(filtered)}/{len(clip)}"
+    assert len(filtered) > int(1.5 * sr), "VAD dropped too much"
+
+
+def test_filter_silence_preserves_all_speech():
+    import numpy as np
+    sr = 16000
+    speech = np.random.default_rng(0).normal(0, 0.1, size=2 * sr).astype(np.float32)
+    filtered = filter_silence(speech, sr, db_floor=-35.0, min_silence_ms=200)
+    assert len(filtered) >= int(0.99 * len(speech))
+
+
 from scripts.head_surgery.score_heads import paired_bootstrap_delta_p
 
 
