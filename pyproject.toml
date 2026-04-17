@@ -62,6 +62,17 @@ dependencies = [
     "pyyaml>=6.0",
 ]
 
+# ---------------------------------------------------------------------------
+# v2.0 head-surgery diagnosis — reproducibility anchor.
+# The midterm's 9.62% Indian-accent insertion rate was computed with the
+# versions below. Do NOT upgrade these libraries without re-running Gate G1
+# (see tasks/prd-head-surgery-diagnosis.md §6).
+#   transformers == 5.5.4
+#   torch        == 2.10.0  (cu128 wheel)
+#   jiwer        == 4.0.0
+#   openai-whisper == 20250625
+# ---------------------------------------------------------------------------
+
 [project.optional-dependencies]
 # GRPO / RL fine-tuning stack
 grpo = [
