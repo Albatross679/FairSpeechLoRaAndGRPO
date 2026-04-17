@@ -261,3 +261,21 @@ def test_paired_bootstrap_reports_null_when_effect_zero():
     ref_words = rng.integers(5, 15, size=n)
     p = paired_bootstrap_delta_p(counts.copy(), counts.copy(), ref_words, n_iter=2000, seed=0)
     assert p > 0.5, f"expected no significance; got p={p}"
+
+
+@pytest.mark.parametrize("relpath", [
+    "outputs/head_surgery/baseline_metrics.json",
+    "outputs/head_surgery/tune_batch_size.json",
+    "outputs/head_surgery/pilot_metrics.json",
+    "outputs/head_surgery/sweep.csv",
+    "outputs/head_surgery/head_scores.csv",
+    "outputs/head_surgery/top_k_heads.csv",
+    "outputs/head_surgery/decoding_scores.csv",
+    "outputs/head_surgery/vad_scores.csv",
+    "docs/head_surgery_report.md",
+])
+def test_expected_artifact_present(relpath):
+    p = Path(relpath)
+    if not p.exists():
+        pytest.skip(f"{relpath} not produced yet — run the pipeline")
+    assert p.stat().st_size > 0, f"{relpath} is empty"
