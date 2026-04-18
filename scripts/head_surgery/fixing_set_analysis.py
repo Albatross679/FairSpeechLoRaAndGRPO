@@ -171,3 +171,33 @@ def build_coverage_matrix(
         return np.zeros((len(affected), 0), dtype=bool), affected, []
     matrix = np.stack(col_vectors, axis=1)
     return matrix, affected, valid_heads
+
+
+def greedy_cover(
+    matrix: np.ndarray,
+    heads: List[Tuple[int, int]],
+) -> List[Tuple[Tuple[int, int], List[int]]]:
+    """Greedy min-set-cover. Returns [((layer, head), newly_covered_row_indices)].
+
+    Terminates when no remaining column adds any uncovered row (so unhelpable
+    rows, i.e. rows with no 1s, are silently left uncovered).
+    """
+    if matrix.size == 0 or matrix.shape[1] == 0:
+        return []
+    n_rows = matrix.shape[0]
+    uncovered = np.ones(n_rows, dtype=bool)
+    remaining_cols = set(range(matrix.shape[1]))
+    result: List[Tuple[Tuple[int, int], List[int]]] = []
+    while uncovered.any() and remaining_cols:
+        best_col, best_hits = -1, 0
+        for c in remaining_cols:
+            hits = int((matrix[:, c] & uncovered).sum())
+            if hits > best_hits:
+                best_col, best_hits = c, hits
+        if best_hits == 0:
+            break
+        newly = list(np.where(matrix[:, best_col] & uncovered)[0])
+        result.append((heads[best_col], newly))
+        uncovered[newly] = False
+        remaining_cols.discard(best_col)
+    return result

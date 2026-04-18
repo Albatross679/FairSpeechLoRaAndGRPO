@@ -186,3 +186,50 @@ def test_build_coverage_matrix_accepts_unchecked_heads(tmp_path):
     matrix, utt_ids, heads = build_coverage_matrix(counts, scores_csv)
     # (1, 0) unchecked but valid under the other two filters → kept.
     assert heads == [(1, 0)]
+
+
+from scripts.head_surgery.fixing_set_analysis import greedy_cover
+
+
+def test_greedy_cover_empty():
+    assert greedy_cover(np.zeros((0, 0), dtype=bool), []) == []
+
+
+def test_greedy_cover_no_columns():
+    assert greedy_cover(np.zeros((5, 0), dtype=bool), []) == []
+
+
+def test_greedy_cover_picks_largest_then_rest():
+    # 5 utterances × 4 heads with a known optimum of 2.
+    # h0 covers {0, 1, 2}, h1 covers {2, 3}, h2 covers {4}, h3 covers {1}.
+    # Greedy: pick h0 (3), then must pick h1 (for 3) + h2 (for 4). Size 3.
+    # (Optimum is h0+h1+h2 = 3 here — they are the same; this is a sanity baseline.)
+    matrix = np.array([
+        [1, 0, 0, 0],  # utt 0: covered by h0
+        [1, 0, 0, 1],  # utt 1: covered by h0, h3
+        [1, 1, 0, 0],  # utt 2: covered by h0, h1
+        [0, 1, 0, 0],  # utt 3: covered by h1
+        [0, 0, 1, 0],  # utt 4: covered by h2
+    ], dtype=bool)
+    heads = [(0, 0), (0, 1), (0, 2), (0, 3)]
+    cover = greedy_cover(matrix, heads)
+    # Expect h0 first (covers 3), then h1 (covers u3), then h2 (covers u4).
+    assert len(cover) == 3
+    assert cover[0][0] == (0, 0)
+    assert {c[0] for c in cover} == {(0, 0), (0, 1), (0, 2)}
+    # Each entry should list its newly covered utterance indices
+    assert cover[0][1] == [0, 1, 2]
+
+
+def test_greedy_cover_leaves_uncovered_unhelpable_rows():
+    # Row 0 has no ones — no head can cover it. Greedy must terminate when no
+    # column adds coverage, returning the partial cover only.
+    matrix = np.array([
+        [0, 0],
+        [1, 0],
+        [0, 1],
+    ], dtype=bool)
+    cover = greedy_cover(matrix, [(0, 0), (1, 0)])
+    assert len(cover) == 2
+    covered = set().union(*(set(c[1]) for c in cover))
+    assert covered == {1, 2}  # row 0 is unhelpable; not in cover
