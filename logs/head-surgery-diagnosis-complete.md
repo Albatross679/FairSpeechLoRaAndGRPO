@@ -117,10 +117,27 @@ repetition loops by ~10×.
 - `docs/head_surgery_heatmap.png` — 32×20 Δ grid (red = would worsen if masked,
   blue = would slightly improve)
 
+## Stage F — Energy VAD under silence injection (T8)
+
+Silence-injected audio generated in-house (`scripts/head_surgery/_generate_silence_perturbations.py`):
+484 Indian-accent clips × 3 severities (25 / 50 / 75% silence inserted in 3 blocks per clip, seed=20260418) = 1,452 perturbed WAVs.
+
+`filter_silence` primitive (20 ms frame / 10 ms hop RMS threshold) run at three
+db_floors × three severities = 9 cells:
+
+| severity ↓ / db_floor → | −40 dB | −35 dB | −30 dB |
+|---|---|---|---|
+| silence_25pct | 1.82% | 1.94% | **1.70%** |
+| silence_50pct | 1.80% | 1.80% | 2.01% |
+| silence_75pct | 1.86% | 2.07% | **1.68%** |
+
+All 9 post-VAD insertion rates land within 0.8pp of the silence-free baseline
+(1.27%); `db_floor=-30` is the most aggressive and gives the cleanest result on
+the heaviest severity. VAD robustly strips injected silence before Whisper's
+decoder is asked to hallucinate over it.
+
 ## Deferred
 
-- Stage F (energy VAD) — requires silence-injection perturbation manifests that
-  don't exist in this environment.
 - The 12 missing regression-guard results (top-50 heads 39–50 by \|Δ\|). These
   are the lowest-|Δ| entries and likely all safe. Could be backfilled in ~20 min.
 - D1 selective head fine-tuning — per PRD §3, explicitly out of scope.

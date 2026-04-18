@@ -43,8 +43,20 @@ Target model: Whisper-large-v3. Evaluation subset: Indian-accent CV25 test utter
 
 Top 10 configs by lowest insertion rate.
 
-## 4. Energy-VAD
-*vad_scores.csv missing — run Stage F.*
+## 4. Energy-VAD under silence injection
+
+| severity      |   db_floor |   total |   repetition |   syntactic |   content |   total_ref_words |
+|:--------------|-----------:|--------:|-------------:|------------:|----------:|------------------:|
+| silence_25pct |    -40.000 |   0.018 |        0.000 |       0.008 |     0.010 |              4885 |
+| silence_50pct |    -40.000 |   0.018 |        0.000 |       0.009 |     0.009 |              4885 |
+| silence_75pct |    -40.000 |   0.019 |        0.000 |       0.009 |     0.010 |              4885 |
+| silence_25pct |    -35.000 |   0.019 |        0.000 |       0.008 |     0.011 |              4885 |
+| silence_50pct |    -35.000 |   0.018 |        0.000 |       0.008 |     0.010 |              4885 |
+| silence_75pct |    -35.000 |   0.021 |        0.000 |       0.011 |     0.010 |              4885 |
+| silence_25pct |    -30.000 |   0.017 |        0.000 |       0.008 |     0.008 |              4885 |
+| silence_50pct |    -30.000 |   0.020 |        0.001 |       0.009 |     0.010 |              4885 |
+| silence_75pct |    -30.000 |   0.017 |        0.000 |       0.008 |     0.008 |              4885 |
+
 
 ## 5. All heads — ranked (top 50)
 
