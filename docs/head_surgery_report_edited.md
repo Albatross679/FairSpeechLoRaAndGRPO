@@ -332,9 +332,21 @@ A binary coverage matrix `[n_affected × n_valid_heads]` is then solved two ways
 
 30 utterances have at least one hallucinated token at baseline that **no valid single-head mask** can eliminate under the three-filter criterion. Their IDs are listed in [`minimum_surgical_set.json`](../outputs/head_surgery/minimum_surgical_set.json). These represent the floor of what single-head masking can achieve on this dataset.
 
-### 8b.5 Interpretation caveat
+### 8b.5 Interpretation caveats
 
-The min-cover is a *hypothesis about multi-head masking*, not a measured result. It assumes that masking multiple heads simultaneously produces at least the union of their single-head effects. The full sweep is single-head; validating the min-cover requires a separate GPU run that installs the entire candidate set together. Interaction effects may reduce coverage (e.g., if two heads are redundant circuits, masking both is no better than masking one).
+The numbers in §8b.2–§8b.4 are the mechanically-correct output of the three-filter + min-set-cover formulation, but five interpretive limits bound what they can be cited as supporting:
+
+1. **The cover is a *necessary* condition, not *sufficient*.** Size 8 means no fewer than 8 single-head masks could possibly cover the 15 helpable utterances under these filters — **if** multi-head masking decomposed linearly. The sweep is single-head, so masking all 8 simultaneously is not guaranteed to fix any of them. Interaction effects may *reduce* coverage (redundant circuits cancel) or *change* it non-monotonically (two individually safe heads combined can introduce new harm). Validating the cover requires a separate GPU run that installs the entire 8-head set together.
+
+2. **"30 unhelpable" is conditional on the three filters.** Some of these utterances have single-head masks that fix them but introduce new hallucinations elsewhere (filter ii) or fail the non-Indian regression guard (filter iii). They are unhelpable *under this criterion*, not in an absolute sense. Relaxing filter (ii) to "no new repetition-class harm" or adding a head-level damage budget would change the count.
+
+3. **Filter (ii) has no tolerance band.** A single utterance going from baseline insertion count 0 → 1 under a masked condition — even due to fp16 + RNG jitter, which the report has documented in Gate G3 — eliminates an otherwise-safe head. With 484 utterances each rolling the "new insertion due to noise" die once per 640 conditions, the `n_valid_heads = 115` number has unquantified sensitivity to single-token variance. A statistical relaxation (e.g., reject only if harm is significant at p<0.05 across utterances) would likely raise n_valid_heads and lower the cover size.
+
+4. **`n_valid_heads = 115` was data-derived, not predicted.** The implementation plan estimated "empirically likely ≤50"; the actual count is 2.3× larger. More heads than anticipated clear the three filters — this is a finding *from* the analysis, not a calibration *for* it.
+
+5. **greedy = ILP = 8 is empirically optimal on *this* matrix, not provably so in general.** Greedy min-set-cover is a log-factor approximation; it coincides with ILP here because of the specific coverage structure (long tail of singleton-covering heads after the top 4). A slightly different sweep could produce a matrix where greedy overshoots ILP by 1–2 heads.
+
+**Downstream claims to avoid:** "masking these 8 heads fixes 15 utterances" (unverified — see #1); "only 115 of 640 heads are safe to mask" (unquantified noise sensitivity — see #3); "greedy is provably optimal here" (empirical coincidence — see #5).
 
 ### 8b.6 Cross-reference to §8
 
