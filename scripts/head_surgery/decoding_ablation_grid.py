@@ -62,10 +62,16 @@ def run_decoding_grid(manifest_csv: str, batch_size: int, device: str = "cuda") 
     model, processor = load_whisper(device=device)
     rows, scores = [], []
     configs = list(itertools.product(BEAMS, REP_PENALTIES, NO_REPEAT_NGRAMS, TEMP_FALLBACKS))
+    # beam=5 multiplies KV-cache memory by ~5x and OOM'd at bs=24 on a 48 GB A6000.
+    # Halve the batch for beam=5 configs; keep the user-requested batch for beam=1.
+    def _bs_for(beam):
+        return max(1, batch_size // 4) if beam >= 5 else batch_size
+
     for k, (beam, rp, nr, tf) in enumerate(configs):
+        bs_k = _bs_for(beam)
         hyps: List[str] = []
-        for j in range(0, len(audios), batch_size):
-            chunk = audios[j:j + batch_size]
+        for j in range(0, len(audios), bs_k):
+            chunk = audios[j:j + bs_k]
             hyps.extend(t.strip() for t in _generate_with_config(
                 model, processor, chunk, beam, rp, nr, tf, device
             ))
@@ -77,7 +83,12 @@ def run_decoding_grid(manifest_csv: str, batch_size: int, device: str = "cuda") 
         scores.append({"beam": beam, "rep_penalty": rp, "no_repeat_ngram": nr,
                        "temp_fallback": tf, **br})
         print(f"[decoding {k+1}/{len(configs)}] beam={beam} rep={rp} "
-              f"nr={nr} tf={tf}: ins={br['total']*100:.2f}%")
+              f"nr={nr} tf={tf} bs={bs_k}: ins={br['total']*100:.2f}%", flush=True)
+        # Checkpoint partial results after each config — previous run OOM'd at
+        # config 19 and lost all 18 completed results.
+        pd.DataFrame(scores).to_csv(OUT_DIR / "decoding_scores.csv", index=False)
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
     pd.DataFrame(rows).to_csv(OUT_DIR / "decoding_grid.csv", index=False)
     pd.DataFrame(scores).to_csv(OUT_DIR / "decoding_scores.csv", index=False)
     return {"configs": len(configs)}
