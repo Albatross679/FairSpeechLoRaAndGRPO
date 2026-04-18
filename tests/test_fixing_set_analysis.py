@@ -277,3 +277,36 @@ def test_ilp_cover_finds_strictly_smaller_set_than_greedy():
 def test_ilp_cover_handles_empty_inputs():
     assert ilp_cover(np.zeros((0, 0), dtype=bool), []) == []
     assert ilp_cover(np.zeros((3, 0), dtype=bool), []) == []
+
+
+from scripts.head_surgery.fixing_set_analysis import run
+
+
+def test_run_produces_all_three_artifacts(tmp_path, monkeypatch):
+    # Point OUT_DIR at tmp_path for this test only.
+    import scripts.head_surgery.fixing_set_analysis as mod
+    monkeypatch.setattr(mod, "OUT_DIR", tmp_path)
+
+    sweep_df = _fake_sweep_rows()
+    baseline_df = sweep_df[sweep_df["layer"] == -1][["id", "reference", "hypothesis"]].reset_index(drop=True)
+    (tmp_path).mkdir(parents=True, exist_ok=True)
+    s_csv = tmp_path / "sweep.csv"
+    b_csv = tmp_path / "baseline_predictions.csv"
+    sweep_df[sweep_df["layer"] != -1].to_csv(s_csv, index=False)
+    baseline_df.to_csv(b_csv, index=False)
+    scores = pd.DataFrame([
+        {"layer": 0, "head": 0, "regression_ok": True,  "regression_checked": True},
+        {"layer": 1, "head": 0, "regression_ok": True,  "regression_checked": True},
+    ])
+    sc_csv = tmp_path / "head_scores.csv"
+    scores.to_csv(sc_csv, index=False)
+
+    summary = run(s_csv, b_csv, sc_csv)
+    # Artifacts
+    assert (tmp_path / "fixing_set_per_utterance.csv").exists()
+    assert (tmp_path / "coverage_matrix.npz").exists()
+    assert (tmp_path / "minimum_surgical_set.json").exists()
+    # Summary shape
+    assert "n_affected" in summary
+    assert "greedy" in summary and "ilp" in summary
+    assert summary["n_affected"] == 2  # u1, u3

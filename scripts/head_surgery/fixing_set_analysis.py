@@ -234,3 +234,101 @@ def ilp_cover(
     picked_idx = [i for i, v in enumerate(res.x) if v > 0.5]
     picked = [heads[i] for i in picked_idx]
     return sorted(picked)
+
+
+def _write_per_utterance_csv(
+    counts: pd.DataFrame,
+    affected: List[str],
+    matrix: np.ndarray,
+    heads: List[Tuple[int, int]],
+    out_path: Path,
+) -> None:
+    base_lookup = (
+        counts[counts["condition"] == "baseline"]
+        .set_index("id")["count"].astype(int).to_dict()
+    )
+    # Long-form: one row per (utterance, helping-head)
+    rows = []
+    if matrix.size:
+        for u_idx, u in enumerate(affected):
+            ref = counts[(counts["condition"] == "baseline") & (counts["id"] == u)].iloc[0]
+            for h_idx, (L, h) in enumerate(heads):
+                if not matrix[u_idx, h_idx]:
+                    continue
+                masked = counts[
+                    (counts["layer"] == L) & (counts["head"] == h) & (counts["id"] == u)
+                ]["count"].iloc[0]
+                rows.append({
+                    "id": u, "baseline_count": base_lookup[u],
+                    "layer": L, "head": h,
+                    "masked_count": int(masked),
+                    "reduction": int(base_lookup[u] - masked),
+                })
+    pd.DataFrame(rows).to_csv(out_path, index=False)
+
+
+def _write_matrix_npz(matrix, utt_ids, heads, out_path: Path) -> None:
+    np.savez(
+        out_path,
+        matrix=matrix,
+        utt_ids=np.array(utt_ids, dtype=object),
+        heads=np.array(heads, dtype=np.int32).reshape(-1, 2) if heads else np.zeros((0, 2), dtype=np.int32),
+    )
+
+
+def run(
+    sweep_csv: Path,
+    baseline_csv: Path,
+    head_scores_csv: Path,
+) -> dict:
+    """End-to-end driver. Writes three artifacts under OUT_DIR and returns a summary."""
+    t0 = time.time()
+    counts = build_count_table(sweep_csv, baseline_csv)
+    matrix, utt_ids, heads = build_coverage_matrix(counts, head_scores_csv)
+
+    greedy = greedy_cover(matrix, heads)
+    ilp = ilp_cover(matrix, heads) if matrix.size else []
+
+    # Unhelpable: rows with no 1s in the matrix
+    if matrix.size:
+        row_has_cover = matrix.any(axis=1)
+        unhelpable = [utt_ids[i] for i, flag in enumerate(row_has_cover) if not flag]
+    else:
+        unhelpable = list(utt_ids)
+
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    per_utt_csv = OUT_DIR / "fixing_set_per_utterance.csv"
+    matrix_npz = OUT_DIR / "coverage_matrix.npz"
+    set_json = OUT_DIR / "minimum_surgical_set.json"
+
+    _write_per_utterance_csv(counts, utt_ids, matrix, heads, per_utt_csv)
+    _write_matrix_npz(matrix, utt_ids, heads, matrix_npz)
+
+    summary = {
+        "n_affected": len(utt_ids),
+        "n_valid_heads": len(heads),
+        "unhelpable_utterances": unhelpable,
+        "greedy": [
+            {"layer": L, "head": h, "newly_covered_count": len(covered),
+             "newly_covered_ids": [utt_ids[i] for i in covered]}
+            for (L, h), covered in greedy
+        ],
+        "ilp": [{"layer": L, "head": h} for (L, h) in ilp],
+        "runtime_seconds": round(time.time() - t0, 2),
+    }
+    set_json.write_text(json.dumps(summary, indent=2))
+    return summary
+
+
+def _cli():
+    p = argparse.ArgumentParser(description="Fixing-set analysis on existing sweep artifacts.")
+    p.add_argument("--sweep-csv", default=str(OUT_DIR / "sweep.csv"))
+    p.add_argument("--baseline-csv", default=str(OUT_DIR / "baseline_predictions.csv"))
+    p.add_argument("--head-scores-csv", default=str(OUT_DIR / "head_scores.csv"))
+    args = p.parse_args()
+    summary = run(Path(args.sweep_csv), Path(args.baseline_csv), Path(args.head_scores_csv))
+    print(json.dumps(summary, indent=2))
+
+
+if __name__ == "__main__":
+    _cli()
