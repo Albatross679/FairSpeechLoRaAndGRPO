@@ -291,6 +291,57 @@ Two patterns:
 
 ---
 
+## 8b. Stage D (cont.) — Fixing-set analysis
+
+### 8b.1 Method
+
+Reframes the question from "which single head reduces hallucination the most on average?" (§7) to "for each of the 45 Indian-accent utterances with ≥1 hallucinated token, which (L, h) masks eliminate at least one token of that utterance — and what is the minimum head set whose union covers all of them?"
+
+A head (L, h) is considered **valid** for the fixing set only if all three hold:
+1. It strictly reduces the insertion count on ≥1 affected utterance.
+2. It introduces no new insertions on any utterance in the pool (global no-harm).
+3. It passes the non-Indian regression guard from §8 (`regression_ok=True` or `regression_checked=False`).
+
+A binary coverage matrix `[n_affected × n_valid_heads]` is then solved two ways: **greedy** (picks the column covering the most uncovered rows, repeats) and **ILP optimal** via `scipy.optimize.milp` (for comparison). Source: [`scripts/head_surgery/fixing_set_analysis.py`](../scripts/head_surgery/fixing_set_analysis.py).
+
+### 8b.2 Result — coverage statistics
+
+| Metric | Value |
+|---|---:|
+| Affected utterances (baseline insertion count > 0) | **45** |
+| Valid heads after three filters | **115** (of 640) |
+| Greedy cover size | **8** |
+| ILP optimum cover size | **8** |
+| Unhelpable utterances (no single-head mask can fix) | **30** |
+| Analysis runtime | 66.22 s (no GPU) |
+
+### 8b.3 Result — greedy ordering
+
+| Order | (Layer, Head) | Newly covered utterances | Cumulative coverage |
+|---:|---|---:|---:|
+| 1 | (L=0, h=15) | 3 | 3 |
+| 2 | (L=20, h=11) | 3 | 6 |
+| 3 | (L=22, h=19) | 3 | 9 |
+| 4 | (L=25, h=16) | 2 | 11 |
+| 5 | (L=11, h=11) | 1 | 12 |
+| 6 | (L=13, h=17) | 1 | 13 |
+| 7 | (L=16, h=13) | 1 | 14 |
+| 8 | (L=20, h=6) | 1 | 15 |
+
+### 8b.4 Unhelpable utterances
+
+30 utterances have at least one hallucinated token at baseline that **no valid single-head mask** can eliminate under the three-filter criterion. Their IDs are listed in [`minimum_surgical_set.json`](../outputs/head_surgery/minimum_surgical_set.json). These represent the floor of what single-head masking can achieve on this dataset.
+
+### 8b.5 Interpretation caveat
+
+The min-cover is a *hypothesis about multi-head masking*, not a measured result. It assumes that masking multiple heads simultaneously produces at least the union of their single-head effects. The full sweep is single-head; validating the min-cover requires a separate GPU run that installs the entire candidate set together. Interaction effects may reduce coverage (e.g., if two heads are redundant circuits, masking both is no better than masking one).
+
+### 8b.6 Cross-reference to §8
+
+The catastrophic keystone head **L=0 h=5** (§8.2, +100.16 pp) is by construction excluded from the fixing set (filter 2). The sole bootstrap-significant head from §7.4, **L=20 h=11**, may or may not appear in the greedy cover depending on whether it passes filter 2 — see [`minimum_surgical_set.json`](../outputs/head_surgery/minimum_surgical_set.json) for the authoritative list.
+
+---
+
 ## 9. Stage E — Decoding-strategy ablation
 
 ### 9.1 Method
