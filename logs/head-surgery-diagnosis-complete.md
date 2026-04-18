@@ -150,3 +150,7 @@ decoder is asked to hallucinate over it.
 - Plan: `docs/superpowers/plans/2026-04-17-head-surgery-diagnosis.md`
 - Report: `docs/head_surgery_report.md`
 - Heatmap: `docs/head_surgery_heatmap.png`
+
+## Post-hoc analyses (no additional GPU)
+
+- **Fixing-set analysis** (2026-04-18) — [log entry](head-surgery-fixing-set-analysis.md), [report §8b](../docs/head_surgery_report_edited.md), artifacts under `outputs/head_surgery/`. Reframes the per-head Δ as a coverage problem; greedy vs ILP min-set-cover over the affected utterances. Finding: **8 heads cover 15 of 45 affected utterances; 30 remain unhelpable by any single-head mask.**
