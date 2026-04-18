@@ -96,3 +96,93 @@ def test_build_count_table_shape_and_values(tmp_path):
     assert m00 == {"u1": 0, "u2": 1, "u3": 2}
     m10 = counts[(counts["layer"] == 1) & (counts["head"] == 0)].set_index("id")["count"].to_dict()
     assert m10 == {"u1": 1, "u2": 0, "u3": 1}
+
+
+from scripts.head_surgery.fixing_set_analysis import (
+    identify_affected,
+    build_coverage_matrix,
+)
+
+
+def test_identify_affected_picks_nonzero_baseline():
+    counts = pd.DataFrame([
+        {"condition": "baseline", "layer": -1, "head": -1, "id": "u1", "count": 2},
+        {"condition": "baseline", "layer": -1, "head": -1, "id": "u2", "count": 0},
+        {"condition": "baseline", "layer": -1, "head": -1, "id": "u3", "count": 5},
+    ])
+    assert identify_affected(counts) == ["u1", "u3"]
+
+
+def test_build_coverage_matrix_applies_all_three_filters(tmp_path):
+    # Same fake data as Task 3, plus a head_scores row per masked (L, h).
+    sweep_df = _fake_sweep_rows()
+    baseline_df = sweep_df[sweep_df["layer"] == -1][["id", "reference", "hypothesis"]].reset_index(drop=True)
+    s_csv = tmp_path / "sweep.csv"
+    b_csv = tmp_path / "baseline_predictions.csv"
+    sweep_df[sweep_df["layer"] != -1].to_csv(s_csv, index=False)
+    baseline_df.to_csv(b_csv, index=False)
+    counts = build_count_table(s_csv, b_csv)
+
+    # head_scores — both heads "regression_ok=True"
+    scores = pd.DataFrame([
+        {"layer": 0, "head": 0, "regression_ok": True,  "regression_checked": True},
+        {"layer": 1, "head": 0, "regression_ok": True,  "regression_checked": True},
+    ])
+    scores_csv = tmp_path / "head_scores.csv"
+    scores.to_csv(scores_csv, index=False)
+
+    matrix, utt_ids, heads = build_coverage_matrix(counts, scores_csv)
+    # Affected: u1 (baseline=1), u3 (baseline=2) → two rows
+    assert utt_ids == ["u1", "u3"]
+    # Valid heads under the three filters:
+    #   (0, 0): fixes u1 (1→0), but HARMS u2 (0→1) → filter (ii) eliminates it.
+    #   (1, 0): fixes u3 (2→1), no harm on u2 (stays 0), u1 stays 1 (no harm) → valid.
+    assert heads == [(1, 0)]
+    # Coverage: (1, 0) helps u3 (1→0 reduction) but NOT u1 (no reduction on u1).
+    assert matrix.shape == (2, 1)
+    assert matrix[utt_ids.index("u1"), 0] == 0
+    assert matrix[utt_ids.index("u3"), 0] == 1
+
+
+def test_build_coverage_matrix_filters_regression_failures(tmp_path):
+    sweep_df = _fake_sweep_rows()
+    baseline_df = sweep_df[sweep_df["layer"] == -1][["id", "reference", "hypothesis"]].reset_index(drop=True)
+    s_csv = tmp_path / "sweep.csv"
+    b_csv = tmp_path / "baseline_predictions.csv"
+    sweep_df[sweep_df["layer"] != -1].to_csv(s_csv, index=False)
+    baseline_df.to_csv(b_csv, index=False)
+    counts = build_count_table(s_csv, b_csv)
+
+    # Mark (1, 0) as regression_ok=False — it should be filtered out.
+    scores = pd.DataFrame([
+        {"layer": 0, "head": 0, "regression_ok": True,  "regression_checked": True},
+        {"layer": 1, "head": 0, "regression_ok": False, "regression_checked": True},
+    ])
+    scores_csv = tmp_path / "head_scores.csv"
+    scores.to_csv(scores_csv, index=False)
+    matrix, utt_ids, heads = build_coverage_matrix(counts, scores_csv)
+    # Neither head is valid → matrix has zero columns.
+    assert matrix.shape == (2, 0)
+    assert heads == []
+
+
+def test_build_coverage_matrix_accepts_unchecked_heads(tmp_path):
+    sweep_df = _fake_sweep_rows()
+    baseline_df = sweep_df[sweep_df["layer"] == -1][["id", "reference", "hypothesis"]].reset_index(drop=True)
+    s_csv = tmp_path / "sweep.csv"
+    b_csv = tmp_path / "baseline_predictions.csv"
+    sweep_df[sweep_df["layer"] != -1].to_csv(s_csv, index=False)
+    baseline_df.to_csv(b_csv, index=False)
+    counts = build_count_table(s_csv, b_csv)
+
+    # regression_checked=False means the Stage D guard did not evaluate this head
+    # (the top-50 cap). Treat it as "pass" rather than exclude — matches report §8 logic.
+    scores = pd.DataFrame([
+        {"layer": 0, "head": 0, "regression_ok": True,  "regression_checked": True},
+        {"layer": 1, "head": 0, "regression_ok": None,  "regression_checked": False},
+    ])
+    scores_csv = tmp_path / "head_scores.csv"
+    scores.to_csv(scores_csv, index=False)
+    matrix, utt_ids, heads = build_coverage_matrix(counts, scores_csv)
+    # (1, 0) unchecked but valid under the other two filters → kept.
+    assert heads == [(1, 0)]

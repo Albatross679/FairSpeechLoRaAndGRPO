@@ -80,3 +80,94 @@ def build_count_table(sweep_csv: Path, baseline_csv: Path) -> pd.DataFrame:
             "count": count_insertions(r["reference"], r["hypothesis"]),
         })
     return pd.DataFrame(baseline_counts + masked_counts)
+
+
+def identify_affected(counts: pd.DataFrame) -> List[str]:
+    """Utterance IDs with baseline insertion count > 0, in CSV order."""
+    base = counts[counts["condition"] == "baseline"].copy()
+    return base.loc[base["count"] > 0, "id"].astype(str).tolist()
+
+
+def build_coverage_matrix(
+    counts: pd.DataFrame,
+    head_scores_csv: Path,
+) -> Tuple[np.ndarray, List[str], List[Tuple[int, int]]]:
+    """Binary coverage matrix under three filters.
+
+    A head (L, h) is VALID iff all three hold:
+      (i)   it strictly reduces insertion count on ≥1 affected utterance,
+      (ii)  it does NOT introduce new insertions on any utterance
+            (for every utterance u: masked_count[u] ≤ baseline_count[u]),
+      (iii) head_scores[regression_ok] is True OR regression_checked is False
+            (unchecked heads are treated as pass-through, matching §8 of the
+             edited report).
+
+    Returns:
+      matrix[n_affected × n_valid]  — 1 iff head helps that affected utterance
+      utt_ids                       — row labels
+      heads                         — column labels as (layer, head) tuples
+    """
+    affected = identify_affected(counts)
+    if not affected:
+        return np.zeros((0, 0), dtype=bool), [], []
+
+    base_lookup = (
+        counts[counts["condition"] == "baseline"]
+        .set_index("id")["count"].astype(int).to_dict()
+    )
+
+    # Pivot to wide form: rows=id, cols=condition, values=count. Keep baseline.
+    masked = counts[counts["condition"] != "baseline"].copy()
+    wide = masked.pivot_table(
+        index="id", columns=["layer", "head"], values="count", aggfunc="first"
+    ).fillna(-1).astype(int)
+
+    # Filter (iii) — regression guard
+    scores = pd.read_csv(head_scores_csv)
+    scores["accept"] = scores["regression_ok"].where(
+        scores["regression_checked"] == True, other=True
+    ).fillna(True).astype(bool)
+    accepted = {(int(r["layer"]), int(r["head"])) for _, r in scores.iterrows() if r["accept"]}
+
+    # Apply filters (i) and (ii) per column
+    valid_heads: List[Tuple[int, int]] = []
+    col_vectors: List[np.ndarray] = []
+    affected_index = {u: i for i, u in enumerate(affected)}
+
+    for (L, h) in wide.columns:
+        key = (int(L), int(h))
+        if key not in accepted:
+            continue
+        col = wide[(L, h)]  # int series indexed by utterance id
+
+        # Filter (ii) — no new global harm. For every utt, masked ≤ baseline.
+        harms = False
+        for utt_id, masked_count in col.items():
+            if masked_count < 0:
+                continue  # missing — treat as unchanged (skip)
+            if masked_count > base_lookup.get(str(utt_id), 0):
+                harms = True
+                break
+        if harms:
+            continue
+
+        # Filter (i) — helps ≥ 1 affected utterance. Build the coverage column.
+        vec = np.zeros(len(affected), dtype=bool)
+        any_help = False
+        for utt_id in affected:
+            masked_count = int(col.get(utt_id, -1))
+            if masked_count < 0:
+                continue
+            if masked_count < base_lookup[utt_id]:
+                vec[affected_index[utt_id]] = True
+                any_help = True
+        if not any_help:
+            continue
+
+        valid_heads.append(key)
+        col_vectors.append(vec)
+
+    if not valid_heads:
+        return np.zeros((len(affected), 0), dtype=bool), affected, []
+    matrix = np.stack(col_vectors, axis=1)
+    return matrix, affected, valid_heads
