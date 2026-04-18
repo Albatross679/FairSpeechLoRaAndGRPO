@@ -1,7 +1,8 @@
 """Stage G — assemble the final head-surgery report (T6).
 
 Writes docs/head_surgery_report.md with:
-  1. Baseline metrics (Gate G1).
+  0. Summary — heads scored, experiments executed, duration.
+  1. Dataset — CV25 vs Srishti's CV24, what was used, truncation losses.
   2. Top-K driving heads table (with bootstrap p, regression result).
   3. Decoding-strategy ablation (top 10 configs by lowest insertion rate).
   4. Energy-VAD results under silence injection.
@@ -44,23 +45,112 @@ def _md_table(df: pd.DataFrame) -> str:
         return header + sep + body
 
 
+def _summary_section(base: dict | None, scores: pd.DataFrame | None) -> str:
+    lines: List[str] = ["## 0. Summary\n", "### Heads scored\n"]
+    if scores is not None:
+        total = len(scores)
+        pos = int((scores["delta_insertion_rate"] > 0).sum())
+        zero = int((scores["delta_insertion_rate"] == 0).sum())
+        neg = int((scores["delta_insertion_rate"] < 0).sum())
+        sig = int((scores["p_value_delta"] < 0.05).sum()) if "p_value_delta" in scores.columns else 0
+        lines += [
+            "| Category | Count |",
+            "|---|---:|",
+            f"| Total (L, h) cells scored | **{total}** (32 layers × 20 heads) |",
+            "| Top-K reported (§2) | 10 |",
+            f"| Δ > 0 (masking reduces insertions) | {pos} |",
+            f"| Δ = 0 (no effect) | {zero} |",
+            f"| Δ < 0 (masking worsens insertions) | {neg} |",
+            f"| Bootstrap-significant (p<0.05) | **{sig}** (best: L=20, h=11, −0.08pp) |",
+            "| Catastrophic keystone heads (masking breaks model) | ~8 (L=0 h=5: +100pp) |",
+            "",
+        ]
+    else:
+        lines.append("*head_scores.csv missing — run Stage D.*\n")
+
+    lines += [
+        "### Experiments executed (Stages A–G)\n",
+        "| Stage | Gate | Experiment | Artifact |",
+        "|---|---|---|---|",
+        "| A | G1 | Baseline insertion on CV25 Indian N=484 | `baseline_metrics.json` |",
+        "| A.5 | G1.5 | Batch-size tuning (chose bs=32) | `tune_batch_size.json` |",
+        "| B | G2 | 50-utt pilot head-mask sweep | `pilot_sweep.csv` |",
+        "| C | G3+G4 | Full sweep — 309,760 rows (640 heads × 484 utts) | `sweep.csv` (53 MB) |",
+        "| D | — | Scoring + bootstrap + regression guard | `head_scores.csv`, `top_k_heads.csv` |",
+        "| E | — | Decoding ablation — 36 configs | `decoding_scores.csv` |",
+        "| F | — | Energy VAD under silence injection | `vad_scores.csv` |",
+        "| G | — | Aggregate report + heatmap | this file + `head_surgery_heatmap.png` |",
+        "",
+        "### Duration\n",
+        "| Milestone | Date |",
+        "|---|---|",
+        "| Pivot to head-surgery + domain research | 2026-04-11 |",
+        "| PRD written | 2026-04-17 13:46 |",
+        "| First code commit (scaffolding) | 2026-04-17 15:11 |",
+        "| Milestone complete (Stage E+G log) | 2026-04-18 15:11 |",
+        "",
+        "- Calendar span: **~7 days**",
+        "- Active implementation + execution: **~24 h**",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def _dataset_section(base: dict | None) -> str:
+    baseline_rate = _fmt_rate(base["insertion_rate_total"]) if base else "—"
+    rep = _fmt_rate(base["insertion_rate_repetition"]) if base else "—"
+    syn = _fmt_rate(base["insertion_rate_syntactic"]) if base else "—"
+    con = _fmt_rate(base["insertion_rate_content"]) if base else "—"
+    n_indian = base.get("n", "?") if base else "?"
+    return (
+        "## 1. Dataset\n\n"
+        "### What we have\n\n"
+        "| Source | Version | Tarball | Status |\n"
+        "|---|---|---|---|\n"
+        "| Common Voice | **v25 (en)** | `datasets/cv-corpus-25.0-en.tar.gz` (81.5 GB) | "
+        "**Truncated** — `gzip: unexpected end of file` on two independent B2 downloads |\n\n"
+        "### What we used\n\n"
+        "| Subset | Filter | Expected | Actual | Missing |\n"
+        "|---|---|---:|---:|---:|\n"
+        f"| Indian-accent test | strict single-label `accents == \"India and South Asia\"` | 510 | **{n_indian}** | 26 past EOF |\n"
+        "| Non-Indian test | strict single-label, sampled | 500 | **422** | 78 past EOF |\n\n"
+        "Reproducibility config: `scripts/head_surgery/repro_config.py:EXPECTED_N_INDIAN_ACCENT_IDS`. "
+        "ID manifest: `tests/fixtures/head_surgery/indian_accent_ids.json`.\n\n"
+        "### Expected vs actual\n\n"
+        "| | Expected (pre-download) | Actual |\n"
+        "|---|---|---|\n"
+        "| CV version | CV24 (for midterm parity) | **CV25** — CV24 tarball unavailable in this env |\n"
+        f"| Indian N | 511 (Srishti) / 510 (ours pre-truncation) | **{n_indian}** |\n"
+        f"| Baseline insertion rate | ~9.62% (midterm) | **{baseline_rate}** |\n\n"
+        "### Srishti's project vs ours\n\n"
+        "| | Srishti (midterm) | This milestone |\n"
+        "|---|---|---|\n"
+        "| Dataset | **Common Voice v24** | **Common Voice v25** |\n"
+        f"| Indian-accent N | 511 | {n_indian} |\n"
+        f"| Baseline insertion rate | **9.62%** | **{baseline_rate}** |\n"
+        f"| Breakdown (rep / syn / con) | reported ~non-zero repetition | **{rep} / {syn} / {con}** |\n\n"
+        "Consequence: the ~8× drop between CV24 and CV25 on this subgroup means the head-surgery "
+        "hypothesis (that a dominant hallucination-driving head could be masked to close the "
+        "Indian-accent gap) is redefined — the baseline on CV25 is already near floor, so head "
+        "masking has ≤0.08pp room to improve it. See milestone log "
+        "[logs/head-surgery-diagnosis-complete.md](../logs/head-surgery-diagnosis-complete.md) "
+        "§\"Dataset drift\".\n"
+    )
+
+
 def build_report(midterm_per_accent_csv: str = None) -> None:
     parts: List[str] = []
     parts.append("# Head-Surgery Diagnosis — Results\n")
     parts.append("Target model: Whisper-large-v3. Evaluation subset: Indian-accent CV25 test utterances (per `scripts/head_surgery/repro_config.py`).\n")
 
-    # Baseline
     base_path = OUT_DIR / "baseline_metrics.json"
-    if base_path.exists():
-        base = json.loads(base_path.read_text())
-        parts.append("## 1. Baseline (Gate G1)\n")
-        parts.append(f"- Utterances: {base.get('n', '?')}\n")
-        parts.append(f"- Insertion rate: **{_fmt_rate(base['insertion_rate_total'])}** (midterm target 9.62%, CV24).\n")
-        parts.append(f"- Breakdown — repetition: {_fmt_rate(base['insertion_rate_repetition'])}, "
-                     f"syntactic: {_fmt_rate(base['insertion_rate_syntactic'])}, "
-                     f"content: {_fmt_rate(base['insertion_rate_content'])}.\n")
-    else:
-        parts.append("## 1. Baseline (Gate G1)\n*baseline_metrics.json missing — run Stage A.*\n")
+    base = json.loads(base_path.read_text()) if base_path.exists() else None
+
+    scores_path = OUT_DIR / "head_scores.csv"
+    scores = pd.read_csv(scores_path) if scores_path.exists() else None
+
+    parts.append(_summary_section(base, scores))
+    parts.append(_dataset_section(base))
 
     # Top-K heads
     top_path = OUT_DIR / "top_k_heads.csv"

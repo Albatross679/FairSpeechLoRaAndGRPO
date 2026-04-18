@@ -2,13 +2,80 @@
 
 Target model: Whisper-large-v3. Evaluation subset: Indian-accent CV25 test utterances (per `scripts/head_surgery/repro_config.py`).
 
-## 1. Baseline (Gate G1)
+## 0. Summary
 
-- Utterances: 484
+### Heads scored
 
-- Insertion rate: **1.27%** (midterm target 9.62%, CV24).
+| Category | Count |
+|---|---:|
+| Total (L, h) cells scored | **640** (32 layers × 20 heads) |
+| Top-K reported (§2) | 10 |
+| Δ > 0 (masking reduces insertions) | 135 |
+| Δ = 0 (no effect) | 376 |
+| Δ < 0 (masking worsens insertions) | 129 |
+| Bootstrap-significant (p<0.05) | **1** (best: L=20, h=11, −0.08pp) |
+| Catastrophic keystone heads (masking breaks model) | ~8 (L=0 h=5: +100pp) |
 
-- Breakdown — repetition: 0.00%, syntactic: 0.41%, content: 0.86%.
+### Experiments executed (Stages A–G)
+
+| Stage | Gate | Experiment | Artifact |
+|---|---|---|---|
+| A | G1 | Baseline insertion on CV25 Indian N=484 | `baseline_metrics.json` |
+| A.5 | G1.5 | Batch-size tuning (chose bs=32) | `tune_batch_size.json` |
+| B | G2 | 50-utt pilot head-mask sweep | `pilot_sweep.csv` |
+| C | G3+G4 | Full sweep — 309,760 rows (640 heads × 484 utts) | `sweep.csv` (53 MB) |
+| D | — | Scoring + bootstrap + regression guard | `head_scores.csv`, `top_k_heads.csv` |
+| E | — | Decoding ablation — 36 configs | `decoding_scores.csv` |
+| F | — | Energy VAD under silence injection | `vad_scores.csv` |
+| G | — | Aggregate report + heatmap | this file + `head_surgery_heatmap.png` |
+
+### Duration
+
+| Milestone | Date |
+|---|---|
+| Pivot to head-surgery + domain research | 2026-04-11 |
+| PRD written | 2026-04-17 13:46 |
+| First code commit (scaffolding) | 2026-04-17 15:11 |
+| Milestone complete (Stage E+G log) | 2026-04-18 15:11 |
+
+- Calendar span: **~7 days**
+- Active implementation + execution: **~24 h**
+
+## 1. Dataset
+
+### What we have
+
+| Source | Version | Tarball | Status |
+|---|---|---|---|
+| Common Voice | **v25 (en)** | `datasets/cv-corpus-25.0-en.tar.gz` (81.5 GB) | **Truncated** — `gzip: unexpected end of file` on two independent B2 downloads |
+
+### What we used
+
+| Subset | Filter | Expected | Actual | Missing |
+|---|---|---:|---:|---:|
+| Indian-accent test | strict single-label `accents == "India and South Asia"` | 510 | **484** | 26 past EOF |
+| Non-Indian test | strict single-label, sampled | 500 | **422** | 78 past EOF |
+
+Reproducibility config: `scripts/head_surgery/repro_config.py:EXPECTED_N_INDIAN_ACCENT_IDS`. ID manifest: `tests/fixtures/head_surgery/indian_accent_ids.json`.
+
+### Expected vs actual
+
+| | Expected (pre-download) | Actual |
+|---|---|---|
+| CV version | CV24 (for midterm parity) | **CV25** — CV24 tarball unavailable in this env |
+| Indian N | 511 (Srishti) / 510 (ours pre-truncation) | **484** |
+| Baseline insertion rate | ~9.62% (midterm) | **1.27%** |
+
+### Srishti's project vs ours
+
+| | Srishti (midterm) | This milestone |
+|---|---|---|
+| Dataset | **Common Voice v24** | **Common Voice v25** |
+| Indian-accent N | 511 | 484 |
+| Baseline insertion rate | **9.62%** | **1.27%** |
+| Breakdown (rep / syn / con) | reported ~non-zero repetition | **0.00% / 0.41% / 0.86%** |
+
+Consequence: the ~8× drop between CV24 and CV25 on this subgroup means the head-surgery hypothesis (that a dominant hallucination-driving head could be masked to close the Indian-accent gap) is redefined — the baseline on CV25 is already near floor, so head masking has ≤0.08pp room to improve it. See milestone log [logs/head-surgery-diagnosis-complete.md](../logs/head-surgery-diagnosis-complete.md) §"Dataset drift".
 
 ## 2. Top-K hallucination-driving heads
 
