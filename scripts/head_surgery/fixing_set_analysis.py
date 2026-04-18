@@ -201,3 +201,36 @@ def greedy_cover(
         uncovered[newly] = False
         remaining_cols.discard(best_col)
     return result
+
+
+def ilp_cover(
+    matrix: np.ndarray,
+    heads: List[Tuple[int, int]],
+) -> List[Tuple[int, int]]:
+    """Exact min-set-cover via scipy.optimize.milp.
+
+    Returns the sorted list of chosen (layer, head) tuples. Rows with no 1
+    (unhelpable utterances) are dropped before solving — the solver requires
+    every constraint to be satisfiable.
+    """
+    if matrix.size == 0 or matrix.shape[1] == 0:
+        return []
+    from scipy.optimize import LinearConstraint, milp, Bounds
+
+    # Drop unhelpable rows (rows of all zeros) — otherwise the MILP is infeasible.
+    row_has_cover = matrix.any(axis=1)
+    A = matrix[row_has_cover]  # [n_feasible_rows × n_heads]
+    n_rows, n_cols = A.shape
+    if n_rows == 0:
+        return []
+
+    c = np.ones(n_cols)                    # minimize sum of x (number of heads chosen)
+    constraint = LinearConstraint(A.astype(float), lb=1, ub=np.inf)  # each row covered ≥ 1
+    bounds = Bounds(lb=0, ub=1)            # x ∈ {0,1}
+    integrality = np.ones(n_cols)          # all variables integer
+    res = milp(c, constraints=constraint, bounds=bounds, integrality=integrality)
+    if not res.success:
+        raise RuntimeError(f"MILP solve failed: {res.message}")
+    picked_idx = [i for i, v in enumerate(res.x) if v > 0.5]
+    picked = [heads[i] for i in picked_idx]
+    return sorted(picked)

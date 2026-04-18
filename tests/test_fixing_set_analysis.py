@@ -233,3 +233,47 @@ def test_greedy_cover_leaves_uncovered_unhelpable_rows():
     assert len(cover) == 2
     covered = set().union(*(set(c[1]) for c in cover))
     assert covered == {1, 2}  # row 0 is unhelpable; not in cover
+
+
+from scripts.head_surgery.fixing_set_analysis import ilp_cover
+
+
+def test_ilp_cover_matches_greedy_on_easy_case():
+    matrix = np.array([
+        [1, 0, 0],
+        [1, 1, 0],
+        [0, 1, 1],
+        [0, 0, 1],
+    ], dtype=bool)
+    heads = [(0, 0), (0, 1), (0, 2)]
+    picked = ilp_cover(matrix, heads)
+    # Optimum here is 2: {(0,0), (0,2)} covers all rows.
+    assert len(picked) == 2
+    assert set(picked) == {(0, 0), (0, 2)}
+
+
+def test_ilp_cover_finds_strictly_smaller_set_than_greedy():
+    # Classic greedy-worst-case: greedy picks h0 first (covers 4), then
+    # needs h1, h2, h3, h4 to cover the remaining 1s. Optimum is {h5, h6}.
+    #
+    # Rows 0..3 each covered by h0 AND one of {h5, h6}
+    # Row 4 covered by h5 only; row 5 by h6 only.
+    matrix = np.array([
+        # h0 h1 h2 h3 h4 h5 h6
+        [ 1, 0, 0, 0, 0, 1, 0],  # row 0
+        [ 1, 0, 0, 0, 0, 1, 0],  # row 1
+        [ 1, 0, 0, 0, 0, 0, 1],  # row 2
+        [ 1, 0, 0, 0, 0, 0, 1],  # row 3
+        [ 0, 0, 0, 0, 0, 1, 0],  # row 4
+        [ 0, 0, 0, 0, 0, 0, 1],  # row 5
+    ], dtype=bool)
+    heads = [(0, i) for i in range(7)]
+    picked = ilp_cover(matrix, heads)
+    # Optimum = 2: {(0,5), (0,6)} covers every row.
+    assert len(picked) == 2
+    assert set(picked) == {(0, 5), (0, 6)}
+
+
+def test_ilp_cover_handles_empty_inputs():
+    assert ilp_cover(np.zeros((0, 0), dtype=bool), []) == []
+    assert ilp_cover(np.zeros((3, 0), dtype=bool), []) == []
