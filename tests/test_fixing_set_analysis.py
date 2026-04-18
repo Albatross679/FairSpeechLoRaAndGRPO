@@ -29,3 +29,27 @@ def test_prerequisite_csvs_present_and_shaped():
     scores_df = pd.read_csv(scores, nrows=2)
     for col in ["layer", "head", "regression_ok"]:
         assert col in scores_df.columns, f"head_scores.csv missing column {col}"
+
+
+from scripts.head_surgery.fixing_set_analysis import count_insertions
+
+
+def test_count_insertions_identical_is_zero():
+    assert count_insertions("the cat sat", "the cat sat") == 0
+
+
+def test_count_insertions_extra_word():
+    # "really" is inserted — classifier treats it as content or syntactic filler
+    assert count_insertions("the cat sat", "the really cat sat") == 1
+
+
+def test_count_insertions_repetition_loop():
+    # "thank you" repeated 3× extra times → 6 extra tokens
+    assert count_insertions("thank you", "thank you thank you thank you thank you") == 6
+
+
+def test_count_insertions_handles_empty():
+    # Empty refs and hyps should not crash and should return 0
+    assert count_insertions("", "") == 0
+    assert count_insertions("", "anything") == 0
+    assert count_insertions("some reference", "") == 0

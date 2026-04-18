@@ -31,3 +31,19 @@ import numpy as np
 import pandas as pd
 
 OUT_DIR = Path("outputs/head_surgery")
+
+
+def count_insertions(reference: str, hypothesis: str) -> int:
+    """Number of inserted tokens in hypothesis relative to reference.
+
+    Reference and hypothesis are normalized via Whisper's EnglishTextNormalizer
+    (matching the rest of the project). Returns 0 if either side is empty.
+    """
+    from scripts.head_surgery.insertion_classifier import categorize_insertions
+    from scripts.inference.run_inference import normalize_text
+
+    ref = normalize_text(reference or "")
+    hyp = normalize_text(hypothesis or "")
+    if not ref or not hyp:
+        return 0
+    return len(categorize_insertions(ref, hyp))
