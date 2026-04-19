@@ -257,22 +257,31 @@ Source: [score_heads.py:42-69](../scripts/head_surgery/score_heads.py#L42-L69). 
 
 ### 7.4 Result — Top-10 hallucination-driving heads (after regression guard)
 
-| layer | head | Δ total | Δ rep | Δ syn | Δ con | p-val | reg. ok | non-Indian WER |
-|---:|---:|---:|---:|---:|---:|---:|:---:|---:|
-| 20 | 11 | 0.001 | 0.000 | 0.001 | -0.000 | **0.046** | ✅ | 6.6% |
-| 0 | 15 | 0.001 | 0.000 | 0.001 | 0.000 | 0.051 | ✅ | 6.6% |
-| 22 | 19 | 0.001 | 0.000 | 0.001 | 0.000 | 0.051 | ✅ | 6.7% |
-| 7 | 6 | 0.001 | 0.000 | 0.001 | -0.000 | 0.128 | ✅ | 6.7% |
-| 10 | 8 | 0.001 | 0.000 | 0.001 | -0.000 | 0.374 | ✅ | 6.7% |
-| 25 | 5 | 0.001 | 0.000 | 0.001 | -0.000 | 0.051 | ✅ | 6.6% |
-| 0 | 14 | 0.001 | 0.000 | 0.001 | -0.000 | 0.239 | ✅ | 6.8% |
-| 13 | 17 | 0.000 | 0.000 | 0.001 | -0.000 | 0.132 | – | – |
-| 12 | 8 | 0.000 | 0.000 | 0.001 | -0.000 | 0.138 | – | – |
-| 11 | 11 | 0.000 | 0.000 | 0.001 | -0.000 | 0.133 | – | – |
+All four metrics — insertion rate and WER, on Indian and non-Indian — are reported per head, vs the unmasked baseline `(Indian 1.27% / 10.93% · non-Indian 0.85% / 6.65%)`. Non-Indian columns derive from a follow-up rerun ([scripts/head_surgery/_7_4_top10_drivers_full_metrics.py](../scripts/head_surgery/_7_4_top10_drivers_full_metrics.py)) — Stage D's regression guard had non-Indian WER for 7 of 10 (the other 3 fall outside the top-50-by-|Δ| guard scope), and never had non-Indian insertion rate at all (only aggregate WER was stored).
+
+| (L, h) | Δ ins (pp) | p-val | Indian ins | Indian WER | Non-Indian ins | Non-Indian WER | reg. ok |
+|---|---:|---:|---:|---:|---:|---:|:---:|
+| baseline | 0.00 | — | 1.27% | 10.93% | 0.85% | 6.65% | (reference) |
+| 20, 11 | −0.08 | **0.046** | 1.19% | 10.95% | 0.81% | 6.63% | ✅ |
+| 0, 15 | −0.06 | 0.051 | 1.21% | 10.81% | 0.79% | 6.56% | ✅ |
+| 22, 19 | −0.06 | 0.051 | 1.21% | 10.77% | 0.90% | 6.81% | ✅ |
+| 7, 6 | −0.06 | 0.128 | 1.21% | 11.03% | 0.85% | 6.70% | ✅ |
+| 10, 8 | −0.06 | 0.374 | 1.21% | 10.87% | 0.85% | 6.65% | ✅ |
+| 25, 5 | −0.06 | 0.051 | 1.21% | 10.93% | 0.85% | 6.63% | ✅ |
+| 0, 14 | −0.06 | 0.239 | 1.21% | 11.01% | 0.95% | 6.81% | ✅ |
+| 13, 17 | −0.04 | 0.132 | 1.23% | 10.81% | 0.85% | 6.61% | ✅ (newly verified) |
+| 12, 8 | −0.04 | 0.138 | 1.23% | 10.79% | 0.81% | 6.63% | ✅ (newly verified) |
+| 11, 11 | −0.04 | 0.133 | 1.23% | 10.89% | 0.88% | 6.70% | ✅ (newly verified) |
+
+Three observations now that all four metrics are visible:
+
+- **Effects are negligible across the board.** All 10 heads change Indian insertion rate by ≤ 0.08 pp (≤ 4 tokens out of 4,885 reference words). All 10 leave Indian WER, non-Indian insertion rate, and non-Indian WER within ~0.3 pp of baseline on every cell. The "best" head (L=20 h=11) only touches ~4 hallucinated tokens.
+- **No safety concern.** Every one of the 10 passes the non-Indian regression guard (≤ 0.5 pp WER degradation). The 3 heads previously marked "–" (outside Stage D's top-50) are now confirmed safe by this rerun. There is no driver-head that fixes Indian-accent hallucination at the cost of breaking non-Indian audio.
+- **Compare to §8.2.** Drivers move metrics by < 0.1 pp; keystones move them by 9–100 pp. The "interesting" surgical signal in this dataset lives in the *suppressor* category, not the driver category. §8.2's accent-specifically-load-bearing heads are 100× larger effects than §7.4's best driver — and those are *negative* effects we want to avoid, not positive ones we want to exploit.
 
 Heatmap of Δ across the 32×20 grid: [head_surgery_heatmap.png](head_surgery_heatmap.png). Full 50-head ranking: [Appendix A](#appendix-a--full-50-head-ranking).
 
-**Wall-clock (Stage D scoring):** ~5 min for the 640-head bootstrap (no inference).
+**Wall-clock:** Stage D scoring ~5 min for the 640-head bootstrap (no inference). Follow-up 10-driver × 422-utt non-Indian rerun (Non-Indian columns above) ~5.1 min on the same A6000.
 
 ---
 
@@ -595,12 +604,13 @@ The +100 pp catastrophe at L=0 h=5 is unmistakable regardless of statistical pow
 
 ## Appendix B — Per-utterance baseline hallucinations
 
-The 45 Indian-accent utterances with `baseline_count > 0` in [`baseline_predictions.csv`](../outputs/head_surgery/baseline_predictions.csv), partitioned by whether any valid single-head mask covers them (**15 helpable**) or not (**30 unhelpable**). Inserted tokens are extracted by the aligner in [`scripts/analysis/whisper_hallucination_analysis.py`](../scripts/analysis/whisper_hallucination_analysis.py) and tagged:
+The 45 Indian-accent utterances with `baseline_count > 0` in [`baseline_predictions.csv`](../outputs/head_surgery/baseline_predictions.csv), partitioned by whether any valid single-head mask covers them (**15 helpable**) or not (**30 unhelpable**). Inserted tokens are extracted by the aligner in [`scripts/analysis/whisper_hallucination_analysis.py`](../scripts/analysis/whisper_hallucination_analysis.py) — run **after** Whisper's `EnglishTextNormalizer` (§2.2), exactly matching the pipeline that produced the 45-utterance pool ([`fixing_set_analysis.py:36-49`](../scripts/head_surgery/fixing_set_analysis.py#L36-L49)). Categories:
 
 - `con` — content hallucination (novel content words)
 - `syn` — syntactic completion (function words / fillers)
 - `rep` — repetition
-- *SUB-only* — divergences that the aligner scores as substitutions (typically hyphenation, casing, or proper-noun mangling), so no INS tokens are emitted even though `baseline_count > 0` by the head-surgery token counter.
+
+**REF/HYP columns show raw Common Voice text** (readability); the "Inserted tokens" column shows the normalised form that the aligner actually saw (lowercased, hyphens split, contractions expanded, punctuation stripped). This is why e.g. `micro-sleeps` appears as `micro[con]` and `I-land` as `i[syn]` — the normaliser splits those tokens before alignment.
 
 ### B.1 Helpable utterances (15)
 
@@ -608,19 +618,19 @@ The 45 Indian-accent utterances with `baseline_count > 0` in [`baseline_predicti
 |---:|---|---:|---|---|
 | 1 | common_voice_en_17661177 | 3 | "Perhaps, you should just grow sea monkeys." → "Perhaps you should just **go and see** your aunt, please." | go[con]; and[syn]; see[con] |
 | 2 | common_voice_en_18754521 | 4 | "It was built on land formerly held by the Macfadzeans." → "It was built on land **so we** were ahead by **a lot** of chance." | so[syn]; we[syn]; a[syn]; lot[con] |
-| 3 | common_voice_en_18765645 | 1 | "Hasan Buzurg seemed intent on restoring unity to the Ilkhanate." → "Hassan Muzarak's Seemed Intent on Restoring Unity to the Khalid" | *SUB-only* |
+| 3 | common_voice_en_18765645 | 1 | "Hasan Buzurg seemed intent on restoring unity to the Ilkhanate." → "Hassan Muzarak's Seemed Intent on Restoring Unity to the Khalid" | hassan[con] |
 | 4 | common_voice_en_18893500 | 2 | "Aurelian accepted Bahram I's gifts and the terms of peace offered." → "**early** and accepted Bahram is gift and the terms of peace **of** it" | early[con]; of[syn] |
 | 5 | common_voice_en_20688664 | 4 | "Neither can be historically proven." → "Neither can make historically **bolder services for the** nation." | bolder[con]; services[con]; for[syn]; the[syn] |
 | 6 | common_voice_en_25845294 | 1 | "It is located at a geographical headland and surrounds the town of Sisters Beach." → "It is located at the geographical **head** land and surrounds the town of Sisters Beach." | head[con] |
 | 7 | common_voice_en_31752858 | 1 | "His first trainers was Vitaliy Khmelnytskyi." → "His first **credits** were with Ben Zuchinansky." | credits[con] |
 | 8 | common_voice_en_34954466 | 4 | "The corner stone was laid by Sir Mortimer Clarke, Lieutenant Governor of Ontario." → "The **car was shown on** the late Wednesday in Montemar, Canada, left in an economy of Ontario." | car[con]; was[syn]; shown[con]; on[syn] |
-| 9 | common_voice_en_37318569 | 1 | "It is located to the northwest." → "It is located to the **North** West." | North[con] |
+| 9 | common_voice_en_37318569 | 1 | "It is located to the northwest." → "It is located to the **North** West." | north[con] |
 | 10 | common_voice_en_37828418 | 1 | "'I am quite aware of that,' she replied." → "I am quite aware of that she **look** like" | look[con] |
 | 11 | common_voice_en_38174426 | 1 | "The higher the degree of substitution, the more stable a carbocation generally is." → "the higher the degree of substitution the more stable a **car** vacation generally is" | car[con] |
-| 12 | common_voice_en_38361992 | 1 | "When a person is sufficiently fatigued, microsleeps may be experienced." → "When a person is sufficiently fatigued, micro-sleeps may be experienced." | *SUB-only (hyphenation)* |
+| 12 | common_voice_en_38361992 | 1 | "When a person is sufficiently fatigued, microsleeps may be experienced." → "When a person is sufficiently fatigued, micro-sleeps may be experienced." | micro[con] |
 | 13 | common_voice_en_38663260 | 1 | "The band's longest engagement was at Hollenden Hotel's Vogue Room in Cleveland, Ohio." → "The band's longest engagement was at **the** Orlandin Hotel's Vogue Room in Cleveland, Ohio." | the[syn] |
-| 14 | common_voice_en_40021346 | 1 | "The station was near the southern edge of Bedwellty Park." → "The station was near the southern edge of **Bad** Velti Park." | Bad[con] |
-| 15 | common_voice_en_40886852 | 1 | "Norfolk Island is the only non-mainland Australian territory to have had self-governance." → "Norfolk, I-land is the only non-mainstream Australian territory to have had self-governance." | *SUB-only* |
+| 14 | common_voice_en_40021346 | 1 | "The station was near the southern edge of Bedwellty Park." → "The station was near the southern edge of **Bad** Velti Park." | bad[con] |
+| 15 | common_voice_en_40886852 | 1 | "Norfolk Island is the only non-mainland Australian territory to have had self-governance." → "Norfolk, I-land is the only non-mainstream Australian territory to have had self-governance." | i[syn] |
 
 ### B.2 Unhelpable utterances (30)
 
@@ -628,39 +638,39 @@ The 45 Indian-accent utterances with `baseline_count > 0` in [`baseline_predicti
 
 | # | ID | Reference → Hypothesis | Inserted tokens |
 |---:|---|---|---|
-| 16 | common_voice_en_17417536 | "Without haste, yet without rest unhasting, yet unresting." → "Without haste yet without rest, **on** hasting you turn resting." | rest,[con]; on[syn] |
+| 16 | common_voice_en_17417536 | "Without haste, yet without rest unhasting, yet unresting." → "Without haste yet without rest, **on** hasting you turn resting." | on[syn]; hasting[con] |
 | 17 | common_voice_en_17758246 | "The irregular pattern comes from the pseudorandomness of the function." → "the irregular pattern comes from the **pseudo** randomness of the function" | pseudo[con] |
-| 18 | common_voice_en_18545942 | "Jujitsu is a form of martial arts." → "**Jiu** Jitsu is a form of martial arts." | Jiu[con] |
-| 19 | common_voice_en_18976651 | "Nikiforos Hatzidakis was killed." → "**Nikki Forrest at** the Zee Ducky School" | Nikki[con]; Forrest[con]; at[syn] |
-| 20 | common_voice_en_18976653 | "Banasura became invincible." → "**Bara** Surah became invincible" | Bara[con] |
-| 21 | common_voice_en_19213280 | "More recently, members of the Eastercon convention have also been eligible to vote." → "More recently, members of the **Easter** Con Convention have also been eligible to vote." | Easter[con] |
-| 22 | common_voice_en_19985202 | "The Football Association entered a Great Britain national amateur team to represent Great Britain." → "The Football Association of the Inter-Decade Britain National Team is representing the United Nations." | *SUB-only* |
-| 23 | common_voice_en_20685733 | "Its county seat and largest city is Morgan." → "It's QuantiSync and I just sitting in mall" | *SUB-only* |
-| 24 | common_voice_en_20688728 | "Watford is on the main Grand Union Canal route northwards from London." → "**But** Ford is on the main Grand Union Canal route northwards from Madan." | But[syn] |
+| 18 | common_voice_en_18545942 | "Jujitsu is a form of martial arts." → "**Jiu** Jitsu is a form of martial arts." | jiu[con] |
+| 19 | common_voice_en_18976651 | "Nikiforos Hatzidakis was killed." → "**Nikki Forrest at** the Zee Ducky School" | nikki[con]; forrest[con]; at[syn] |
+| 20 | common_voice_en_18976653 | "Banasura became invincible." → "**Bara** Surah became invincible" | bara[con] |
+| 21 | common_voice_en_19213280 | "More recently, members of the Eastercon convention have also been eligible to vote." → "More recently, members of the **Easter** Con Convention have also been eligible to vote." | easter[con] |
+| 22 | common_voice_en_19985202 | "The Football Association entered a Great Britain national amateur team to represent Great Britain." → "The Football Association of the Inter-Decade Britain National Team is representing the United Nations." | of[syn] |
+| 23 | common_voice_en_20685733 | "Its county seat and largest city is Morgan." → "It's QuantiSync and I just sitting in mall" | i[syn] |
+| 24 | common_voice_en_20688728 | "Watford is on the main Grand Union Canal route northwards from London." → "**But** Ford is on the main Grand Union Canal route northwards from Madan." | but[syn] |
 | 25 | common_voice_en_21780812 | "The large Fortymile caribou herd roams near the highway." → "The large **40** mile caribou herd roams near the highway." | 40[con] |
 | 26 | common_voice_en_26675808 | "It isn't theatrical!" → "It isn't **the** afterthought." | the[syn] |
 | 27 | common_voice_en_26940741 | "The song consists of three verses in total." → "The **sound** and discs of J-Wheels are included." | sound[con] |
-| 28 | common_voice_en_30512895 | "Blessed are those who have died in the Lord and have not seen them." → "**The** best are those who have died in the Lord and have not seen Him." | The[syn] |
-| 29 | common_voice_en_33226454 | "Her other works include \"Christmas(Short film)\"." → "Her other works include **Christmas** short film" | Christmas[con] |
+| 28 | common_voice_en_30512895 | "Blessed are those who have died in the Lord and have not seen them." → "**The** best are those who have died in the Lord and have not seen Him." | the[syn] |
+| 29 | common_voice_en_33226454 | "Her other works include \"Christmas(Short film)\"." → "Her other works include **Christmas** short film" | short[con]; film[con] |
 | 30 | common_voice_en_36641656 | "The economy is primarily based on coconut husking and farming." → "The economy is primarily based on **the** coconut husking and farming." | the[syn] |
 | 31 | common_voice_en_36724596 | "They typically form proximally during Strombolian eruptions, and are common at strongly peralkaline volcanoes." → "They typically come approximately during **strong** beryllium eruptions and are common at strongly pergolined volcanoes." | strong[con] |
-| 32 | common_voice_en_37032602 | "The settlement's principal tourist attraction is the famous Borisoglebsky Monastery, now a museum." → "The settlement's principal tourist attraction is the famous **Borys** Glybecki Monastery, now a museum." | Borys[con] |
-| 33 | common_voice_en_37236919 | "A rip line simultaneously tears open the top of the balloon." → "A **rip-lens** Hamilton is retired so open the top of the bedroom" | rip-lens[con] |
-| 34 | common_voice_en_37264767 | "Barsi's first role was in \"Fatal Vision\", playing the three-year-old Kimberley MacDonald." → "Barsi's first role was in Fatal Vision, playing the three-year-old **Kim** Ming McDonnell." | Kim[con] |
-| 35 | common_voice_en_37431886 | "The launching station incorporates a tracking camera with two lenses." → "**These** are launching station incorporates of tracking camera with two lenses." | These[con] |
+| 32 | common_voice_en_37032602 | "The settlement's principal tourist attraction is the famous Borisoglebsky Monastery, now a museum." → "The settlement's principal tourist attraction is the famous **Borys** Glybecki Monastery, now a museum." | borys[con] |
+| 33 | common_voice_en_37236919 | "A rip line simultaneously tears open the top of the balloon." → "A **rip-lens** Hamilton is retired so open the top of the bedroom" | lens[con]; hamilton[con] |
+| 34 | common_voice_en_37264767 | "Barsi's first role was in \"Fatal Vision\", playing the three-year-old Kimberley MacDonald." → "Barsi's first role was in Fatal Vision, playing the three-year-old **Kim** Ming McDonnell." | kim[con] |
+| 35 | common_voice_en_37431886 | "The launching station incorporates a tracking camera with two lenses." → "**These** are launching station incorporates of tracking camera with two lenses." | these[con] |
 | 36 | common_voice_en_37523691 | "They toured with Paul Weller and Razorlight." → "They toured with ball weller and **razor** light." | razor[con] |
-| 37 | common_voice_en_37527873 | "Furthermore, the equations of motion impose that the Romans mass is constant." → "furthermore the equations of motion impose that the roman's mass is constant" | *SUB-only (casing/punctuation)* |
+| 37 | common_voice_en_37527873 | "Furthermore, the equations of motion impose that the Romans mass is constant." → "furthermore the equations of motion impose that the roman's mass is constant" | roman[con] |
 | 38 | common_voice_en_38004990 | "Thus the Byzantines were forced to fight alone." → "Thus the **bison** tens were focused to fight lone." | bison[con] |
 | 39 | common_voice_en_38297928 | "These four days corresponded to the thirteenth, fourteenth, fifteenth, and sixteenth of November." → "These four days corresponded to the 13th, 14th, 15th and **the** 16th of November." | the[syn] |
-| 40 | common_voice_en_38625438 | "Ashur's brothers were Elam, Arphaxad, Lud, and Aram." → "Asur's brothers were **Ilum,** Arfak, Saad, Lord and Aram." | Ilum,[con] |
+| 40 | common_voice_en_38625438 | "Ashur's brothers were Elam, Arphaxad, Lud, and Aram." → "Asur's brothers were **Ilum,** Arfak, Saad, Lord and Aram." | ilum[con] |
 | 41 | common_voice_en_39568375 | "The birdlife to be found in this municipality is characteristic for the region." → "The **bird** life to be found in this municipality is characteristic for the region." | bird[con] |
-| 42 | common_voice_en_39653346 | "Therefore, according to Kircher, Snakestones worked." → "Therefore, according to **Kertcher,** snake stones worked." | Kertcher,[con] |
+| 42 | common_voice_en_39653346 | "Therefore, according to Kircher, Snakestones worked." → "Therefore, according to **Kertcher,** snake stones worked." | kertcher[con] |
 | 43 | common_voice_en_39780450 | "Many frequent Buzztime players are enrolled in the \"Players Plus\" program." → "Many frequent **buzz** time players are enrolled in the Players Plus program." | buzz[con] |
-| 44 | common_voice_en_40169034 | "The legendary founder of Littleport was King Canute." → "The legendary founder of **Little** Pot was King Canold." | Little[con] |
-| 45 | common_voice_en_40863387 | "Pickhaver has three sisters Jane, Anne and Mary and a brother Mark." → "**Pig** Hever has three sisters Jane, Annie and Mary and a brother Mark." | Pig[con] |
+| 44 | common_voice_en_40169034 | "The legendary founder of Littleport was King Canute." → "The legendary founder of **Little** Pot was King Canold." | little[con] |
+| 45 | common_voice_en_40863387 | "Pickhaver has three sisters Jane, Anne and Mary and a brother Mark." → "**Pig** Hever has three sisters Jane, Annie and Mary and a brother Mark." | pig[con] |
 
 ### B.3 Observations
 
-- **Insertion character is dominated by content hallucinations (`con`).** 38 of 45 utterances have at least one `con` insertion; only 7 are pure `syn` (function-word completion) or `SUB-only`.
-- **Six utterances (#3, #12, #15, #22, #23, #37) show `baseline_count > 0` under the head-surgery counter but no INS under the aligner.** This happens when baseline differences are hyphenation, casing, or proper-noun substitutions rather than word insertions — the two counters use different criteria. These remain in the fixing-set denominator of 45 for consistency with §8.
+- **Insertion character is dominated by content hallucinations (`con`).** 36 of 45 utterances have at least one `con` insertion; the remaining 9 are pure `syn` (#13, #15 in B.1; #22, #23, #24, #26, #28, #30, #39 in B.2).
+- **Counter consistency.** Every utterance in the pool produces ≥1 INS chunk under the same normalisation pipeline used by the head-surgery counter, so the "Inserted tokens" column and `baseline_count` agree on all 45 rows. The tags shown are the normalised forms the aligner actually saw (lowercase, hyphens split); raw REF/HYP are preserved in the adjacent column for readability.
 - **The unhelpable group is enriched for proper-noun mis-recognition** (Ilkhanate, Hatzidakis, Banasura, Strombolian, Borisoglebsky, Buzztime, Littleport, Pickhaver, …). These errors are plausibly below the ceiling of any attention-masking intervention because the correct token has low probability mass at the top of the decoder distribution in the first place.
