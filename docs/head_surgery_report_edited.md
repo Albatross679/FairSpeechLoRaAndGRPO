@@ -218,14 +218,29 @@ Positive Δ ⇒ masking reduces hallucinations.
 
 ### 7.2 Paired bootstrap
 
-We ran the experiment on a single sample of 484 utterances and got one Δ per head. To ask whether that Δ is *real* or *a fluke driven by which utterances we happened to test*, we simulate redoing the experiment many times by **resampling** the 484 we have. Each resample draws 484 indices uniformly at random **with replacement** from the original 484-utterance pool — so an utterance can appear two or three times in a single fake sample, and others may not appear at all. Each fake sample produces a slightly different Δ. The same 484 indices are used for both the baseline and masked counts in a given resample (this is the "**paired**" part) — that cancels out utterance-level difficulty noise so the only thing varying between the two sides is whether the head was masked. Repeated 10,000 times per head, the spread of the resampled Δs tells us how often the noise alone could explain the observed effect.
+**Problem.** We ran the experiment once on a single sample of 484 utterances and got one Δ per head. We need to tell apart "real effect" from "happened to land on a favorable subset of the 484."
+
+**Mechanic — for each head, repeat 10,000 times:**
+
+1. Draw 484 indices at random from `{0..483}`, **with replacement**.
+2. Look up `baseline_count[idx]` and `masked_count[idx]` for those 484 indices.
+3. Compute Δ_k = (baseline insertion rate on the resample) − (masked insertion rate on the resample).
+
+**Definitions:**
+
+| Term | Meaning |
+|---|---|
+| **With replacement** | Each draw is independent of the previous draws — the same utterance can appear 2 or 3 times in one resample; others may not appear at all. |
+| **Paired** | The same 484 indices feed both the baseline and the masked counts. Cancels utterance-level "difficulty" noise; only the head's effect varies between the two sides. |
+| **p-value** | `(#resamples where Δ_k ≤ 0) / 10,000`. Low p ⇒ Δ rarely flipped negative across the fake samples ⇒ effect is unlikely to be noise. |
+| **Null hypothesis H0** | Δ ≤ 0 (masking does not help). One-sided. |
+
+**Run config:**
 
 | Parameter | Value |
 |---|---|
 | Resampling instances per head | **10,000** |
-| Resampling | utterance indices drawn **with replacement** from the 484 pool — same indices used for baseline and masked counts (paired) |
-| Null hypothesis H0 | Δ ≤ 0 (masking does not help) |
-| p-value | fraction of 10,000 resamples where Δ ≤ 0 |
+| Sample size per resample | 484 (matches the original pool) |
 | α threshold | 0.05, **no multiple-testing correction** across 640 tests |
 | Total Δ computations | 6.4 M |
 
