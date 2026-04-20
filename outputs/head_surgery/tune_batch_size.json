@@ -1,0 +1,45 @@
+{
+  "chosen_batch_size": 32,
+  "chosen_throughput_utts_per_sec": 14.121830638569858,
+  "chosen_peak_bytes": 11429182976,
+  "device_total_bytes": 50897289216,
+  "mask_layer": 15,
+  "sweep": [
+    {
+      "batch_size": 1,
+      "utts_per_sec": 2.223842058214417,
+      "peak_bytes": 3356412416,
+      "ok": true
+    },
+    {
+      "batch_size": 2,
+      "utts_per_sec": 2.342150027233757,
+      "peak_bytes": 3616131584,
+      "ok": true
+    },
+    {
+      "batch_size": 4,
+      "utts_per_sec": 5.033887464884459,
+      "peak_bytes": 4134051840,
+      "ok": true
+    },
+    {
+      "batch_size": 8,
+      "utts_per_sec": 8.487996497386852,
+      "peak_bytes": 5209204736,
+      "ok": true
+    },
+    {
+      "batch_size": 16,
+      "utts_per_sec": 12.400180002441274,
+      "peak_bytes": 7242004480,
+      "ok": true
+    },
+    {
+      "batch_size": 32,
+      "utts_per_sec": 14.121830638569858,
+      "peak_bytes": 11429182976,
+      "ok": true
+    }
+  ]
+}

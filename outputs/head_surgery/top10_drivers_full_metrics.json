@@ -1,0 +1,88 @@
+{
+  "baseline": {
+    "indian_insertion_rate": 0.0127,
+    "indian_wer": 0.1093,
+    "non_indian_insertion_rate": 0.008545034642032332,
+    "non_indian_wer": 0.06651270207852195
+  },
+  "L20_h11": {
+    "layer": 20,
+    "head": 11,
+    "indian_insertion_rate": 0.01187308085977482,
+    "indian_wer": 0.10951893551688843,
+    "non_indian_insertion_rate": 0.008083140877598153,
+    "non_indian_wer": 0.06628175519630485
+  },
+  "L0_h15": {
+    "layer": 0,
+    "head": 15,
+    "indian_insertion_rate": 0.012077789150460594,
+    "indian_wer": 0.10808597748208802,
+    "non_indian_insertion_rate": 0.007852193995381063,
+    "non_indian_wer": 0.06558891454965358
+  },
+  "L22_h19": {
+    "layer": 22,
+    "head": 19,
+    "indian_insertion_rate": 0.012077789150460594,
+    "indian_wer": 0.10767656090071648,
+    "non_indian_insertion_rate": 0.009006928406466512,
+    "non_indian_wer": 0.06812933025404157
+  },
+  "L7_h6": {
+    "layer": 7,
+    "head": 6,
+    "indian_insertion_rate": 0.012077789150460594,
+    "indian_wer": 0.11033776867963152,
+    "non_indian_insertion_rate": 0.008545034642032332,
+    "non_indian_wer": 0.06697459584295612
+  },
+  "L10_h8": {
+    "layer": 10,
+    "head": 8,
+    "indian_insertion_rate": 0.012077789150460594,
+    "indian_wer": 0.10870010235414534,
+    "non_indian_insertion_rate": 0.008545034642032332,
+    "non_indian_wer": 0.06651270207852195
+  },
+  "L25_h5": {
+    "layer": 25,
+    "head": 5,
+    "indian_insertion_rate": 0.012077789150460594,
+    "indian_wer": 0.10931422722620267,
+    "non_indian_insertion_rate": 0.008545034642032332,
+    "non_indian_wer": 0.06628175519630485
+  },
+  "L0_h14": {
+    "layer": 0,
+    "head": 14,
+    "indian_insertion_rate": 0.012077789150460594,
+    "indian_wer": 0.11013306038894576,
+    "non_indian_insertion_rate": 0.009468822170900693,
+    "non_indian_wer": 0.06812933025404157
+  },
+  "L13_h17": {
+    "layer": 13,
+    "head": 17,
+    "indian_insertion_rate": 0.012282497441146366,
+    "indian_wer": 0.10808597748208802,
+    "non_indian_insertion_rate": 0.008545034642032332,
+    "non_indian_wer": 0.06605080831408776
+  },
+  "L12_h8": {
+    "layer": 12,
+    "head": 8,
+    "indian_insertion_rate": 0.012282497441146366,
+    "indian_wer": 0.10788126919140226,
+    "non_indian_insertion_rate": 0.008083140877598153,
+    "non_indian_wer": 0.06628175519630485
+  },
+  "L11_h11": {
+    "layer": 11,
+    "head": 11,
+    "indian_insertion_rate": 0.012282497441146366,
+    "indian_wer": 0.10890481064483111,
+    "non_indian_insertion_rate": 0.008775981524249422,
+    "non_indian_wer": 0.06697459584295612
+  }
+}

@@ -25,7 +25,6 @@ Thumbs.db
 # Data & results (large files, not tracked)
 data/
 results/
-outputs/
 checkpoints/
 *.wav
 *.flac

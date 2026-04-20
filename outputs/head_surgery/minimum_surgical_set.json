@@ -1,0 +1,144 @@
+{
+  "n_affected": 45,
+  "n_valid_heads": 115,
+  "unhelpable_utterances": [
+    "common_voice_en_17417536",
+    "common_voice_en_17758246",
+    "common_voice_en_18545942",
+    "common_voice_en_18976651",
+    "common_voice_en_18976653",
+    "common_voice_en_19213280",
+    "common_voice_en_19985202",
+    "common_voice_en_20685733",
+    "common_voice_en_20688728",
+    "common_voice_en_21780812",
+    "common_voice_en_26675808",
+    "common_voice_en_26940741",
+    "common_voice_en_30512895",
+    "common_voice_en_33226454",
+    "common_voice_en_36641656",
+    "common_voice_en_36724596",
+    "common_voice_en_37032602",
+    "common_voice_en_37236919",
+    "common_voice_en_37264767",
+    "common_voice_en_37431886",
+    "common_voice_en_37523691",
+    "common_voice_en_37527873",
+    "common_voice_en_38004990",
+    "common_voice_en_38297928",
+    "common_voice_en_38625438",
+    "common_voice_en_39568375",
+    "common_voice_en_39653346",
+    "common_voice_en_39780450",
+    "common_voice_en_40169034",
+    "common_voice_en_40863387"
+  ],
+  "greedy": [
+    {
+      "layer": 0,
+      "head": 15,
+      "newly_covered_count": 3,
+      "newly_covered_ids": [
+        "common_voice_en_17661177",
+        "common_voice_en_38361992",
+        "common_voice_en_40886852"
+      ]
+    },
+    {
+      "layer": 20,
+      "head": 11,
+      "newly_covered_count": 3,
+      "newly_covered_ids": [
+        "common_voice_en_20688664",
+        "common_voice_en_34954466",
+        "common_voice_en_38174426"
+      ]
+    },
+    {
+      "layer": 22,
+      "head": 19,
+      "newly_covered_count": 3,
+      "newly_covered_ids": [
+        "common_voice_en_25845294",
+        "common_voice_en_37318569",
+        "common_voice_en_38663260"
+      ]
+    },
+    {
+      "layer": 25,
+      "head": 16,
+      "newly_covered_count": 2,
+      "newly_covered_ids": [
+        "common_voice_en_18765645",
+        "common_voice_en_18893500"
+      ]
+    },
+    {
+      "layer": 11,
+      "head": 11,
+      "newly_covered_count": 1,
+      "newly_covered_ids": [
+        "common_voice_en_31752858"
+      ]
+    },
+    {
+      "layer": 13,
+      "head": 17,
+      "newly_covered_count": 1,
+      "newly_covered_ids": [
+        "common_voice_en_37828418"
+      ]
+    },
+    {
+      "layer": 16,
+      "head": 13,
+      "newly_covered_count": 1,
+      "newly_covered_ids": [
+        "common_voice_en_18754521"
+      ]
+    },
+    {
+      "layer": 20,
+      "head": 6,
+      "newly_covered_count": 1,
+      "newly_covered_ids": [
+        "common_voice_en_40021346"
+      ]
+    }
+  ],
+  "ilp": [
+    {
+      "layer": 0,
+      "head": 15
+    },
+    {
+      "layer": 13,
+      "head": 17
+    },
+    {
+      "layer": 16,
+      "head": 13
+    },
+    {
+      "layer": 19,
+      "head": 17
+    },
+    {
+      "layer": 20,
+      "head": 11
+    },
+    {
+      "layer": 22,
+      "head": 19
+    },
+    {
+      "layer": 29,
+      "head": 6
+    },
+    {
+      "layer": 30,
+      "head": 16
+    }
+  ],
+  "runtime_seconds": 66.22
+}

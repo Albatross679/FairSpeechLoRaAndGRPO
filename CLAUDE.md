@@ -24,7 +24,7 @@ NLPClassProject/
 │   └── training/      # LoRA / GRPO training infrastructure (package: scripts.training)
 ├── docs/              # HTML explainers and project-overview
 ├── datasets/          # (gitignored) audio and manifests
-├── outputs/           # (gitignored) training run artifacts
+├── outputs/           # training run artifacts (tracked)
 ├── logs/              # One file per log entry (<topic>.md)
 ├── experiments/       # One file per experiment (<topic>.md)
 ├── issues/            # One file per issue (<topic>.md)
