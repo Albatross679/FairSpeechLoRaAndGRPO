@@ -1,0 +1,77 @@
+/* =========================================================================
+   Palatino Burgundy — Pencil overlay styles
+   ========================================================================= */
+
+.pb-pencil-canvas {
+  /* Viewport-pinned canvas. JS sets width/height to window.innerWidth and
+     innerHeight and translates strokes by -scroll each frame. Keeps the
+     GPU texture small on long documents and avoids full-document repaints. */
+  position: fixed;
+  top: 0; left: 0;
+  z-index: 40;
+  touch-action: pan-x pan-y;   /* finger scrolls; pen draws */
+  pointer-events: auto;
+  background: transparent;
+}
+
+/* When pencil mode is OFF we unmount the canvas entirely, but this guards
+   against a flash if the script is slow to boot. */
+body[data-pencil="off"] .pb-pencil-canvas { display: none; }
+
+/* Floating toolbar — matches the system's editorial palette. */
+.pb-pencil-toolbar {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  background: #faf9f7;
+  border: 1px solid #e0ddd5;
+  border-left: 3px solid #7c3043;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(58, 42, 48, 0.08);
+  font-family: "Palatino Linotype", Palatino, Georgia, serif;
+}
+
+.pb-pencil-toolbar button {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #4a4a4a;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.pb-pencil-toolbar button:hover {
+  background: #f5eaed;
+  color: #7c3043;
+}
+
+.pb-pencil-toolbar button.active {
+  background: #7c3043;
+  border-color: #7c3043;
+  color: #faf9f7;
+}
+
+.pb-pencil-toolbar .pb-sep {
+  width: 1px;
+  height: 20px;
+  background: #e0ddd5;
+  margin: 0 3px;
+}
+
+@media print {
+  .pb-pencil-toolbar { display: none; }
+  /* Annotations themselves stay — they're on the canvas, which prints. */
+}

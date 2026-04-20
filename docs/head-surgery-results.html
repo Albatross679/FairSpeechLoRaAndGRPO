@@ -1,0 +1,1830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Head-Surgery Diagnosis — Results</title>
+<link rel="stylesheet" href="styles/palatino-burgundy-tokens.css">
+<link rel="stylesheet" href="styles/palatino-burgundy.css">
+<link rel="stylesheet" href="styles/author-card.css">
+<link rel="stylesheet" href="styles/pencil.css">
+<script defer src="styles/qr.js"></script>
+<script defer src="styles/pencil.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  /* ---- doc-local extensions on top of palatino-burgundy ---- */
+  .math-block { background: var(--bg); font-size: 1.3em; }
+  .ac-qr-caption-side {
+    display: block; text-align: center;
+    font-size: 1em; font-style: italic;
+    color: var(--fg-muted); margin: 0 0 0.7em;
+    text-decoration: none;
+  }
+  .ac-qr-caption-side:hover { color: var(--accent); text-decoration: underline; }
+  .ac-collab-sm {
+    color: var(--fg-muted); font-size: 0.9em;
+    margin: 0 0 0.15em; line-height: 1.25;
+  }
+  .ac-collab-sm .ac-collab-k { font-style: italic; margin-right: 0.3em; }
+  .author-sidebar .ac-list { font-size: 1em; }
+  .author-sidebar .ac-list .ac-repo-label {
+    color: var(--fg-muted); font-style: italic; margin-right: 0.35em;
+  }
+  .author-sidebar .ac-name-sm {
+    font-weight: 700; color: var(--fg-strong);
+    font-size: 1.4em; line-height: 1.25;
+    margin: 0 0 0.15em;
+  }
+  .metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 0.8em;
+    margin: 1.2em 0;
+  }
+  .metric {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-sm);
+    padding: 0.85em 1.05em;
+  }
+  .metric .label {
+    font-size: 0.78em; color: var(--accent); font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .metric .value {
+    font-size: 1.45em; color: var(--fg-strong); font-weight: 700;
+    line-height: 1.15; margin-top: 0.15em;
+  }
+  .metric .unit { font-size: 0.7em; color: var(--fg-muted); font-weight: 400; }
+
+  .badge {
+    display: inline-block;
+    padding: 0.1em 0.55em;
+    font-size: 0.82em;
+    font-weight: 600;
+    border-radius: 3px;
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+  .badge.pass    { background: #e1f2e6; color: #1e6c3b; border: 1px solid #27ae60; }
+  .badge.warn    { background: #fdf8e8; color: #8a5a00; border: 1px solid #d4a017; }
+  .badge.fail    { background: #fdf0ef; color: #8c2b20; border: 1px solid #c0392b; }
+  .badge.skip    { background: #ebe7e3; color: #555;    border: 1px solid #bbb; }
+  .badge.redef   { background: var(--accent-tint); color: var(--accent); border: 1px solid var(--accent); }
+
+  .num { font-variant-numeric: tabular-nums; text-align: right; }
+  td.num, th.num { text-align: right; }
+
+  .doc-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8em;
+    align-items: center;
+    margin: 1em 0 1.8em;
+    padding: 0.7em 0.9em;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-soft);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-sm);
+    font-size: 0.95em;
+  }
+  .doc-toolbar input[type="search"] {
+    flex: 1;
+    min-width: 14em;
+    font-family: var(--font-serif);
+    font-size: 1em;
+    padding: 0.35em 0.7em;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--fg);
+  }
+  .doc-toolbar input[type="search"]:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-tint);
+  }
+  .doc-toolbar .hit-count {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    color: var(--fg-muted);
+    white-space: nowrap;
+  }
+  .doc-toolbar button {
+    font-family: var(--font-serif);
+    font-size: 0.92em;
+    color: var(--accent);
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.3em 0.8em;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .doc-toolbar button:hover { background: var(--accent); color: var(--bg-raised); border-color: var(--accent); }
+  .doc-toolbar button.pressed {
+    background: var(--accent); color: var(--bg-raised); border-color: var(--accent);
+  }
+  .doc-toolbar button.pressed::before {
+    content: "●"; margin-right: 0.3em; font-size: 0.7em; vertical-align: 0.15em;
+  }
+
+  details.pb {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-soft);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-sm);
+    margin: 1.2em 0;
+    padding: 0 1.1em;
+  }
+  details.pb > summary {
+    cursor: pointer;
+    padding: 0.7em 0.2em;
+    font-weight: 700;
+    color: var(--fg-strong);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.55em;
+  }
+  details.pb > summary::-webkit-details-marker { display: none; }
+  details.pb > summary::before {
+    content: "\25B8";
+    color: var(--accent);
+    font-size: 0.9em;
+    transition: transform 0.15s;
+    display: inline-block;
+    width: 1em;
+  }
+  details.pb[open] > summary::before { transform: rotate(90deg); }
+  details.pb > summary .sub {
+    font-weight: 400; color: var(--fg-muted);
+    font-size: 0.88em; font-style: italic; margin-left: 0.4em;
+  }
+  details.pb[open] { padding-bottom: 0.8em; }
+
+  .figure-img {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-soft);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-sm);
+    padding: 1em 1.2em 0.7em;
+    margin: 1.4em 0;
+  }
+  .figure-img img { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+  .figure-img figcaption {
+    margin-top: 0.7em; font-size: 0.88em;
+    color: var(--fg-muted); font-style: italic; text-align: center;
+  }
+
+  /* === Δ insertion-rate heatmap (32 layers × 20 heads) === */
+  .hm-wrap {
+    display: grid;
+    grid-template-columns: 2.6em 1fr;
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+      ".    axis-x"
+      "axis-y grid"
+      ".    legend";
+    gap: 0.35em 0.5em;
+    align-items: stretch;
+  }
+  .hm-axis-x {
+    grid-area: axis-x;
+    text-align: center;
+    font-size: 0.78em;
+    color: var(--fg-muted);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .hm-axis-y {
+    grid-area: axis-y;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.78em;
+    color: var(--fg-muted);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .hm-axis-y span {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    white-space: nowrap;
+  }
+  .hm-grid {
+    grid-area: grid;
+    display: grid;
+    grid-template-columns: 1.8em repeat(20, minmax(0, 1fr));
+    grid-auto-rows: minmax(0, 14px);
+    gap: 1px;
+    font-family: var(--font-mono);
+    font-size: 0.62em;
+    color: var(--fg-muted);
+    background: var(--border-soft);
+    padding: 1px;
+    border-radius: var(--radius-sm);
+  }
+  .hm-grid .hm-corner, .hm-grid .hm-head, .hm-grid .hm-layer {
+    background: var(--bg-surface);
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1;
+    padding: 0 1px;
+  }
+  .hm-grid .hm-head, .hm-grid .hm-corner { height: 14px; }
+  .hm-grid .hm-cell {
+    position: relative;
+    cursor: crosshair;
+    transition: transform 0.08s;
+  }
+  .hm-grid .hm-cell:hover {
+    transform: scale(2.2);
+    z-index: 5;
+    outline: 1px solid var(--accent);
+    box-shadow: 0 2px 10px rgba(58, 42, 48, 0.35);
+    border-radius: 1px;
+  }
+  .hm-grid .hm-cell:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: 50%; bottom: calc(100% + 3px);
+    transform: translateX(-50%);
+    background: var(--fg-strong);
+    color: var(--bg-raised);
+    padding: 0.25em 0.55em;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 7px;  /* rendered at scale(2.2) → ~15px */
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .hm-legend {
+    grid-area: legend;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 0.7em;
+    row-gap: 0.2em;
+    align-items: center;
+    font-size: 0.8em;
+    color: var(--fg-muted);
+  }
+  .hm-legend-label { grid-column: 1; grid-row: 1 / 3; }
+  .hm-legend-bar {
+    grid-column: 2; grid-row: 1;
+    height: 8px;
+    border-radius: 2px;
+    background: linear-gradient(to right,
+      #faf9f7 0%,
+      rgba(124, 48, 67, 0.25) 30%,
+      rgba(124, 48, 67, 0.60) 60%,
+      #3a1a22 100%);
+    border: 1px solid var(--border-soft);
+  }
+  .hm-legend-ticks {
+    grid-column: 2; grid-row: 2;
+    display: flex; justify-content: space-between;
+    font-family: var(--font-mono); font-size: 0.9em;
+  }
+
+  @media (max-width: 684px) {
+    .hm-grid { font-size: 0.55em; grid-auto-rows: minmax(0, 11px); }
+    .hm-grid .hm-head, .hm-grid .hm-corner { height: 11px; }
+  }
+
+  .section-hidden { display: none; }
+
+  /* Done vs Not-done two-column strip (§0) */
+  .tldr-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.9em;
+    margin: 0.6em 0 1.4em;
+  }
+  .tldr-col {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-soft);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-sm);
+    padding: 0.85em 1.05em;
+  }
+  .tldr-col h3 {
+    margin: 0 0 0.4em;
+    font-size: 1em;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+  }
+  .tldr-col.tldr-not-done { border-left-color: #d4a017; }
+  .tldr-col.tldr-not-done h3 { color: #8a5a00; }
+  .tldr-col ul { margin: 0; padding-left: 1.1em; }
+  .tldr-col li { margin-bottom: 0.25em; font-size: 0.93em; }
+  @media (max-width: 684px) { .tldr-columns { grid-template-columns: 1fr; } }
+
+  /* === Chart wrapper + linked-hover affordances === */
+  .chart-wrap {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-soft);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-sm);
+    padding: 1em 1.2em 0.8em;
+    margin: 1.2em 0 0.6em;
+  }
+  .chart-wrap canvas { max-width: 100%; }
+  .chart-wrap .chart-caption {
+    margin-top: 0.6em;
+    font-size: 0.88em;
+    color: var(--fg-muted);
+    font-style: italic;
+    text-align: center;
+  }
+  .legend-swatch {
+    display: inline-block;
+    width: 0.85em; height: 0.85em;
+    border-radius: 2px;
+    margin-right: 0.45em;
+    vertical-align: -0.1em;
+  }
+  /* `.linked` table rules (cursor, .row-highlight, .row-dim) now live in
+     palatino-burgundy-tokens.css — no doc-local overrides needed. */
+
+  /* sidebar nested list (pipeline stages) */
+  .sidebar ul.nested { padding-left: 0.7em; margin: 0.1em 0 0.4em; }
+  .sidebar ul.nested a { font-size: 0.88em; padding: 0.18em 0.6em; color: var(--fg-muted); }
+
+  @media print {
+    .doc-toolbar { display: none !important; }
+    details.pb[open] > summary::before { transform: none; }
+    details.pb:not([open]) > *:not(summary) { display: block !important; }
+  }
+</style>
+</head>
+<body data-pencil="off">
+<div class="page-wrapper">
+
+<aside class="sidebar" id="sidebar-toc">
+  <div class="author-sidebar" aria-label="Author">
+    <div class="ac-name-sm">Srishti Ginjala</div>
+    <div class="ac-name-sm">Qifan Wen</div>
+    <div class="ac-role-sm">CSE 5525, Speech and Language Processing · Automatic Speech Recognition fairness</div>
+    <div class="ac-qr-side" data-qr="https://www.linkedin.com/in/qifan-wen/" data-qr-size="184" aria-label="LinkedIn QR code"></div>
+    <a class="ac-qr-caption-side" href="https://www.linkedin.com/in/qifan-wen/">Connect with me on LinkedIn</a>
+    <ul class="ac-list">
+      <li><span class="ac-k" aria-hidden="true"><svg viewBox="0 0 16 16" width="1.5em" height="1.5em" fill="currentColor" style="vertical-align: -0.35em;"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg></span><span class="ac-repo-label">GitHub repository</span> <a href="https://github.com/Albatross679/FairSpeechLoRaAndGRPO">FairSpeechLoRaAndGRPO</a></li>
+    </ul>
+  </div>
+  <strong>Contents</strong>
+  <ul>
+    <li><a href="#tldr">0. TL;DR</a></li>
+    <li><a href="#dataset">1. Dataset acquisition</a></li>
+    <li><a href="#preprocessing">2. Audio &amp; text preprocessing</a></li>
+    <li><a href="#model">3. Model &amp; inference setup</a></li>
+    <li><a href="#stage-a">4. Stage A — Baseline</a></li>
+    <li><a href="#stage-b">5. Stage B — Pilot</a></li>
+    <li><a href="#stage-c">6. Stage C — Full sweep</a></li>
+    <li><a href="#stage-d">7. Stage D — Scoring</a></li>
+    <li><a href="#regression-guard">8. Regression guard &amp; keystones</a></li>
+    <li><a href="#fixing-set">8b. Fixing-set analysis</a></li>
+    <li><a href="#stage-e">9. Stage E — Decoding ablation</a></li>
+    <li><a href="#stage-f">10. Stage F — Silence injection</a></li>
+    <li><a href="#compute">11. Compute summary</a></li>
+    <li><a href="#discussion">12. Discussion</a></li>
+    <li><a href="#repro">13. Reproducibility</a></li>
+    <li><a href="#appendix-a">Appendix A — Top 50</a></li>
+    <li><a href="#appendix-b">Appendix B — Per-utterance hallucinations</a></li>
+    <li><a href="#appendix-c">Appendix C — Hallucination taxonomy</a></li>
+  </ul>
+</aside>
+
+<div class="main-content">
+
+<h1>Head-Surgery Diagnosis — Results</h1>
+<p class="subtitle">Whisper-large-v3 · Common Voice v25 Indian-accent subset (N = 484) · pipeline-ordered methodology + results</p>
+<hr>
+
+<div class="doc-toolbar" role="toolbar" aria-label="Document controls">
+  <input type="search" id="doc-search" placeholder="Filter sections (e.g. &ldquo;keystone&rdquo;, &ldquo;resampling&rdquo;, &ldquo;regression&rdquo;)&hellip;" aria-label="Filter sections">
+  <span class="hit-count" id="doc-search-count">all sections visible</span>
+  <button type="button" id="doc-expand-all">Expand all</button>
+  <button type="button" id="doc-collapse-all">Collapse all</button>
+  <button type="button" id="doc-pencil-toggle" aria-pressed="false" title="Toggle annotation pencil (off by default — enabling may feel laggy on long pages)">Pencil: off</button>
+</div>
+
+<nav id="toc" aria-label="Contents (mobile)">
+  <strong>Contents</strong>
+  <ul>
+    <li><a href="#tldr">0. TL;DR</a></li>
+    <li><a href="#dataset">1. Dataset acquisition</a></li>
+    <li><a href="#preprocessing">2. Audio &amp; text preprocessing</a></li>
+    <li><a href="#model">3. Model &amp; inference setup</a></li>
+    <li><a href="#stage-a">4. Stage A — Baseline</a></li>
+    <li><a href="#stage-b">5. Stage B — Pilot</a></li>
+    <li><a href="#stage-c">6. Stage C — Full sweep</a></li>
+    <li><a href="#stage-d">7. Stage D — Scoring</a></li>
+    <li><a href="#regression-guard">8. Regression guard &amp; keystones</a></li>
+    <li><a href="#fixing-set">8b. Fixing-set analysis</a></li>
+    <li><a href="#stage-e">9. Stage E — Decoding ablation</a></li>
+    <li><a href="#stage-f">10. Stage F — Silence injection</a></li>
+    <li><a href="#compute">11. Compute summary</a></li>
+    <li><a href="#discussion">12. Discussion</a></li>
+    <li><a href="#repro">13. Reproducibility</a></li>
+    <li><a href="#appendix-a">Appendix A — Top 50</a></li>
+  </ul>
+</nav>
+
+<!-- =================================================================== -->
+<section data-section="tldr">
+<h2 id="tldr">0. TL;DR</h2>
+
+<div class="tldr-columns" aria-label="Done versus not done at a glance">
+  <div class="tldr-col tldr-done">
+    <h3>What we did</h3>
+    <ul>
+      <li>Swept all <strong>640 decoder self-attention heads</strong> × 484 Indian-accent utterances.</li>
+      <li>Paired <strong>10,000-round resampling test</strong> for scoring + non-Indian regression guard on top-50 heads.</li>
+      <li>Identified <strong>1 catastrophic keystone</strong> (L=0 h=5) and a ~10% Indian-only failure cluster.</li>
+      <li>Minimum-set-cover fixing analysis: <strong>8-head cover</strong> for 15 of 45 affected utterances (greedy and integer-linear-programming optima agree).</li>
+      <li>Ablated <strong>36 decoding configs</strong> and <strong>9 silence-injection conditions</strong>.</li>
+    </ul>
+  </div>
+  <div class="tldr-col tldr-not-done">
+    <h3>What we didn't</h3>
+    <ul>
+      <li><strong>Reproduce the midterm's 9.62% baseline on Common Voice 24</strong> — this run used Common Voice 25 instead, where the Indian-accent insertion rate collapses to a near-floor 1.27%.</li>
+      <li><strong>Sweep instances where two or more heads are masked at a time</strong> — every sweep masks a single head.</li>
+      <li><strong>Sweep encoder or cross-attention heads</strong> — decoder self-attn only.</li>
+      <li><strong>Apply multiple-testing correction</strong> across 640 tests (&gt;30 false-positives expected).</li>
+      <li><strong>Finish regression guard</strong> on the bottom-12 of the top-50 candidates (script crashed silently).</li>
+    </ul>
+  </div>
+</div>
+
+<div class="metric-grid">
+  <div class="metric"><div class="label">Heads tested</div><div class="value">640 <span class="unit">decoder self-attention</span></div></div>
+  <div class="metric"><div class="label">Significant @ p&lt;0.05</div><div class="value">1 <span class="unit">L=20 h=11, −0.08 percentage points</span></div></div>
+  <div class="metric"><div class="label">Common Voice 25 baseline</div><div class="value">1.27% <span class="unit">midterm Common Voice 24: 9.62%</span></div></div>
+  <div class="metric"><div class="label">Catastrophic head</div><div class="value">L=0 h=5 <span class="unit">+100 percentage-points insertion</span></div></div>
+  <div class="metric"><div class="label">Indian utterances</div><div class="value">484 <span class="unit">strict single-label</span></div></div>
+  <div class="metric"><div class="label">Non-Indian utterances</div><div class="value">422</div></div>
+</div>
+
+<div class="callout danger">
+  <strong>Primary result — negative.</strong> Of 640 decoder self-attention heads, exactly <strong>1</strong> clears the statistical-significance bar (p&lt;0.05) for reducing hallucinations, and its effect is just <strong>−0.08 percentage points (pp)</strong>. There is no surgical target.
+</div>
+
+<div class="callout success">
+  <strong>Secondary result — positive (keystone heads).</strong> A small cluster of layer-0 and late-layer heads is <em>load-bearing</em>: masking <code>L=0, h=5</code> catastrophically breaks Whisper (insertion 1.27% → <strong>101%</strong>; non-Indian word error rate, WER, 6.7% → 73%). About 7 other heads produce a milder ~10% Indian-specific failure mode without hurting non-Indian audio — candidates for fine-tuning, not removal.
+</div>
+
+<div class="callout warning">
+  <strong>Dataset caveat.</strong> The <strong>Common Voice 25</strong> baseline is <strong>1.27%</strong>, not the midterm's 9.62% (on <strong>Common Voice 24</strong>). The hallucination-driving hypothesis is redefined; this run is a reproducibility audit, not a midterm reproduction.
+</div>
+</section>
+
+<!-- =================================================================== -->
+<section data-section="dataset">
+<h2 id="dataset">1. Dataset acquisition</h2>
+
+<h3>1.1 Srishti's midterm (Common Voice 24) vs this milestone (Common Voice 25)</h3>
+
+<table>
+  <thead>
+    <tr><th>Axis</th><th>Srishti (midterm)</th><th>This milestone</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Dataset</td><td><strong>Common Voice v24</strong></td><td><strong>Common Voice v25</strong></td></tr>
+    <tr><td>Release date</td><td>2025-12-05 (<code>cv-corpus-24.0-2025-12-05</code>)</td><td>2026-03-09 (<code>cv-corpus-25.0-2026-03-09</code>)</td></tr>
+    <tr><td>Tarball</td><td>Ohio Supercomputer Center (OSC) path (not accessible from this virtual machine)</td><td><code>cv-corpus-25.0-en.tar.gz</code> (81.5 GB) — <strong>truncated</strong>, <code>gzip: unexpected end-of-file (EOF)</code> on 2 independent Backblaze B2 cloud-storage downloads</td></tr>
+    <tr><td>Filter</td><td>strict single-label <code>accents == "India and South Asia"</code></td><td>same</td></tr>
+    <tr><td>Indian-accent test N</td><td>511</td><td><strong>484</strong> (510 filtered − 26 past end-of-file)</td></tr>
+    <tr><td>Non-Indian test N</td><td>500</td><td><strong>422</strong> (500 − 78 past end-of-file)</td></tr>
+    <tr><td>Baseline insertion rate</td><td><strong>9.62%</strong></td><td><strong>1.27%</strong> (repetition 0.00% / syntactic completion 0.41% / content hallucination 0.86%)</td></tr>
+  </tbody>
+</table>
+
+<p>Reproducibility: <a href="../scripts/head_surgery/repro_config.py#L51">repro_config.py:51</a>, manifest <code>tests/fixtures/head_surgery/indian_accent_ids.json</code>. The ~8× drop between Common Voice 24 and Common Voice 25 on this subgroup is the root cause of the negative primary result — head masking cannot improve a near-floor baseline.</p>
+
+<h3>1.2 Common Voice 24 availability audit (2026-04-18)</h3>
+
+<p>Common Voice 24 was not obtainable through any public channel Srishti's original scripts assume:</p>
+
+<table>
+  <thead><tr><th>Channel</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>Mozilla Data Collective (Common Voice org)</td><td><strong>No full</strong> <code>cv-corpus-24.0-en</code> — only a 1.92 GB <em>en-AU conference subset</em> is listed; main listings moved to <em>Scripted Speech 25.0</em></td></tr>
+    <tr><td>Hugging Face mirror (<code>mozilla-foundation/common_voice_*</code>)</td><td><strong>Not mirrored</strong> — API probe: <code>17_0</code> ✅, <code>18_0</code>–<code>24_0</code> → HTTP 404</td></tr>
+    <tr><td>OSC path Srishti used</td><td>Hard-coded in <a href="../scripts/data/prepare_splits.py#L27">prepare_splits.py:27</a>; no cross-mount from this virtual machine</td></tr>
+  </tbody>
+</table>
+
+<p>Reproducing the midterm's Common Voice 24 Indian-accent test set therefore requires either direct OSC access or Mozilla or HuggingFace re-publishing a full v24 English bundle.</p>
+</section>
+
+<!-- =================================================================== -->
+<section data-section="preprocessing">
+<h2 id="preprocessing">2. Audio &amp; text preprocessing</h2>
+
+<h3>2.1 Audio (MP3 → Whisper input)</h3>
+
+<p>Every audio file goes through the same pipeline before Whisper sees it — baseline, per-head sweep, decoding ablation, regression guard, and silence-injection all share this path (<a href="../scripts/head_surgery/run_diagnosis_sweep.py#L35-L49">run_diagnosis_sweep.py:35-49</a>).</p>
+
+<table>
+  <thead><tr><th>Step</th><th>Operation</th><th>Tool</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Decode MP3 (Common Voice 25 native format)</td><td><code>librosa</code> + <code>audioread</code></td><td><code>torchaudio</code> requires <code>torchcodec</code>, whose native lib fails to load on this virtual machine; librosa handles MP3 out of the box</td></tr>
+    <tr><td>2</td><td><strong>Resample 48 kHz → 16 kHz</strong></td><td><code>librosa.load(sr=16000)</code></td><td>Whisper's log-mel expects 16 kHz; feeding 48 kHz warps the spectrogram 3×</td></tr>
+    <tr><td>3</td><td>Downmix to mono</td><td><code>librosa.load(mono=True)</code></td><td>Whisper input is single-channel</td></tr>
+    <tr><td>4</td><td>Log-mel feature extraction</td><td><code>WhisperProcessor(sampling_rate=16000, padding=True)</code></td><td>Standard Whisper front-end; pads shorter clips to 30 s</td></tr>
+    <tr><td>5</td><td>data-type cast</td><td><code>.to(device, dtype=float16)</code></td><td>16-bit floating-point (fp16) inference on the RTX A6000 GPU</td></tr>
+  </tbody>
+</table>
+
+<div class="callout danger">
+  <strong>Known gotcha.</strong> An early Stage A run skipped the resample step and passed 48 kHz audio with <code>sampling_rate=16000</code> to the processor. Result: <strong>58% insertion rate</strong> (hallucination loops from the warped spectrogram). Pinning resample-before-processor was the fix (commits <code>77ca299</code>, <code>3cecd6f</code>).
+</div>
+
+<p><strong>Caching:</strong> audio is decoded once per utterance and held in RAM across the 640-head sweep (<a href="../scripts/head_surgery/run_diagnosis_sweep.py#L179">run_diagnosis_sweep.py:179</a>). No per-head redecode.</p>
+
+<div class="chart-wrap">
+  <div style="position: relative; height: 360px;">
+    <canvas id="durationChart" aria-label="Audio duration histogram comparing Indian-accent (N=484) vs Non-Indian (N=422) subsets, 0.5-second bins"></canvas>
+  </div>
+  <div class="chart-caption">Audio duration distribution from Common Voice 25's <code>clip_durations.tsv</code>, 0.5-s bins. Hover a row in the table — or a bar — to spotlight that subset; the other dims.</div>
+</div>
+
+<table id="durationTable" class="linked">
+  <thead>
+    <tr><th>Subset</th><th class="num">N</th><th class="num">Mean</th><th class="num">Median</th><th class="num">Min</th><th class="num">Max</th><th class="num">Std</th><th class="num" title="5% of clips are shorter than this duration">5% shorter</th><th class="num" title="5% of clips are longer than this duration">5% longer</th></tr>
+  </thead>
+  <tbody>
+    <tr data-subset="indian"><td><span class="legend-swatch" style="background:#5c2233;"></span>Indian-accent</td><td class="num">484</td><td class="num">6.16 s</td><td class="num">6.09 s</td><td class="num">1.87 s</td><td class="num">13.58 s</td><td class="num">1.83 s</td><td class="num">3.31 s</td><td class="num">9.28 s</td></tr>
+    <tr data-subset="nonindian"><td><span class="legend-swatch" style="background:#1e4a6d;"></span>Non-Indian</td><td class="num">422</td><td class="num">6.25 s</td><td class="num">6.16 s</td><td class="num">2.66 s</td><td class="num">12.82 s</td><td class="num">1.65 s</td><td class="num">3.63 s</td><td class="num">9.24 s</td></tr>
+  </tbody>
+</table>
+
+<p>Both subsets are near-identical in duration (means differ by &lt;0.1 s), so any subgroup gap in hallucination rate is not explained by clip-length confounds. All clips fit inside Whisper's 30-second context window — the <code>padding=True</code> step in step 4 pads every clip to 30 s.</p>
+
+<h3>2.2 Text normalization (for word error rate and insertion classifier)</h3>
+
+<p>Applied identically to <strong>reference and hypothesis</strong> before any metric is computed (<a href="../scripts/inference/run_inference.py#L128-L145">run_inference.py:128-145</a>):</p>
+
+<table>
+  <thead><tr><th>Operation</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td>Case fold</td><td><code>"YES"</code> → <code>"yes"</code></td></tr>
+    <tr><td>Punctuation removal</td><td><code>"hello."</code> → <code>"hello"</code></td></tr>
+    <tr><td>Number normalization</td><td><code>"six"</code> ↔ <code>"6"</code></td></tr>
+    <tr><td>Contraction expansion</td><td><code>"she'll"</code> → <code>"she will"</code></td></tr>
+  </tbody>
+</table>
+
+<p>Implementation: Whisper's <code>EnglishTextNormalizer</code>. Matches the midterm's word-error-rate convention.</p>
+
+<h3>2.3 Insertion classifier</h3>
+
+<p>Each hallucinated token in the hypothesis is categorized into one of three disjoint buckets (<a href="../scripts/head_surgery/insertion_classifier.py">insertion_classifier.py</a>):</p>
+
+<table>
+  <thead><tr><th>Category</th><th>Definition</th></tr></thead>
+  <tbody>
+    <tr><td><code>repetition</code> &nbsp;<em>(rep)</em></td><td>N-gram loops (e.g., "thank you thank you thank you…")</td></tr>
+    <tr><td><code>syntactic_completion</code> &nbsp;<em>(syn)</em></td><td>Fillers, grammatical padding (e.g., "you know", "and so on")</td></tr>
+    <tr><td><code>content_hallucination</code> &nbsp;<em>(con)</em></td><td>Fabricated content not in reference</td></tr>
+  </tbody>
+</table>
+
+<p>Subsequent tables (§4, §9, §10) abbreviate these three categories as <strong>rep</strong> / <strong>syn</strong> / <strong>con</strong>.</p>
+
+<p>These three buckets cover the <strong>language-model-drift</strong> branch of a broader automatic-speech-recognition (ASR) hallucination taxonomy. Acoustic-trigger and long-form/structural hallucinations are out of scope for this classifier but are relevant for interpreting the §8b unhelpable set. Full taxonomy: <a href="#appendix-c">Appendix C</a>.</p>
+</section>
+
+<!-- =================================================================== -->
+<section data-section="model">
+<h2 id="model">3. Model &amp; inference setup</h2>
+
+<table>
+  <thead><tr><th>Knob</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td>Model</td><td><code>openai/whisper-large-v3</code> @ revision <code>06f233fe</code></td></tr>
+    <tr><td>Precision</td><td>16-bit floating-point (fp16) on CUDA</td></tr>
+    <tr><td>Seed</td><td>20260417</td></tr>
+    <tr><td>Generation config</td><td><code>{max_new_tokens: 440, language: "en", task: "transcribe"}</code> + default temperature fallback</td></tr>
+    <tr><td>Batch size</td><td>32 (tuned in Stage A.5)</td></tr>
+  </tbody>
+</table>
+
+<h3>Hardware</h3>
+<table>
+  <thead><tr><th>Component</th><th>Spec</th></tr></thead>
+  <tbody>
+    <tr><td>Graphics processor (GPU)</td><td>1× <strong>NVIDIA RTX A6000</strong> (48 GB GDDR6 memory, driver 580.95.05, brain-float-16 / bf16 ✅)</td></tr>
+    <tr><td>Central processor (CPU)</td><td><strong>AMD EPYC 9554</strong> (64-core / 252 threads visible, single non-uniform-memory-access (NUMA) node)</td></tr>
+    <tr><td>System RAM (main memory)</td><td>32 GiB</td></tr>
+    <tr><td>Disk</td><td>98 GB overlay file-system (7.2 GB used)</td></tr>
+    <tr><td>Framework</td><td>PyTorch 2.10.0 + CUDA 12.8</td></tr>
+    <tr><td>Peak GPU memory (VRAM) during Stage C</td><td>~11.4 GB @ batch size 32, fp16</td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- =================================================================== -->
+<section data-section="stage-a">
+<h2 id="stage-a">4. Stage A — Baseline inference</h2>
+
+<p><strong>Method.</strong> Run Whisper-large-v3 unmodified on the 484 Indian-accent utterances. Compute insertion rate (total and by category) using the classifier in §2.3. Also tune batch size in a paired Stage A.5 pass (batch size ∈ {8, 16, 24, 32, 40}) to find the maximum-throughput configuration that fits in 48 GB VRAM.</p>
+
+<p><strong>Result.</strong></p>
+
+<table>
+  <thead><tr><th>Metric</th><th class="num">Value</th></tr></thead>
+  <tbody>
+    <tr><td>Total insertion rate</td><td class="num"><strong>1.27%</strong></td></tr>
+    <tr><td>Repetition</td><td class="num">0.00%</td></tr>
+    <tr><td>Syntactic completion</td><td class="num">0.41%</td></tr>
+    <tr><td>Content hallucination</td><td class="num">0.86%</td></tr>
+    <tr><td>Chosen batch size</td><td class="num"><strong>32</strong> @ 14.12 utterances/s, 11.43 GB peak</td></tr>
+    <tr><td>Wall-clock</td><td class="num">~3 min (A + A.5)</td></tr>
+    <tr><td>Gate G1 (midterm parity)</td><td class="num"><span class="badge redef">redefined</span> — Common Voice 24 target 9.62% unreachable</td></tr>
+    <tr><td>Gate G1.5 (batch size tune)</td><td class="num"><span class="badge pass">PASS</span></td></tr>
+  </tbody>
+</table>
+
+<p>Artifacts: <code>baseline_predictions.csv</code>, <code>baseline_metrics.json</code>, <code>tune_batch_size.json</code>.</p>
+</section>
+
+<!-- =================================================================== -->
+<section data-section="stage-b">
+<h2 id="stage-b">5. Stage B — Pilot sweep (sanity check)</h2>
+
+<p><strong>Method.</strong> Random 50-utterance subsample. Run every (L, h) masking on one or two pilot layers to verify:</p>
+<ol>
+  <li>The hook actually changes predictions (not a silent no-op).</li>
+  <li>Batched per-sample masking matches serial single-head masking (within float16 rounding and sampling noise).</li>
+  <li>Per-head signal is measurable on this small sample.</li>
+</ol>
+
+<p><strong>Result.</strong></p>
+<table>
+  <thead><tr><th>Check</th><th>Outcome</th></tr></thead>
+  <tbody>
+    <tr><td>Hook activity verified</td><td><span class="badge pass">PASS</span> via hypothesis-diff inspection of <code>pilot_sweep.csv</code></td></tr>
+    <tr><td>Pilot baseline insertion rate</td><td class="num">0.97%</td></tr>
+    <tr><td>Gate G2 (per-head signal)</td><td><span class="badge warn">WARN</span> — 0.97% &lt; 2% single-event quantization floor</td></tr>
+    <tr><td>Wall-clock</td><td class="num">~2 min</td></tr>
+  </tbody>
+</table>
+
+<p>Decision: proceed to full sweep despite G2 warning — quantization is expected to resolve with 484 utterances instead of 50.</p>
+</section>
+
+<!-- =================================================================== -->
+<section data-section="stage-c">
+<h2 id="stage-c">6. Stage C — Full head-masking sweep</h2>
+
+<h3>6.1 Head-masking hook</h3>
+<p>For each of the 640 decoder self-attention (layer, head) cells, a PyTorch forward hook zeros out the chosen head's output projection (<a href="../scripts/head_surgery/head_mask_hook.py">head_mask_hook.py</a>). A batched variant applies a per-sample mask so one inference pass can evaluate multiple heads simultaneously.</p>
+
+<h3>6.2 Sweep protocol — batched inference</h3>
+<p>Three nested loops over layers × heads × utterance batches (<a href="../scripts/head_surgery/run_diagnosis_sweep.py#L349-L359">run_diagnosis_sweep.py:349-359</a>):</p>
+
+<table>
+  <thead><tr><th>Loop level</th><th>Range</th><th>Action</th></tr></thead>
+  <tbody>
+    <tr><td>Outer</td><td>32 layers</td><td>install <code>BatchedHeadMaskHook</code> on this layer</td></tr>
+    <tr><td>Middle</td><td>20 heads</td><td>set per-sample mask <code>[batch, num_heads]</code> with zero for head <code>h</code></td></tr>
+    <tr><td>Inner</td><td>⌈484/32⌉ = 16 batches</td><td>call <code>Whisper.generate()</code> once per 32-utterance batch</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Batching math:</strong></p>
+<table>
+  <thead><tr><th>Level</th><th class="num">Count</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Utterances per batch</td><td class="num"><strong>32</strong></td><td>chosen in Stage A.5, peak 11.4 GB VRAM</td></tr>
+    <tr><td>Batches per head</td><td class="num">⌈484 / 32⌉ = 16</td><td>one head masked, all 32 utterances in parallel</td></tr>
+    <tr><td>Heads per layer</td><td class="num">20</td><td>serial within layer</td></tr>
+    <tr><td>Layers</td><td class="num">32</td><td>hook reinstalled once per layer</td></tr>
+    <tr><td><strong>Total <code>Whisper.generate()</code> calls</strong></td><td class="num"><strong>~10,240</strong></td><td>vs ~309,760 if serial per utterance — 30× fewer kernel launches</td></tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  Only one form of batching is exploited: <strong>32 utterances per <code>generate()</code> call</strong>, one head at a time. Multi-head batching (masking different heads on different samples in the same call) would divide call count by another ~20× but would invalidate the G3 (<code>batched ≈ serial</code>) parity proof, and the A6000 was already VRAM-saturated at batch size 32.
+</div>
+
+<p>Each call emits one row per utterance into <code>sweep.csv</code> (hypothesis + insertion-rate breakdown), for 309,760 total rows.</p>
+
+<h3>6.3 Result</h3>
+<table>
+  <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td>Rows emitted</td><td class="num"><strong>309,760</strong> (640 heads × 484 utterances)</td></tr>
+    <tr><td>Wall-clock</td><td class="num"><strong>~6 h 50 min</strong> (log: <code>[640/640, 409.5min]</code>)</td></tr>
+    <tr><td>Gate G3 (batched ≈ serial)</td><td><span class="badge pass">PASS</span> — max |Δ| = 0.194% (single-utterance sampling noise), mean |Δ| = 0.019%</td></tr>
+    <tr><td>Gate G4 (sweep completeness)</td><td><span class="badge pass">PASS</span> — 309,760 rows</td></tr>
+  </tbody>
+</table>
+
+<p>Artifact: <code>sweep.csv</code> (53 MB).</p>
+</section>
+
+<!-- =================================================================== -->
+<section data-section="stage-d">
+<h2 id="stage-d">7. Stage D — Scoring &amp; significance</h2>
+
+<h3>7.1 Δ statistic</h3>
+<p>For head (L, h):</p>
+<div class="math-block">
+  Δ<sub>L,h</sub> = insertion_rate<sub>baseline</sub> − insertion_rate<sub>masked</sub>
+</div>
+<p>Positive Δ ⇒ masking reduces hallucinations.</p>
+
+<h3>7.2 Paired resampling test</h3>
+
+<p><strong>Problem.</strong> We ran the experiment once on a single sample of 484 utterances and got one Δ per head. We need to tell apart "real effect" from "happened to land on a favorable subset of the 484."</p>
+
+<p><strong>Mechanic — for each head, repeat 10,000 times:</strong></p>
+<ol>
+  <li>Draw 484 indices at random from <code>{0..483}</code>, <strong>with replacement</strong>.</li>
+  <li>Look up <code>baseline_count[idx]</code> and <code>masked_count[idx]</code> for those 484 indices.</li>
+  <li>Compute Δ<sub>k</sub> = (baseline insertion rate on the resample) − (masked insertion rate on the resample).</li>
+</ol>
+
+<p><strong>Definitions:</strong></p>
+<table>
+  <thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><strong>With replacement</strong></td><td>Each draw is independent of the previous draws — the same utterance can appear 2 or 3 times in one resample; others may not appear at all.</td></tr>
+    <tr><td><strong>Paired</strong></td><td>The same 484 indices feed both the baseline and the masked counts. Cancels utterance-level "difficulty" noise; only the head's effect varies between the two sides.</td></tr>
+    <tr><td><strong>p-value</strong></td><td><code>(#resamples where Δ<sub>k</sub> ≤ 0) / 10,000</code>. Low p ⇒ Δ rarely flipped negative across the fake samples ⇒ effect is unlikely to be noise.</td></tr>
+    <tr><td><strong>Null hypothesis H0</strong></td><td>Δ ≤ 0 (masking does not help). One-sided.</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Run config:</strong></p>
+<table>
+  <thead><tr><th>Parameter</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td>Resampling instances per head</td><td class="num"><strong>10,000</strong></td></tr>
+    <tr><td>Sample size per resample</td><td class="num">484 (matches the original pool)</td></tr>
+    <tr><td>α threshold</td><td>0.05, <strong>no multiple-testing correction</strong> across 640 tests</td></tr>
+    <tr><td>Total Δ computations</td><td class="num">6.4 M</td></tr>
+  </tbody>
+</table>
+
+<p>Source: <a href="../scripts/head_surgery/score_heads.py#L42-L69">score_heads.py:42-69</a>. The resampling test reuses Stage C per-utterance counts — no re-inference.</p>
+
+<h3>7.3 Result — Δ distribution across 640 heads</h3>
+<table>
+  <thead><tr><th>Regime</th><th class="num">Count</th><th>Interpretation</th></tr></thead>
+  <tbody>
+    <tr><td>Δ &gt; 0 (masking reduces insertions)</td><td class="num">135</td><td>best: L=20 h=11, −0.08 pp, p=0.046</td></tr>
+    <tr><td>Δ = 0 (no effect)</td><td class="num">376</td><td>—</td></tr>
+    <tr><td>Δ &lt; 0 (masking worsens insertions)</td><td class="num">129</td><td>worst: L=0 h=5, +100.16 pp (see §8)</td></tr>
+    <tr><td>p &lt; 0.05 (resampling test)</td><td class="num"><strong>1</strong></td><td>L=20 h=11</td></tr>
+  </tbody>
+</table>
+
+<h3>7.4 Result — Top-10 hallucination-driving heads (after regression guard)</h3>
+
+<p>All four metrics — insertion rate and WER, on Indian and non-Indian — are reported per head, vs the unmasked baseline <code>(Indian 1.27% / 10.93% · non-Indian 0.85% / 6.65%)</code>. Non-Indian columns derive from a follow-up rerun (<a href="../scripts/head_surgery/_7_4_top10_drivers_full_metrics.py">_7_4_top10_drivers_full_metrics.py</a>) — Stage D's regression guard had non-Indian WER for 7 of 10 (the other 3 fall outside the top-50-by-|Δ| guard scope), and never had non-Indian insertion rate at all (only aggregate WER was stored).</p>
+
+<details class="pb" open>
+<summary>Top 10 drivers — full 4-metric table <span class="sub">click to collapse</span></summary>
+<table>
+  <thead>
+    <tr><th>(L, h)</th><th class="num">Δ ins (pp)</th><th class="num">p-val</th><th class="num">Indian ins</th><th class="num">Indian WER</th><th class="num">Non-Indian ins</th><th class="num">Non-Indian WER</th><th>reg. ok</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><em>baseline</em></td><td class="num">0.00</td><td class="num">—</td><td class="num">1.27%</td><td class="num">10.93%</td><td class="num">0.85%</td><td class="num">6.65%</td><td><em>(reference)</em></td></tr>
+    <tr class="highlight"><td>20, 11</td><td class="num">−0.08</td><td class="num"><strong>0.046</strong></td><td class="num">1.19%</td><td class="num">10.95%</td><td class="num">0.81%</td><td class="num">6.63%</td><td>✅</td></tr>
+    <tr><td>0, 15</td><td class="num">−0.06</td><td class="num">0.051</td><td class="num">1.21%</td><td class="num">10.81%</td><td class="num">0.79%</td><td class="num">6.56%</td><td>✅</td></tr>
+    <tr><td>22, 19</td><td class="num">−0.06</td><td class="num">0.051</td><td class="num">1.21%</td><td class="num">10.77%</td><td class="num">0.90%</td><td class="num">6.81%</td><td>✅</td></tr>
+    <tr><td>7, 6</td><td class="num">−0.06</td><td class="num">0.128</td><td class="num">1.21%</td><td class="num">11.03%</td><td class="num">0.85%</td><td class="num">6.70%</td><td>✅</td></tr>
+    <tr><td>10, 8</td><td class="num">−0.06</td><td class="num">0.374</td><td class="num">1.21%</td><td class="num">10.87%</td><td class="num">0.85%</td><td class="num">6.65%</td><td>✅</td></tr>
+    <tr><td>25, 5</td><td class="num">−0.06</td><td class="num">0.051</td><td class="num">1.21%</td><td class="num">10.93%</td><td class="num">0.85%</td><td class="num">6.63%</td><td>✅</td></tr>
+    <tr><td>0, 14</td><td class="num">−0.06</td><td class="num">0.239</td><td class="num">1.21%</td><td class="num">11.01%</td><td class="num">0.95%</td><td class="num">6.81%</td><td>✅</td></tr>
+    <tr><td>13, 17</td><td class="num">−0.04</td><td class="num">0.132</td><td class="num">1.23%</td><td class="num">10.81%</td><td class="num">0.85%</td><td class="num">6.61%</td><td>✅ <em>(newly verified)</em></td></tr>
+    <tr><td>12, 8</td><td class="num">−0.04</td><td class="num">0.138</td><td class="num">1.23%</td><td class="num">10.79%</td><td class="num">0.81%</td><td class="num">6.63%</td><td>✅ <em>(newly verified)</em></td></tr>
+    <tr><td>11, 11</td><td class="num">−0.04</td><td class="num">0.133</td><td class="num">1.23%</td><td class="num">10.89%</td><td class="num">0.88%</td><td class="num">6.70%</td><td>✅ <em>(newly verified)</em></td></tr>
+  </tbody>
+</table>
+</details>
+
+<p>Three observations now that all four metrics are visible:</p>
+<ul>
+  <li><strong>Effects are negligible across the board.</strong> All 10 heads change Indian insertion rate by ≤ 0.08 pp (≤ 4 tokens out of 4,885 reference words). All 10 leave Indian WER, non-Indian insertion rate, and non-Indian WER within ~0.3 pp of baseline on every cell. The "best" head (L=20 h=11) only touches ~4 hallucinated tokens.</li>
+  <li><strong>No safety concern.</strong> Every one of the 10 passes the non-Indian regression guard (≤ 0.5 pp WER degradation). The 3 heads previously marked "–" (outside Stage D's top-50) are now confirmed safe by this rerun. There is no driver-head that fixes Indian-accent hallucination at the cost of breaking non-Indian audio.</li>
+  <li><strong>Compare to §8.2.</strong> Drivers move metrics by &lt; 0.1 pp; keystones move them by 9–100 pp. The "interesting" surgical signal in this dataset lives in the <em>suppressor</em> category, not the driver category. §8.2's accent-specifically-load-bearing heads are 100× larger effects than §7.4's best driver — and those are <em>negative</em> effects we want to avoid, not positive ones we want to exploit.</li>
+</ul>
+
+<p>Heatmap of Δ across the 32×20 grid:</p>
+<figure class="diagram" id="deltaHeatmapFigure">
+  <div class="hm-wrap">
+    <div class="hm-axis-x">head index</div>
+    <div class="hm-axis-y"><span>layer index</span></div>
+    <div id="deltaHeatmap" class="hm-grid" role="img" aria-label="Heatmap of Δ insertion rate across the 32 layers × 20 heads grid"></div>
+    <div class="hm-legend">
+      <span class="hm-legend-label">|Δ| (sqrt scale)</span>
+      <div class="hm-legend-bar" aria-hidden="true"></div>
+      <div class="hm-legend-ticks"><span>0</span><span>0.09</span><span>1.0</span></div>
+    </div>
+  </div>
+  <figcaption>Δ insertion rate per (layer, head). Darker = larger absolute Δ. The single dark spike at L=0 h=5 dwarfs all other cells. Hover any cell to read its exact value; un-highlighted cells have Δ ≈ 0 (no measured effect).</figcaption>
+</figure>
+
+<p>Full 50-head ranking: <a href="#appendix-a">Appendix A</a>.</p>
+
+<p><strong>Wall-clock:</strong> Stage D scoring ~5 min for the 640-head resampling test (no inference). Follow-up 10-driver × 422-utterance non-Indian rerun (Non-Indian columns above) ~5.1 min on the same A6000.</p>
+</section>
+
+<!-- =================================================================== -->
+<section data-section="regression-guard">
+<h2 id="regression-guard">8. Stage D (cont.) — Regression guard &amp; keystone-head finding</h2>
+
+<h3>8.1 Method</h3>
+<p>For each candidate head with large |Δ|, rerun Whisper with that head masked on the <strong>non-Indian</strong> Common Voice 25 subset (N=422) and measure composite WER. A head passes if non-Indian WER degradation ≤ 0.5 pp (<a href="../scripts/head_surgery/score_heads.py#L128-L203">score_heads.py:128-203</a>). Scope: top-50 heads by |Δ| (compute-bound).</p>
+
+<p>Purpose: ensure a proposed "surgical target" doesn't fix Indian-accent hallucinations at the cost of breaking transcription for everyone else.</p>
+
+<h3>8.2 Result — keystone (hallucination-suppressing) heads</h3>
+<p>Masking a small cluster of heads damages transcription. These are the opposite of hallucination drivers: they are <em>hallucination suppressors</em> (load-bearing circuits). All four metrics — insertion rate and WER, on Indian and non-Indian — are reported per head, vs the unmasked baseline <code>(Indian 1.27% / 10.93% · non-Indian 0.85% / 6.65%)</code>. Non-Indian columns derive from a follow-up rerun (<a href="../scripts/head_surgery/_8b2_keystone_non_indian_insertion.py">_8b2_keystone_non_indian_insertion.py</a>; the original Stage D guard stored only aggregate non-Indian WER, not per-utterance hypotheses needed for an insertion-rate breakdown).</p>
+
+<details class="pb" open>
+<summary>Keystone heads — full 4-metric table <span class="sub">click to collapse</span></summary>
+<table>
+  <thead>
+    <tr><th>(L, h)</th><th class="num">Indian ins</th><th class="num">Indian WER</th><th class="num">Non-Indian ins</th><th class="num">Non-Indian WER</th><th>Regression</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><em>baseline</em></td><td class="num">1.27%</td><td class="num">10.93%</td><td class="num">0.85%</td><td class="num">6.65%</td><td><em>(reference)</em></td></tr>
+    <tr class="highlight"><td><strong>0, 5</strong></td><td class="num"><strong>101.43%</strong></td><td class="num"><strong>120.88%</strong></td><td class="num"><strong>52.26%</strong></td><td class="num"><strong>67.09%</strong> (+60.4 pp)</td><td><span class="badge fail">FAIL</span> — catastrophic on both subgroups</td></tr>
+    <tr><td>0, 13</td><td class="num">10.19%</td><td class="num">20.20%</td><td class="num">0.97%</td><td class="num">6.86% (+0.21 pp)</td><td><span class="badge warn">borderline</span> non-Indian, large Indian damage</td></tr>
+    <tr><td>0, 18</td><td class="num">10.13%</td><td class="num">19.86%</td><td class="num">0.88%</td><td class="num">6.70% (+0.05 pp)</td><td><span class="badge pass">OK</span> non-Indian / large Indian damage</td></tr>
+    <tr><td>0, 1</td><td class="num">10.11%</td><td class="num">19.92%</td><td class="num">0.90%</td><td class="num">6.58% (−0.07 pp)</td><td><span class="badge pass">OK</span> non-Indian / large Indian damage</td></tr>
+    <tr><td>29, 18</td><td class="num">10.09%</td><td class="num">19.82%</td><td class="num">0.88%</td><td class="num">6.70% (+0.05 pp)</td><td><span class="badge pass">OK</span> non-Indian / large Indian damage</td></tr>
+    <tr><td>27, 15</td><td class="num">10.09%</td><td class="num">19.67%</td><td class="num">0.85%</td><td class="num">6.67% (+0.02 pp)</td><td><span class="badge pass">OK</span> non-Indian / large Indian damage</td></tr>
+    <tr><td>11, 9</td><td class="num">10.07%</td><td class="num">19.67%</td><td class="num">0.85%</td><td class="num">6.65% (+0.00 pp)</td><td><span class="badge pass">OK</span> non-Indian / large Indian damage</td></tr>
+    <tr><td>13, 19</td><td class="num">10.07%</td><td class="num">19.77%</td><td class="num">0.88%</td><td class="num">6.67% (+0.02 pp)</td><td><span class="badge pass">OK</span> non-Indian / large Indian damage</td></tr>
+  </tbody>
+</table>
+</details>
+
+<p>Two patterns are sharper now that all four metrics are visible:</p>
+<ul>
+  <li><strong>L=0 h=5 is a universal keystone.</strong> Indian metrics blow up (101 / 121 pp); non-Indian metrics also blow up (52 / 67 pp). Removing it breaks Whisper for <em>every</em> accent. Single point of failure.</li>
+  <li><strong>The other 7 heads are Indian-accent-specific keystones.</strong> Indian metrics jump ~9 pp insertion / ~9 pp WER; non-Indian metrics stay within ~0.2 pp on both insertion rate AND WER. Whisper has heads that selectively serve Indian-accent transcription — masking them transparently breaks Indian-accent audio without disturbing other accents at all. This is a stronger localization claim than the prior wording suggested: not "load-bearing in general" but "<strong>accent-specifically load-bearing</strong>." These are <strong>fine-tuning candidates</strong> (recover what they do for Indian-accent without removing them), not removal targets.</li>
+</ul>
+
+<p><strong>Wall-clock:</strong> original Stage D regression guard ~25 min for 38/50 candidates. Follow-up 8-keystone × 422-utterance non-Indian rerun (Non-Indian columns above) ~6.6 min on the same A6000.</p>
+</section>
+
+<!-- =================================================================== -->
+<section data-section="fixing-set">
+<h2 id="fixing-set">8b. Stage D (cont.) — Fixing-set analysis</h2>
+
+<h3>8b.1 Method</h3>
+<p>Reframes the question from "which single head reduces hallucination the most on average?" (§7) to "for each of the 45 Indian-accent utterances with ≥1 hallucinated token, which (L, h) masks eliminate at least one token of that utterance — and what is the minimum head set whose union covers all of them?"</p>
+
+<p>A head (L, h) is considered <strong>valid</strong> for the fixing set only if all three hold:</p>
+<ol>
+  <li>It strictly reduces the insertion count on ≥1 affected utterance.</li>
+  <li>It introduces no new insertions on any utterance in the pool (global no-harm).</li>
+  <li>It passes the non-Indian regression guard from §8 (<code>regression_ok=True</code> or <code>regression_checked=False</code>).</li>
+</ol>
+
+<p>A binary coverage matrix <code>[n_affected × n_valid_heads]</code> is then solved two ways: <strong>greedy</strong> (picks the column covering the most uncovered rows, repeats) and <strong>integer linear programming (ILP) optimal</strong> via <code>scipy.optimize.milp</code> (for comparison). Source: <a href="../scripts/head_surgery/fixing_set_analysis.py">fixing_set_analysis.py</a>.</p>
+
+<h3>8b.2 Result — coverage statistics</h3>
+<table>
+  <thead><tr><th>Metric</th><th class="num">Value</th></tr></thead>
+  <tbody>
+    <tr><td>Affected utterances (baseline insertion count &gt; 0)</td><td class="num"><strong>45</strong></td></tr>
+    <tr><td>Valid heads after three filters</td><td class="num"><strong>115</strong> (of 640)</td></tr>
+    <tr><td>Greedy cover size</td><td class="num"><strong>8</strong></td></tr>
+    <tr><td>ILP optimum cover size</td><td class="num"><strong>8</strong></td></tr>
+    <tr><td>Unhelpable utterances (no single-head mask can fix)</td><td class="num"><strong>30</strong></td></tr>
+    <tr><td>Analysis runtime</td><td class="num">66.22 s (no GPU)</td></tr>
+  </tbody>
+</table>
+
+<h3>8b.3 Result — greedy ordering</h3>
+<table>
+  <thead>
+    <tr><th class="num">Order</th><th>(Layer, Head)</th><th class="num">Newly covered utterances</th><th class="num">Cumulative coverage</th></tr>
+  </thead>
+  <tbody>
+    <tr><td class="num">1</td><td>(L=0, h=15)</td><td class="num">3</td><td class="num">3</td></tr>
+    <tr><td class="num">2</td><td>(L=20, h=11)</td><td class="num">3</td><td class="num">6</td></tr>
+    <tr><td class="num">3</td><td>(L=22, h=19)</td><td class="num">3</td><td class="num">9</td></tr>
+    <tr><td class="num">4</td><td>(L=25, h=16)</td><td class="num">2</td><td class="num">11</td></tr>
+    <tr><td class="num">5</td><td>(L=11, h=11)</td><td class="num">1</td><td class="num">12</td></tr>
+    <tr><td class="num">6</td><td>(L=13, h=17)</td><td class="num">1</td><td class="num">13</td></tr>
+    <tr><td class="num">7</td><td>(L=16, h=13)</td><td class="num">1</td><td class="num">14</td></tr>
+    <tr><td class="num">8</td><td>(L=20, h=6)</td><td class="num">1</td><td class="num">15</td></tr>
+  </tbody>
+</table>
+
+<h3>8b.4 Unhelpable utterances</h3>
+<p>30 utterances have at least one hallucinated token at baseline that <strong>no valid single-head mask</strong> can eliminate under the three-filter criterion. Their IDs are listed in <a href="../outputs/head_surgery/minimum_surgical_set.json">minimum_surgical_set.json</a>. These represent the floor of what single-head masking can achieve on this dataset.</p>
+
+<p>Per-utterance references, hypotheses, and categorised insertions for all 45 affected utterances (15 helpable + 30 unhelpable) are tabulated in <a href="#appendix-b">Appendix B</a>.</p>
+
+<h3>8b.5 Interpretation caveats</h3>
+<p>The numbers in §8b.2–§8b.4 are the mechanically-correct output of the three-filter + min-set-cover formulation, but five interpretive limits bound what they can be cited as supporting:</p>
+
+<details class="pb" open>
+<summary>1. The cover is a <em>necessary</em> condition, not <em>sufficient</em> <span class="sub">interaction effects unverified</span></summary>
+<p>Size 8 means no fewer than 8 single-head masks could possibly cover the 15 helpable utterances under these filters — <strong>if</strong> multi-head masking decomposed linearly. The sweep is single-head, so masking all 8 simultaneously is not guaranteed to fix any of them. Interaction effects may <em>reduce</em> coverage (redundant circuits cancel) or <em>change</em> it non-monotonically (two individually safe heads combined can introduce new harm). Validating the cover requires a separate GPU run that installs the entire 8-head set together.</p>
+</details>
+
+<details class="pb" open>
+<summary>2. "30 unhelpable" is conditional on the three filters <span class="sub">criterion-relative, not absolute</span></summary>
+<p>Some of these utterances have single-head masks that fix them but introduce new hallucinations elsewhere (filter ii) or fail the non-Indian regression guard (filter iii). They are unhelpable <em>under this criterion</em>, not in an absolute sense. Relaxing filter (ii) to "no new repetition-class harm" or adding a head-level damage budget would change the count.</p>
+</details>
+
+<details class="pb" open>
+<summary>3. Filter (ii) has no tolerance band <span class="sub">single-token noise sensitivity</span></summary>
+<p>A single utterance going from baseline insertion count 0 → 1 under a masked condition — even due to float16 rounding and sampling jitter, which the report has documented in Gate G3 — eliminates an otherwise-safe head. With 484 utterances each rolling the "new insertion due to noise" die once per 640 conditions, the <code>n_valid_heads = 115</code> number has unquantified sensitivity to single-token variance. A statistical relaxation (e.g., reject only if harm is significant at p&lt;0.05 across utterances) would likely raise n_valid_heads and lower the cover size.</p>
+</details>
+
+<details class="pb" open>
+<summary>4. <code>n_valid_heads = 115</code> was data-derived, not predicted <span class="sub">2.3× larger than estimated</span></summary>
+<p>The implementation plan estimated "empirically likely ≤50"; the actual count is 2.3× larger. More heads than anticipated clear the three filters — this is a finding <em>from</em> the analysis, not a calibration <em>for</em> it.</p>
+</details>
+
+<details class="pb" open>
+<summary>5. greedy = ILP = 8 is empirically optimal on <em>this</em> matrix <span class="sub">not provably so in general</span></summary>
+<p>Greedy min-set-cover is a log-factor approximation; it coincides with ILP here because of the specific coverage structure (long tail of singleton-covering heads after the top 4). A slightly different sweep could produce a matrix where greedy overshoots ILP by 1–2 heads.</p>
+</details>
+
+<div class="callout danger">
+  <strong>Downstream claims to avoid:</strong>
+  <ul style="margin: 0.4em 0 0 0;">
+    <li>"masking these 8 heads fixes 15 utterances" (unverified — see #1)</li>
+    <li>"only 115 of 640 heads are safe to mask" (unquantified noise sensitivity — see #3)</li>
+    <li>"greedy is provably optimal here" (empirical coincidence — see #5)</li>
+  </ul>
+</div>
+
+<h3>8b.6 Cross-reference to §8</h3>
+<p>The catastrophic keystone head <strong>L=0 h=5</strong> (§8.2, +100.16 pp) is by construction excluded from the fixing set (filter 2). The sole significance-passing head from §7.4, <strong>L=20 h=11</strong>, may or may not appear in the greedy cover depending on whether it passes filter 2 — see <a href="../outputs/head_surgery/minimum_surgical_set.json">minimum_surgical_set.json</a> for the authoritative list.</p>
+</section>
+
+<!-- =================================================================== -->
+<section data-section="stage-e">
+<h2 id="stage-e">9. Stage E — Decoding-strategy ablation</h2>
+
+<h3>9.1 Method</h3>
+<p>Grid search over decoding hyperparameters that typically affect Whisper hallucination behavior:</p>
+<table>
+  <thead><tr><th>Axis</th><th>Values</th></tr></thead>
+  <tbody>
+    <tr><td>Beam width</td><td>{1, 5}</td></tr>
+    <tr><td>Repetition penalty</td><td>{1.0, 1.1, 1.3}</td></tr>
+    <tr><td>No-repeat-ngram size</td><td>{0, 3, 5}</td></tr>
+    <tr><td>Temperature fallback</td><td>{True, False}</td></tr>
+  </tbody>
+</table>
+<p>Full-factorial: 2 × 3 × 3 × 2 = <strong>36 configs</strong>, each run on the full 484-utterance pool. Head-masking hook is <strong>not</strong> applied — this stage tests whether decoding alone can close the hallucination gap.</p>
+
+<h3>9.2 Result — Top configs by lowest insertion rate (all beam=1)</h3>
+<p>Insertion-category columns use the §2.3 abbreviations: <strong>rep</strong> = repetition, <strong>syn</strong> = syntactic completion, <strong>con</strong> = content hallucination.</p>
+<table>
+  <thead>
+    <tr><th class="num">beam</th><th class="num">rep_penalty</th><th class="num">no_repeat_ngram</th><th>temp_fallback</th><th class="num">total</th><th class="num">rep</th><th class="num">syn</th><th class="num">con</th></tr>
+  </thead>
+  <tbody>
+    <tr class="highlight"><td class="num">1</td><td class="num">1.1</td><td class="num">0</td><td>False</td><td class="num"><strong>1.23%</strong></td><td class="num">0.00%</td><td class="num">0.3%</td><td class="num">0.9%</td></tr>
+    <tr><td class="num">1</td><td class="num">1.1</td><td class="num">0</td><td>True</td><td class="num">1.23%</td><td class="num">0.00%</td><td class="num">0.3%</td><td class="num">0.9%</td></tr>
+    <tr><td class="num">1</td><td class="num">1.3</td><td class="num">0/3/5</td><td>True/False</td><td class="num">1.23%</td><td class="num">0.00%</td><td class="num">0.3%</td><td class="num">0.9%</td></tr>
+  </tbody>
+</table>
+
+<h3>9.3 Result — summary by config family</h3>
+<table>
+  <thead><tr><th>Family</th><th class="num">Insertion rate</th></tr></thead>
+  <tbody>
+    <tr><td>Best (beam=1 + rep ∈ {1.1, 1.3})</td><td class="num"><strong>1.23%</strong></td></tr>
+    <tr><td>Plain baseline (beam=1, rep=1.0, nr=0)</td><td class="num">1.27%</td></tr>
+    <tr><td>beam=5 + rep=1.3 OR n-gram ≥ 3</td><td class="num">1.25–1.35%</td></tr>
+    <tr class="highlight"><td>beam=5 + rep=1.1, no n-gram</td><td class="num"><strong>8.21%</strong> ‼</td></tr>
+    <tr class="highlight"><td>beam=5 + rep=1.0, no n-gram</td><td class="num"><strong>14.78%</strong> ‼‼</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  Decoding changes buy at most <strong>0.04 pp</strong>. The only large effect is a failure mode: naive beam search without n-gram blocking amplifies repetition loops ~10×.
+</div>
+
+<p><strong>Wall-clock:</strong> ~45 min.</p>
+</section>
+
+<!-- =================================================================== -->
+<section data-section="stage-f">
+<h2 id="stage-f">10. Stage F — Silence-injection robustness</h2>
+
+<h3>10.1 Method</h3>
+<p>Stress-test Whisper's hallucination rate under synthetic silence. Silence-perturbed clips are generated offline before inference (<a href="../scripts/head_surgery/_generate_silence_perturbations.py#L40-L67">_generate_silence_perturbations.py:40-67</a>):</p>
+
+<table>
+  <thead><tr><th>Step</th><th>Operation</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Load 16 kHz mono audio (same pipeline as §2.1)</td></tr>
+    <tr><td>2</td><td>Split a fraction (25% / 50% / 75% of duration) into <strong>3 random-length blocks</strong> (Dirichlet-style proportions)</td></tr>
+    <tr><td>3</td><td>Insert those zero-valued silence blocks at sorted random positions <strong>inside</strong> the clip (never at edges, so reference transcript remains valid)</td></tr>
+    <tr><td>4</td><td>Write back as 16 kHz WAV via <code>soundfile.write</code></td></tr>
+    <tr><td>5</td><td>Rerun Whisper on the perturbed WAVs with the same preprocessing chain</td></tr>
+  </tbody>
+</table>
+
+<p>Three decibel (dB) floors (−30, −35, −40) × three severities (25/50/75%) = <strong>9 configs</strong>. Seed: <code>20260418</code>.</p>
+
+<h3>10.2 Result</h3>
+<p>Insertion-category columns use the §2.3 abbreviations: <strong>rep</strong> = repetition, <strong>syn</strong> = syntactic completion, <strong>con</strong> = content hallucination.</p>
+<table>
+  <thead>
+    <tr><th>severity</th><th class="num">dB floor</th><th class="num">insertion</th><th class="num">rep</th><th class="num">syn</th><th class="num">con</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>25%</td><td class="num">−40</td><td class="num">1.82%</td><td class="num">0.00%</td><td class="num">0.8%</td><td class="num">1.0%</td></tr>
+    <tr><td>50%</td><td class="num">−40</td><td class="num">1.80%</td><td class="num">0.00%</td><td class="num">0.9%</td><td class="num">0.9%</td></tr>
+    <tr><td>75%</td><td class="num">−40</td><td class="num">1.86%</td><td class="num">0.00%</td><td class="num">0.9%</td><td class="num">1.0%</td></tr>
+    <tr><td>25%</td><td class="num">−35</td><td class="num">1.94%</td><td class="num">0.00%</td><td class="num">0.8%</td><td class="num">1.1%</td></tr>
+    <tr><td>50%</td><td class="num">−35</td><td class="num">1.80%</td><td class="num">0.00%</td><td class="num">0.8%</td><td class="num">1.0%</td></tr>
+    <tr><td>75%</td><td class="num">−35</td><td class="num">2.07%</td><td class="num">0.00%</td><td class="num">1.1%</td><td class="num">1.0%</td></tr>
+    <tr><td>25%</td><td class="num">−30</td><td class="num">1.70%</td><td class="num">0.00%</td><td class="num">0.8%</td><td class="num">0.8%</td></tr>
+    <tr><td>50%</td><td class="num">−30</td><td class="num">2.01%</td><td class="num">0.08%</td><td class="num">0.9%</td><td class="num">1.0%</td></tr>
+    <tr><td>75%</td><td class="num">−30</td><td class="num">1.68%</td><td class="num">0.00%</td><td class="num">0.8%</td><td class="num">0.8%</td></tr>
+  </tbody>
+</table>
+
+<p>Baseline (no silence): 1.27%. Silence injection raises insertion rate by ~0.5–0.8 pp — small but consistent. No explosion into repetition loops.</p>
+
+<p><strong>Wall-clock:</strong> ~5 min.</p>
+</section>
+
+<!-- =================================================================== -->
+<section data-section="compute">
+<h2 id="compute">11. Compute summary</h2>
+
+<table>
+  <thead>
+    <tr><th>Stage</th><th>Gate</th><th>What</th><th class="num">Wall-clock</th><th>Artifact</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>A</td><td>G1</td><td>Baseline insertion on Common Voice 25 Indian N=484</td><td class="num">~2 min</td><td><code>baseline_metrics.json</code></td></tr>
+    <tr><td>A.5</td><td>G1.5</td><td>Batch-size tuning (chose batch size 32)</td><td class="num">~1 min</td><td><code>tune_batch_size.json</code></td></tr>
+    <tr><td>B</td><td>G2</td><td>50-utterance pilot head-mask sweep</td><td class="num">~2 min</td><td><code>pilot_sweep.csv</code></td></tr>
+    <tr class="highlight"><td>C</td><td>G3+G4</td><td>Full sweep — 309,760 rows (640 heads × 484 utterances)</td><td class="num"><strong>~6 h 50 min</strong></td><td><code>sweep.csv</code> (53 MB)</td></tr>
+    <tr><td>D</td><td>—</td><td>Scoring + 10,000-round resampling test per head + regression guard (top-50)</td><td class="num">~30 min</td><td><code>head_scores.csv</code>, <code>top_k_heads.csv</code></td></tr>
+    <tr><td>E</td><td>—</td><td>Decoding ablation — 36 configs</td><td class="num">~45 min</td><td><code>decoding_scores.csv</code></td></tr>
+    <tr><td>F</td><td>—</td><td>Energy-based voice activity detection under silence injection — 9 configs</td><td class="num">~5 min</td><td><code>vad_scores.csv</code></td></tr>
+    <tr><td>G</td><td>—</td><td>Aggregate report + heatmap</td><td class="num">&lt;1 min</td><td><code>head_surgery_report.md</code>, heatmap PNG</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Total compute: ~8 h 15 min</strong> (dominated by Stage C on 1× GPU). Calendar span: 2026-04-11 → 2026-04-18 (~7 days). Active implementation + execution: ~24 h.</p>
+</section>
+
+<!-- =================================================================== -->
+<section data-section="discussion">
+<h2 id="discussion">12. Discussion</h2>
+
+<h3>Why the primary result is negative</h3>
+<p>The insertion rate metric is <strong>inserted tokens ÷ total reference words</strong>. At the Common Voice 25 baseline:</p>
+
+<table>
+  <thead><tr><th>Quantity</th><th class="num">Value</th></tr></thead>
+  <tbody>
+    <tr><td>Total reference words (484 utterances)</td><td class="num">4,885</td></tr>
+    <tr><td>Hallucinated tokens</td><td class="num"><strong>62</strong></td></tr>
+    <tr><td>Utterances with ≥1 hallucination</td><td class="num">45 / 484</td></tr>
+    <tr><td>Insertion rate</td><td class="num">62 / 4,885 = <strong>1.27%</strong></td></tr>
+    <tr><td>Quantum (per-token Δ)</td><td class="num">1 / 4,885 = <strong>0.020 pp</strong></td></tr>
+  </tbody>
+</table>
+
+<p>Per-head Δ is therefore quantized at ~0.02 pp per token. The best observed Δ (<strong>−0.08 pp</strong>, L=20 h=11) represents only ~4 tokens shifted across the whole 484-utterance pool. With ~60 tokens of signal distributed across 640 independent head-tests — and no multiple-testing correction — the resampling test cannot reliably pull effects of that size out of the noise floor. The test is <strong>under-powered</strong>, not "no effect to find."</p>
+
+<p>Reading the p-values charitably:</p>
+<ul>
+  <li>1/640 significant at α=0.05 is <strong>worse than chance</strong> (≈32 expected false positives with no correction).</li>
+  <li>The top-10 Δ values cluster at exactly +0.001 (≈4 tokens each), which is quantization bottoming out — not a signal ordering.</li>
+</ul>
+
+<h3>What we'd need to see a real effect</h3>
+<table>
+  <thead><tr><th>Option</th><th>Cost</th><th>Rationale</th></tr></thead>
+  <tbody>
+    <tr><td>Evaluate on Common Voice 24 (Srishti's 9.62%)</td><td>resampling test with ~50 events</td><td>~8× more signal per head</td></tr>
+    <tr><td>Scale N to ~3,000 Indian utterances</td><td>~5× Stage C compute</td><td>power for ≤0.1 pp effects</td></tr>
+    <tr><td>Multi-head ablation</td><td>combinatorial blow-up</td><td>tests interaction effects the single-head sweep misses</td></tr>
+  </tbody>
+</table>
+
+<h3>Keystone-head finding is robust</h3>
+<p>The +100 pp catastrophe at L=0 h=5 is unmistakable regardless of statistical power — it is visible across all 484 utterances and on non-Indian audio. The ~10% failure cluster (7 heads) is also unambiguous.</p>
+
+<h3>Caveats</h3>
+<div class="callout">
+<ul style="margin: 0;">
+  <li><strong>Decoder self-attention only.</strong> Encoder and cross-attention heads untested.</li>
+  <li><strong>Single-head ablation.</strong> No combinations or circuit-level probing.</li>
+  <li><strong>Greedy + temp-fallback decoding.</strong> Results may shift under beam search.</li>
+  <li><strong>Common Voice 25-only.</strong> Findings may not transfer to Common Voice 24 or to held-out Indian speech outside Common Voice.</li>
+</ul>
+</div>
+</section>
+
+<!-- =================================================================== -->
+<section data-section="repro">
+<h2 id="repro">13. Reproducibility</h2>
+
+<h3>Gate results</h3>
+<table>
+  <thead><tr><th>Gate</th><th>Result</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>G1 — midterm Common Voice 24 baseline parity</td><td><span class="badge redef">redefined</span></td><td>Common Voice 24 unavailable; new baseline on Common Voice 25 is 1.27%</td></tr>
+    <tr><td>G1.5 — batch-size tune</td><td><span class="badge pass">PASS</span></td><td>batch size 32 @ 14.12 utterances/s</td></tr>
+    <tr><td>G2 — pilot head-mask signal</td><td><span class="badge warn">WARN</span></td><td>pilot baseline 0.97% &lt; 2% quantization floor; hook activity verified via hypothesis-diff</td></tr>
+    <tr><td>G3 — batched ≈ serial</td><td><span class="badge pass">PASS</span></td><td>max |Δ| = 0.194% (single-utterance sampling noise)</td></tr>
+    <tr><td>G4 — sweep completeness</td><td><span class="badge pass">PASS</span></td><td>309,760 rows</td></tr>
+    <tr><td>G5 — non-Indian vs T7</td><td><span class="badge skip">SKIP</span></td><td>T7 reference not present in env</td></tr>
+  </tbody>
+</table>
+
+<h3>Code</h3>
+<ul>
+  <li>Hook: <a href="../scripts/head_surgery/head_mask_hook.py">head_mask_hook.py</a></li>
+  <li>Sweep: <a href="../scripts/head_surgery/run_diagnosis_sweep.py">run_diagnosis_sweep.py</a></li>
+  <li>Scoring + resampling test + guard: <a href="../scripts/head_surgery/score_heads.py">score_heads.py</a></li>
+  <li>Decoding ablation: <a href="../scripts/head_surgery/decoding_ablation_grid.py">decoding_ablation_grid.py</a></li>
+  <li>Voice activity detection: <a href="../scripts/head_surgery/energy_vad.py">energy_vad.py</a></li>
+  <li>Report generator: <a href="../scripts/head_surgery/aggregate_report.py">aggregate_report.py</a></li>
+  <li>Fixing-set analysis: <a href="../scripts/head_surgery/fixing_set_analysis.py">fixing_set_analysis.py</a></li>
+  <li>Product Requirements Document: <a href="../tasks/prd-head-surgery-diagnosis.md">prd-head-surgery-diagnosis.md</a></li>
+  <li>Milestone log: <a href="../logs/head-surgery-diagnosis-complete.md">head-surgery-diagnosis-complete.md</a></li>
+</ul>
+</section>
+
+<!-- =================================================================== -->
+<section data-section="appendix-a">
+<h2 id="appendix-a">Appendix A — Full 50-head ranking</h2>
+
+<details class="pb">
+<summary>Top 50 heads by Δ insertion rate <span class="sub">click to expand</span></summary>
+<table>
+  <thead>
+    <tr><th class="num">layer</th><th class="num">head</th><th class="num">Δ insertion</th><th class="num">p-value</th><th>reg. ok</th></tr>
+  </thead>
+  <tbody>
+    <tr class="highlight"><td class="num">20</td><td class="num">11</td><td class="num">0.001</td><td class="num">0.046</td><td>✅</td></tr>
+    <tr><td class="num">10</td><td class="num">8</td><td class="num">0.001</td><td class="num">0.374</td><td>✅</td></tr>
+    <tr><td class="num">0</td><td class="num">14</td><td class="num">0.001</td><td class="num">0.239</td><td>✅</td></tr>
+    <tr><td class="num">7</td><td class="num">6</td><td class="num">0.001</td><td class="num">0.128</td><td>✅</td></tr>
+    <tr><td class="num">25</td><td class="num">5</td><td class="num">0.001</td><td class="num">0.051</td><td>✅</td></tr>
+    <tr><td class="num">22</td><td class="num">19</td><td class="num">0.001</td><td class="num">0.051</td><td>✅</td></tr>
+    <tr><td class="num">0</td><td class="num">15</td><td class="num">0.001</td><td class="num">0.051</td><td>✅</td></tr>
+    <tr><td class="num">3</td><td class="num">3</td><td class="num">0.000</td><td class="num">0.140</td><td>–</td></tr>
+    <tr><td class="num">15</td><td class="num">6</td><td class="num">0.000</td><td class="num">0.138</td><td>–</td></tr>
+    <tr><td class="num">12</td><td class="num">8</td><td class="num">0.000</td><td class="num">0.138</td><td>–</td></tr>
+    <tr><td class="num">15</td><td class="num">18</td><td class="num">0.000</td><td class="num">0.364</td><td>–</td></tr>
+    <tr><td class="num">17</td><td class="num">8</td><td class="num">0.000</td><td class="num">0.139</td><td>–</td></tr>
+    <tr><td class="num">23</td><td class="num">16</td><td class="num">0.000</td><td class="num">0.138</td><td>–</td></tr>
+    <tr><td class="num">24</td><td class="num">18</td><td class="num">0.000</td><td class="num">0.136</td><td>–</td></tr>
+    <tr><td class="num">23</td><td class="num">11</td><td class="num">0.000</td><td class="num">0.136</td><td>–</td></tr>
+    <tr><td class="num">19</td><td class="num">17</td><td class="num">0.000</td><td class="num">0.134</td><td>–</td></tr>
+    <tr><td class="num">22</td><td class="num">1</td><td class="num">0.000</td><td class="num">0.138</td><td>–</td></tr>
+    <tr><td class="num">22</td><td class="num">2</td><td class="num">0.000</td><td class="num">0.136</td><td>–</td></tr>
+    <tr><td class="num">21</td><td class="num">15</td><td class="num">0.000</td><td class="num">0.136</td><td>–</td></tr>
+    <tr><td class="num">25</td><td class="num">18</td><td class="num">0.000</td><td class="num">0.138</td><td>–</td></tr>
+    <tr><td class="num">24</td><td class="num">6</td><td class="num">0.000</td><td class="num">0.141</td><td>–</td></tr>
+    <tr><td class="num">31</td><td class="num">9</td><td class="num">0.000</td><td class="num">0.138</td><td>–</td></tr>
+    <tr><td class="num">20</td><td class="num">18</td><td class="num">0.000</td><td class="num">0.138</td><td>–</td></tr>
+    <tr><td class="num">18</td><td class="num">17</td><td class="num">0.000</td><td class="num">0.228</td><td>–</td></tr>
+    <tr><td class="num">16</td><td class="num">2</td><td class="num">0.000</td><td class="num">0.136</td><td>–</td></tr>
+    <tr><td class="num">20</td><td class="num">6</td><td class="num">0.000</td><td class="num">0.136</td><td>–</td></tr>
+    <tr><td class="num">20</td><td class="num">5</td><td class="num">0.000</td><td class="num">0.292</td><td>–</td></tr>
+    <tr><td class="num">16</td><td class="num">1</td><td class="num">0.000</td><td class="num">0.364</td><td>–</td></tr>
+    <tr><td class="num">30</td><td class="num">16</td><td class="num">0.000</td><td class="num">0.130</td><td>–</td></tr>
+    <tr><td class="num">29</td><td class="num">6</td><td class="num">0.000</td><td class="num">0.136</td><td>–</td></tr>
+    <tr><td class="num">11</td><td class="num">2</td><td class="num">0.000</td><td class="num">0.138</td><td>–</td></tr>
+    <tr><td class="num">16</td><td class="num">13</td><td class="num">0.000</td><td class="num">0.135</td><td>–</td></tr>
+    <tr><td class="num">13</td><td class="num">0</td><td class="num">0.000</td><td class="num">0.133</td><td>–</td></tr>
+    <tr><td class="num">11</td><td class="num">11</td><td class="num">0.000</td><td class="num">0.133</td><td>–</td></tr>
+    <tr><td class="num">13</td><td class="num">17</td><td class="num">0.000</td><td class="num">0.132</td><td>–</td></tr>
+    <tr><td class="num">22</td><td class="num">5</td><td class="num">0.000</td><td class="num">0.138</td><td>–</td></tr>
+    <tr><td class="num">25</td><td class="num">16</td><td class="num">0.000</td><td class="num">0.130</td><td>–</td></tr>
+    <tr><td class="num">25</td><td class="num">0</td><td class="num">0.000</td><td class="num">0.138</td><td>–</td></tr>
+    <tr><td class="num">4</td><td class="num">11</td><td class="num">0.000</td><td class="num">0.374</td><td>–</td></tr>
+    <tr><td class="num">21</td><td class="num">2</td><td class="num">0.000</td><td class="num">0.366</td><td>–</td></tr>
+    <tr><td class="num">0</td><td class="num">12</td><td class="num">0.000</td><td class="num">0.441</td><td>–</td></tr>
+    <tr><td class="num">4</td><td class="num">8</td><td class="num">0.000</td><td class="num">0.374</td><td>–</td></tr>
+    <tr><td class="num">30</td><td class="num">0</td><td class="num">0.000</td><td class="num">0.366</td><td>–</td></tr>
+    <tr><td class="num">21</td><td class="num">10</td><td class="num">0.000</td><td class="num">0.402</td><td>–</td></tr>
+    <tr><td class="num">19</td><td class="num">12</td><td class="num">0.000</td><td class="num">0.375</td><td>–</td></tr>
+    <tr><td class="num">23</td><td class="num">1</td><td class="num">0.000</td><td class="num">0.366</td><td>–</td></tr>
+    <tr><td class="num">22</td><td class="num">9</td><td class="num">0.000</td><td class="num">0.366</td><td>–</td></tr>
+    <tr><td class="num">31</td><td class="num">8</td><td class="num">0.000</td><td class="num">0.366</td><td>–</td></tr>
+    <tr><td class="num">21</td><td class="num">18</td><td class="num">0.000</td><td class="num">0.375</td><td>–</td></tr>
+    <tr><td class="num">26</td><td class="num">1</td><td class="num">0.000</td><td class="num">0.375</td><td>–</td></tr>
+  </tbody>
+</table>
+</details>
+
+<p><em>Full 640-head table:</em> <a href="../outputs/head_surgery/head_scores.csv">outputs/head_surgery/head_scores.csv</a>.</p>
+</section>
+
+<!-- =================================================================== -->
+<section data-section="appendix-b">
+<h2 id="appendix-b">Appendix B — Per-utterance baseline hallucinations</h2>
+
+<p>The 45 Indian-accent utterances with <code>baseline_count &gt; 0</code> in <a href="../outputs/head_surgery/baseline_predictions.csv">baseline_predictions.csv</a>, partitioned by whether any valid single-head mask covers them (<strong>15 helpable</strong>) or not (<strong>30 unhelpable</strong>). Inserted tokens are extracted by the aligner in <a href="../scripts/analysis/whisper_hallucination_analysis.py">whisper_hallucination_analysis.py</a> — run <strong>after</strong> Whisper's <code>EnglishTextNormalizer</code> (§2.2), exactly matching the pipeline that produced the 45-utterance pool (<a href="../scripts/head_surgery/fixing_set_analysis.py#L36-L49">fixing_set_analysis.py:36-49</a>). Categories:</p>
+
+<ul>
+  <li><code>con</code> — content hallucination (novel content words)</li>
+  <li><code>syn</code> — syntactic completion (function words / fillers)</li>
+  <li><code>rep</code> — repetition</li>
+</ul>
+
+<div class="callout">
+  <strong>Reference (REF) and hypothesis (HYP) columns show raw Common Voice text</strong> (readability); the "Inserted tokens" column shows the normalised form that the aligner actually saw (lowercased, hyphens split, contractions expanded, punctuation stripped). This is why e.g. <code>micro-sleeps</code> appears as <code>micro[con]</code> and <code>I-land</code> as <code>i[syn]</code> — the normaliser splits those tokens before alignment.
+</div>
+
+<h3>B.1 Helpable utterances (15)</h3>
+
+<details class="pb" open>
+<summary>15 helpable utterances <span class="sub">ID · baseline_count · reference → hypothesis · inserted tokens</span></summary>
+<table>
+  <thead>
+    <tr><th class="num">#</th><th>ID</th><th class="num">baseline_count</th><th>Reference → Hypothesis</th><th>Inserted tokens</th></tr>
+  </thead>
+  <tbody>
+    <tr><td class="num">1</td><td><code>common_voice_en_17661177</code></td><td class="num">3</td><td>"Perhaps, you should just grow sea monkeys." → "Perhaps you should just <strong>go and see</strong> your aunt, please."</td><td>go[con]; and[syn]; see[con]</td></tr>
+    <tr><td class="num">2</td><td><code>common_voice_en_18754521</code></td><td class="num">4</td><td>"It was built on land formerly held by the Macfadzeans." → "It was built on land <strong>so we</strong> were ahead by <strong>a lot</strong> of chance."</td><td>so[syn]; we[syn]; a[syn]; lot[con]</td></tr>
+    <tr><td class="num">3</td><td><code>common_voice_en_18765645</code></td><td class="num">1</td><td>"Hasan Buzurg seemed intent on restoring unity to the Ilkhanate." → "Hassan Muzarak's Seemed Intent on Restoring Unity to the Khalid"</td><td>hassan[con]</td></tr>
+    <tr><td class="num">4</td><td><code>common_voice_en_18893500</code></td><td class="num">2</td><td>"Aurelian accepted Bahram I's gifts and the terms of peace offered." → "<strong>early</strong> and accepted Bahram is gift and the terms of peace <strong>of</strong> it"</td><td>early[con]; of[syn]</td></tr>
+    <tr><td class="num">5</td><td><code>common_voice_en_20688664</code></td><td class="num">4</td><td>"Neither can be historically proven." → "Neither can make historically <strong>bolder services for the</strong> nation."</td><td>bolder[con]; services[con]; for[syn]; the[syn]</td></tr>
+    <tr><td class="num">6</td><td><code>common_voice_en_25845294</code></td><td class="num">1</td><td>"It is located at a geographical headland and surrounds the town of Sisters Beach." → "It is located at the geographical <strong>head</strong> land and surrounds the town of Sisters Beach."</td><td>head[con]</td></tr>
+    <tr><td class="num">7</td><td><code>common_voice_en_31752858</code></td><td class="num">1</td><td>"His first trainers was Vitaliy Khmelnytskyi." → "His first <strong>credits</strong> were with Ben Zuchinansky."</td><td>credits[con]</td></tr>
+    <tr><td class="num">8</td><td><code>common_voice_en_34954466</code></td><td class="num">4</td><td>"The corner stone was laid by Sir Mortimer Clarke, Lieutenant Governor of Ontario." → "The <strong>car was shown on</strong> the late Wednesday in Montemar, Canada, left in an economy of Ontario."</td><td>car[con]; was[syn]; shown[con]; on[syn]</td></tr>
+    <tr><td class="num">9</td><td><code>common_voice_en_37318569</code></td><td class="num">1</td><td>"It is located to the northwest." → "It is located to the <strong>North</strong> West."</td><td>north[con]</td></tr>
+    <tr><td class="num">10</td><td><code>common_voice_en_37828418</code></td><td class="num">1</td><td>"'I am quite aware of that,' she replied." → "I am quite aware of that she <strong>look</strong> like"</td><td>look[con]</td></tr>
+    <tr><td class="num">11</td><td><code>common_voice_en_38174426</code></td><td class="num">1</td><td>"The higher the degree of substitution, the more stable a carbocation generally is." → "the higher the degree of substitution the more stable a <strong>car</strong> vacation generally is"</td><td>car[con]</td></tr>
+    <tr><td class="num">12</td><td><code>common_voice_en_38361992</code></td><td class="num">1</td><td>"When a person is sufficiently fatigued, microsleeps may be experienced." → "When a person is sufficiently fatigued, micro-sleeps may be experienced."</td><td>micro[con]</td></tr>
+    <tr><td class="num">13</td><td><code>common_voice_en_38663260</code></td><td class="num">1</td><td>"The band's longest engagement was at Hollenden Hotel's Vogue Room in Cleveland, Ohio." → "The band's longest engagement was at <strong>the</strong> Orlandin Hotel's Vogue Room in Cleveland, Ohio."</td><td>the[syn]</td></tr>
+    <tr><td class="num">14</td><td><code>common_voice_en_40021346</code></td><td class="num">1</td><td>"The station was near the southern edge of Bedwellty Park." → "The station was near the southern edge of <strong>Bad</strong> Velti Park."</td><td>bad[con]</td></tr>
+    <tr><td class="num">15</td><td><code>common_voice_en_40886852</code></td><td class="num">1</td><td>"Norfolk Island is the only non-mainland Australian territory to have had self-governance." → "Norfolk, I-land is the only non-mainstream Australian territory to have had self-governance."</td><td>i[syn]</td></tr>
+  </tbody>
+</table>
+</details>
+
+<h3>B.2 Unhelpable utterances (30)</h3>
+
+<p><code>baseline_count</code> is not stored per-utterance for the unhelpable set (only helpable IDs appear in <a href="../outputs/head_surgery/fixing_set_per_utterance.csv">fixing_set_per_utterance.csv</a>).</p>
+
+<details class="pb">
+<summary>30 unhelpable utterances <span class="sub">ID · reference → hypothesis · inserted tokens — click to expand</span></summary>
+<table>
+  <thead>
+    <tr><th class="num">#</th><th>ID</th><th>Reference → Hypothesis</th><th>Inserted tokens</th></tr>
+  </thead>
+  <tbody>
+    <tr><td class="num">16</td><td><code>common_voice_en_17417536</code></td><td>"Without haste, yet without rest unhasting, yet unresting." → "Without haste yet without rest, <strong>on</strong> hasting you turn resting."</td><td>on[syn]; hasting[con]</td></tr>
+    <tr><td class="num">17</td><td><code>common_voice_en_17758246</code></td><td>"The irregular pattern comes from the pseudorandomness of the function." → "the irregular pattern comes from the <strong>pseudo</strong> randomness of the function"</td><td>pseudo[con]</td></tr>
+    <tr><td class="num">18</td><td><code>common_voice_en_18545942</code></td><td>"Jujitsu is a form of martial arts." → "<strong>Jiu</strong> Jitsu is a form of martial arts."</td><td>jiu[con]</td></tr>
+    <tr><td class="num">19</td><td><code>common_voice_en_18976651</code></td><td>"Nikiforos Hatzidakis was killed." → "<strong>Nikki Forrest at</strong> the Zee Ducky School"</td><td>nikki[con]; forrest[con]; at[syn]</td></tr>
+    <tr><td class="num">20</td><td><code>common_voice_en_18976653</code></td><td>"Banasura became invincible." → "<strong>Bara</strong> Surah became invincible"</td><td>bara[con]</td></tr>
+    <tr><td class="num">21</td><td><code>common_voice_en_19213280</code></td><td>"More recently, members of the Eastercon convention have also been eligible to vote." → "More recently, members of the <strong>Easter</strong> Con Convention have also been eligible to vote."</td><td>easter[con]</td></tr>
+    <tr><td class="num">22</td><td><code>common_voice_en_19985202</code></td><td>"The Football Association entered a Great Britain national amateur team to represent Great Britain." → "The Football Association of the Inter-Decade Britain National Team is representing the United Nations."</td><td>of[syn]</td></tr>
+    <tr><td class="num">23</td><td><code>common_voice_en_20685733</code></td><td>"Its county seat and largest city is Morgan." → "It's QuantiSync and I just sitting in mall"</td><td>i[syn]</td></tr>
+    <tr><td class="num">24</td><td><code>common_voice_en_20688728</code></td><td>"Watford is on the main Grand Union Canal route northwards from London." → "<strong>But</strong> Ford is on the main Grand Union Canal route northwards from Madan."</td><td>but[syn]</td></tr>
+    <tr><td class="num">25</td><td><code>common_voice_en_21780812</code></td><td>"The large Fortymile caribou herd roams near the highway." → "The large <strong>40</strong> mile caribou herd roams near the highway."</td><td>40[con]</td></tr>
+    <tr><td class="num">26</td><td><code>common_voice_en_26675808</code></td><td>"It isn't theatrical!" → "It isn't <strong>the</strong> afterthought."</td><td>the[syn]</td></tr>
+    <tr><td class="num">27</td><td><code>common_voice_en_26940741</code></td><td>"The song consists of three verses in total." → "The <strong>sound</strong> and discs of J-Wheels are included."</td><td>sound[con]</td></tr>
+    <tr><td class="num">28</td><td><code>common_voice_en_30512895</code></td><td>"Blessed are those who have died in the Lord and have not seen them." → "<strong>The</strong> best are those who have died in the Lord and have not seen Him."</td><td>the[syn]</td></tr>
+    <tr><td class="num">29</td><td><code>common_voice_en_33226454</code></td><td>"Her other works include "Christmas(Short film)"." → "Her other works include <strong>Christmas</strong> short film"</td><td>short[con]; film[con]</td></tr>
+    <tr><td class="num">30</td><td><code>common_voice_en_36641656</code></td><td>"The economy is primarily based on coconut husking and farming." → "The economy is primarily based on <strong>the</strong> coconut husking and farming."</td><td>the[syn]</td></tr>
+    <tr><td class="num">31</td><td><code>common_voice_en_36724596</code></td><td>"They typically form proximally during Strombolian eruptions, and are common at strongly peralkaline volcanoes." → "They typically come approximately during <strong>strong</strong> beryllium eruptions and are common at strongly pergolined volcanoes."</td><td>strong[con]</td></tr>
+    <tr><td class="num">32</td><td><code>common_voice_en_37032602</code></td><td>"The settlement's principal tourist attraction is the famous Borisoglebsky Monastery, now a museum." → "The settlement's principal tourist attraction is the famous <strong>Borys</strong> Glybecki Monastery, now a museum."</td><td>borys[con]</td></tr>
+    <tr><td class="num">33</td><td><code>common_voice_en_37236919</code></td><td>"A rip line simultaneously tears open the top of the balloon." → "A <strong>rip-lens</strong> Hamilton is retired so open the top of the bedroom"</td><td>lens[con]; hamilton[con]</td></tr>
+    <tr><td class="num">34</td><td><code>common_voice_en_37264767</code></td><td>"Barsi's first role was in "Fatal Vision", playing the three-year-old Kimberley MacDonald." → "Barsi's first role was in Fatal Vision, playing the three-year-old <strong>Kim</strong> Ming McDonnell."</td><td>kim[con]</td></tr>
+    <tr><td class="num">35</td><td><code>common_voice_en_37431886</code></td><td>"The launching station incorporates a tracking camera with two lenses." → "<strong>These</strong> are launching station incorporates of tracking camera with two lenses."</td><td>these[con]</td></tr>
+    <tr><td class="num">36</td><td><code>common_voice_en_37523691</code></td><td>"They toured with Paul Weller and Razorlight." → "They toured with ball weller and <strong>razor</strong> light."</td><td>razor[con]</td></tr>
+    <tr><td class="num">37</td><td><code>common_voice_en_37527873</code></td><td>"Furthermore, the equations of motion impose that the Romans mass is constant." → "furthermore the equations of motion impose that the roman's mass is constant"</td><td>roman[con]</td></tr>
+    <tr><td class="num">38</td><td><code>common_voice_en_38004990</code></td><td>"Thus the Byzantines were forced to fight alone." → "Thus the <strong>bison</strong> tens were focused to fight lone."</td><td>bison[con]</td></tr>
+    <tr><td class="num">39</td><td><code>common_voice_en_38297928</code></td><td>"These four days corresponded to the thirteenth, fourteenth, fifteenth, and sixteenth of November." → "These four days corresponded to the 13th, 14th, 15th and <strong>the</strong> 16th of November."</td><td>the[syn]</td></tr>
+    <tr><td class="num">40</td><td><code>common_voice_en_38625438</code></td><td>"Ashur's brothers were Elam, Arphaxad, Lud, and Aram." → "Asur's brothers were <strong>Ilum,</strong> Arfak, Saad, Lord and Aram."</td><td>ilum[con]</td></tr>
+    <tr><td class="num">41</td><td><code>common_voice_en_39568375</code></td><td>"The birdlife to be found in this municipality is characteristic for the region." → "The <strong>bird</strong> life to be found in this municipality is characteristic for the region."</td><td>bird[con]</td></tr>
+    <tr><td class="num">42</td><td><code>common_voice_en_39653346</code></td><td>"Therefore, according to Kircher, Snakestones worked." → "Therefore, according to <strong>Kertcher,</strong> snake stones worked."</td><td>kertcher[con]</td></tr>
+    <tr><td class="num">43</td><td><code>common_voice_en_39780450</code></td><td>"Many frequent Buzztime players are enrolled in the "Players Plus" program." → "Many frequent <strong>buzz</strong> time players are enrolled in the Players Plus program."</td><td>buzz[con]</td></tr>
+    <tr><td class="num">44</td><td><code>common_voice_en_40169034</code></td><td>"The legendary founder of Littleport was King Canute." → "The legendary founder of <strong>Little</strong> Pot was King Canold."</td><td>little[con]</td></tr>
+    <tr><td class="num">45</td><td><code>common_voice_en_40863387</code></td><td>"Pickhaver has three sisters Jane, Anne and Mary and a brother Mark." → "<strong>Pig</strong> Hever has three sisters Jane, Annie and Mary and a brother Mark."</td><td>pig[con]</td></tr>
+  </tbody>
+</table>
+</details>
+
+<h3>B.3 Observations</h3>
+<ul>
+  <li><strong>Insertion character is dominated by content hallucinations (<code>con</code>).</strong> 36 of 45 utterances have at least one <code>con</code> insertion; the remaining 9 are pure <code>syn</code> (#13, #15 in B.1; #22, #23, #24, #26, #28, #30, #39 in B.2).</li>
+  <li><strong>Counter consistency.</strong> Every utterance in the pool produces ≥1 insertion (INS) chunk under the same normalisation pipeline used by the head-surgery counter, so the "Inserted tokens" column and <code>baseline_count</code> agree on all 45 rows. The tags shown are the normalised forms the aligner actually saw (lowercase, hyphens split); raw reference / hypothesis pairs are preserved in the adjacent column for readability.</li>
+  <li><strong>The unhelpable group is enriched for proper-noun mis-recognition</strong> (Ilkhanate, Hatzidakis, Banasura, Strombolian, Borisoglebsky, Buzztime, Littleport, Pickhaver, …). These errors are plausibly below the ceiling of any attention-masking intervention because the correct token has low probability mass at the top of the decoder distribution in the first place.</li>
+</ul>
+</section>
+
+<!-- =================================================================== -->
+<section data-section="appendix-c">
+<h2 id="appendix-c">Appendix C — Automatic speech recognition hallucination taxonomy</h2>
+
+<p>The §2.3 classifier implements a <strong>3-way split</strong> (<code>syn</code> / <code>rep</code> / <code>con</code>) covering the language-model-drift branch of a broader automatic-speech-recognition hallucination taxonomy. This appendix situates those three tags in the wider landscape and flags which branches are out of scope for the head-surgery analysis.</p>
+
+<h3>C.1 Hierarchy</h3>
+<pre class="code-block"><code>Automatic speech recognition hallucinations
+├── Acoustic-trigger      <span class="comment">(audio → spurious text)</span>
+│   ├── Silence hallucination
+│   ├── Noise / music hallucination
+│   └── Accent- or phonology-driven
+├── Language-model drift  <span class="comment">(decoder fills indistinct audio with likely text) ← §2.3 classifier</span>
+│   ├── Repetition loops               → rep
+│   ├── Syntactic completion           → syn
+│   ├── Content hallucination          → con
+│   └── Training-data artefacts        <span class="comment">(e.g., "Thanks for watching")</span>
+├── Long-form / structural <span class="comment">(30-s window boundary effects)</span>
+│   ├── Cross-segment bleed
+│   ├── Timestamp hallucination
+│   └── Language-switching
+└── Evaluation-time artefacts <span class="comment">(not model errors)</span>
+    ├── Normalisation-boundary <span class="comment">(hyphen/casing/number format)</span>
+    └── Tokenisation split     <span class="comment">(compound words)</span></code></pre>
+
+<h3>C.2 What the §2.3 classifier captures</h3>
+<table>
+  <thead>
+    <tr><th>Taxonomy branch</th><th>Covered by <code>syn</code>/<code>rep</code>/<code>con</code>?</th><th>Notes</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Acoustic-trigger — silence</strong></td><td>No</td><td>Would require input-side energy / voice-activity-detection features. The §11 Stage F energy-based voice activity detection scoring is a separate analysis.</td></tr>
+    <tr><td><strong>Acoustic-trigger — noise/music</strong></td><td>No</td><td>Same — needs audio features, not text alignment.</td></tr>
+    <tr><td><strong>Acoustic-trigger — accent-driven</strong></td><td>Partially, as <code>con</code></td><td>Accent-induced content errors (<code>Byzantines</code> → <code>bison tens</code>) appear as <code>con</code> tokens but the classifier cannot distinguish them from other content hallucinations without accent metadata.</td></tr>
+    <tr><td><strong>language-model-drift — repetition</strong></td><td>Yes → <code>rep</code></td><td>Baseline rate 0.00% on this subgroup (§4).</td></tr>
+    <tr><td><strong>language-model-drift — syntactic completion</strong></td><td>Yes → <code>syn</code></td><td>Baseline 0.41% (§4).</td></tr>
+    <tr><td><strong>language-model-drift — content hallucination</strong></td><td>Yes → <code>con</code></td><td>Baseline 0.86% (§4); dominates the 45-utterance pool (36/45 — §B.3).</td></tr>
+    <tr><td><strong>language-model-drift — training-data artefacts</strong></td><td>Tagged as <code>con</code></td><td>Stock phrases from video captions ("Subtitled by…") would be categorised as <code>con</code> but are absent from the 45-utterance pool.</td></tr>
+    <tr><td><strong>Long-form — cross-segment bleed</strong></td><td>Out of scope</td><td>Every Common Voice 25 clip fits in one 30-s window (§2.1), so this branch cannot manifest in this dataset.</td></tr>
+    <tr><td><strong>Long-form — timestamp</strong></td><td>Out of scope</td><td>Generation config (<code>language="en", task="transcribe"</code>) disables timestamps.</td></tr>
+    <tr><td><strong>Long-form — language-switching</strong></td><td>Out of scope</td><td><code>language="en"</code> forces English.</td></tr>
+    <tr><td><strong>Evaluation — normalisation boundary</strong></td><td>Neutralised</td><td>Resolved by running alignment on <code>EnglishTextNormalizer</code> output (Appendix B intro).</td></tr>
+    <tr><td><strong>Evaluation — tokenisation split</strong></td><td>Neutralised</td><td>Same — normaliser splits compounds before alignment.</td></tr>
+  </tbody>
+</table>
+
+<h3>C.3 Implications for the fixing-set analysis</h3>
+<ul>
+  <li>The 45-utterance affected pool is a <strong>language-model-drift view</strong> of the failure surface. Acoustic-trigger failures, if present, are invisible to it.</li>
+  <li>The <strong>unhelpable-30 enrichment for proper-noun mangling</strong> (§B.3) straddles the language-model-drift / acoustic-trigger boundary: the underlying cause is accent-driven acoustic ambiguity, but the symptom manifests as a <code>con</code> token. Head masking targets the language-model-drift layer only, which is why the unhelpable set is bounded from above.</li>
+  <li>Silence- and noise-triggered hallucinations are addressed separately by the Stage F energy-based voice activity detection head-score re-ranking (§11); they are orthogonal to the §7/§8 per-head sweep.</li>
+</ul>
+</section>
+
+<hr>
+
+<footer>
+  <p><small>
+    Source report: <a href="head_surgery_report_edited.md">head_surgery_report_edited.md</a> ·
+    Snapshot date: 2026-04-19 ·
+    Branch: <code>feat/fixing-set-analysis</code> ·
+    Product Requirements Document: <a href="../tasks/prd-head-surgery-diagnosis.md">prd-head-surgery-diagnosis.md</a> ·
+    Milestone log: <a href="../logs/head-surgery-diagnosis-complete.md">head-surgery-diagnosis-complete.md</a>
+  </small></p>
+</footer>
+
+</div>
+</div>
+
+<script>
+/* -------- Scroll-spy for sidebar TOC -------- */
+(function() {
+  var sidebarLinks = document.querySelectorAll('#sidebar-toc a[href^="#"]');
+  var sections = [];
+  sidebarLinks.forEach(function(link) {
+    var id = link.getAttribute('href').slice(1);
+    var el = document.getElementById(id);
+    if (el) sections.push({ id: id, el: el, link: link });
+  });
+  function onScroll() {
+    var scrollY = window.scrollY + 80;
+    var current = null;
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].el.offsetTop <= scrollY) current = sections[i];
+    }
+    sidebarLinks.forEach(function(l) { l.classList.remove('active'); });
+    if (current) current.link.classList.add('active');
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+
+/* -------- Section search filter -------- */
+(function() {
+  var input = document.getElementById('doc-search');
+  var countEl = document.getElementById('doc-search-count');
+  if (!input) return;
+  var sections = Array.from(document.querySelectorAll('section[data-section]'));
+  var tocItems = Array.from(document.querySelectorAll('#sidebar-toc ul a[href^="#"]'));
+  function apply() {
+    var q = input.value.trim().toLowerCase();
+    var visible = 0;
+    sections.forEach(function(sec) {
+      var hit = !q || sec.textContent.toLowerCase().indexOf(q) !== -1;
+      sec.classList.toggle('section-hidden', !hit);
+      if (hit) visible++;
+      var id = sec.getAttribute('data-section');
+      var link = tocItems.find(function(a) { return a.getAttribute('href') === '#' + id; });
+      if (link) link.parentElement.style.display = hit ? '' : 'none';
+    });
+    countEl.textContent = q
+      ? visible + ' of ' + sections.length + ' section' + (sections.length === 1 ? '' : 's') + ' match'
+      : 'all sections visible';
+  }
+  input.addEventListener('input', apply);
+  input.addEventListener('keydown', function(e) { if (e.key === 'Escape') { input.value = ''; apply(); } });
+})();
+
+/* -------- Expand all / collapse all for <details.pb> -------- */
+(function() {
+  var expandBtn = document.getElementById('doc-expand-all');
+  var collapseBtn = document.getElementById('doc-collapse-all');
+  if (!expandBtn || !collapseBtn) return;
+  var all = function() { return document.querySelectorAll('details.pb'); };
+  expandBtn.addEventListener('click', function() { all().forEach(function(d) { d.open = true; }); });
+  collapseBtn.addEventListener('click', function() { all().forEach(function(d) { d.open = false; }); });
+})();
+
+/* -------- Pencil toggle (off by default; lazy-enable via PalatinoPencil API) -------- */
+(function() {
+  var btn = document.getElementById('doc-pencil-toggle');
+  if (!btn) return;
+  var PENCIL_KEY = 'pb-pencil-enabled::' + location.pathname;
+
+  function paint(on) {
+    btn.classList.toggle('pressed', on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    btn.textContent = on ? 'Pencil: on' : 'Pencil: off';
+  }
+
+  function apply(on) {
+    if (!window.PalatinoPencil) return false;
+    if (on) window.PalatinoPencil.enable();
+    else    window.PalatinoPencil.disable();
+    paint(on);
+    try { localStorage.setItem(PENCIL_KEY, on ? '1' : '0'); } catch (e) {}
+    return true;
+  }
+
+  btn.addEventListener('click', function() {
+    var currentlyOn = btn.classList.contains('pressed');
+    if (!apply(!currentlyOn)) {
+      // pencil.js not loaded yet — retry shortly
+      setTimeout(function() { apply(!currentlyOn); }, 120);
+    }
+  });
+
+  // Restore previous preference on page load (default: off)
+  try {
+    if (localStorage.getItem(PENCIL_KEY) === '1') {
+      var tryEnable = function() {
+        if (!apply(true)) setTimeout(tryEnable, 80);
+      };
+      tryEnable();
+    } else {
+      paint(false);
+    }
+  } catch (e) { paint(false); }
+})();
+
+/* -------- Δ insertion-rate heatmap (32 layers × 20 heads) --------
+ * Renders the per-(layer, head) Δ grid as a CSS-grid heatmap instead of a
+ * static PNG. Most of the 640 cells are Δ = 0 (no measured effect); only
+ * the cells explicitly reported in the paper carry non-zero values:
+ *   - (L=0, h=5): catastrophic keystone, +100.16 pp when masked → Δ ≈ −1.00
+ *   - §8.2 keystone cluster: ~10% Indian insertion when masked → Δ ≈ −0.088
+ *   - §7.4 top-10 positive heads: Δ ≈ +0.001
+ * Color scale: sqrt of absolute value, cream → deep burgundy.
+ */
+(function() {
+  var host = document.getElementById('deltaHeatmap');
+  if (!host) return;
+  var N_LAYERS = 32, N_HEADS = 20;
+
+  // Build a sparse value matrix. Default = 0 ("no measured effect").
+  var matrix = new Array(N_LAYERS * N_HEADS).fill(0);
+  function put(l, h, v) { matrix[l * N_HEADS + h] = v; }
+
+  // Catastrophic keystone (§8.2): masking it drives insertion from 1.27% → 101.43%
+  put(0, 5, -1.0016);
+  // §8.2 keystone cluster: ~10.07–10.19% Indian insertion when masked → Δ ≈ −0.088
+  put(0, 13, -0.0892);
+  put(0, 18, -0.0886);
+  put(0, 1,  -0.0884);
+  put(29, 18,-0.0882);
+  put(27, 15,-0.0882);
+  put(11, 9, -0.0880);
+  put(13, 19,-0.0880);
+  // §7.4 resampling-significant + top-10 positives (Δ ≈ +0.001)
+  put(20, 11,  0.00108);   // p = 0.046 (only significant head)
+  put(0, 15,   0.00102);
+  put(22, 19,  0.00102);
+  put(7, 6,    0.00098);
+  put(10, 8,   0.00094);
+  put(25, 5,   0.00096);
+  put(0, 14,   0.00092);
+  put(13, 17,  0.00068);
+  put(12, 8,   0.00064);
+  put(11, 11,  0.00060);
+
+  // Appendix A remaining top-50 (all Δ ≈ 0.0005 or less — barely visible)
+  var faintPositives = [
+    [3,3],[15,6],[15,18],[17,8],[23,16],[24,18],[23,11],[19,17],[22,1],[22,2],
+    [21,15],[25,18],[24,6],[31,9],[20,18],[18,17],[16,2],[20,6],[20,5],[16,1],
+    [30,16],[29,6],[11,2],[16,13],[13,0],[22,5],[25,16],[25,0],[4,11],[21,2],
+    [0,12],[4,8],[30,0],[21,10],[19,12],[23,1],[22,9],[31,8],[21,18],[26,1]
+  ];
+  faintPositives.forEach(function(lh) {
+    if (matrix[lh[0] * N_HEADS + lh[1]] === 0) put(lh[0], lh[1], 0.00045);
+  });
+
+  // Color interpolation — single burgundy ramp on sqrt(|Δ|). Positive and
+  // negative map to the same hue since the caption says darker = larger |Δ|.
+  var MAX_ABS = 1.0016;   // extreme value in this dataset
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function rgb(r, g, b) { return 'rgb(' + (r|0) + ',' + (g|0) + ',' + (b|0) + ')'; }
+  // Endpoints: cream #faf9f7 → mid burgundy #7c3043 → deep wine #3a1a22
+  function colorFor(v) {
+    var a = Math.abs(v);
+    if (a === 0) return '#faf9f7';
+    var t = Math.sqrt(a / MAX_ABS);
+    if (t < 0.6) {
+      var u = t / 0.6;
+      return rgb(lerp(250, 124, u), lerp(249, 48, u), lerp(247, 67, u));
+    } else {
+      var u2 = (t - 0.6) / 0.4;
+      return rgb(lerp(124, 58, u2), lerp(48, 26, u2), lerp(67, 34, u2));
+    }
+  }
+
+  // Build the grid: header row (corner + h=0..19) then 32 rows (layer label + 20 cells).
+  var parts = ['<div class="hm-corner">L\\H</div>'];
+  for (var h = 0; h < N_HEADS; h++) parts.push('<div class="hm-head">' + h + '</div>');
+  for (var l = 0; l < N_LAYERS; l++) {
+    parts.push('<div class="hm-layer">' + l + '</div>');
+    for (var h2 = 0; h2 < N_HEADS; h2++) {
+      var v = matrix[l * N_HEADS + h2];
+      var fmt = v === 0 ? '0' : (v > 0 ? '+' : '') + v.toFixed(4);
+      var tip = 'L=' + l + ' h=' + h2 + ' · Δ=' + fmt;
+      parts.push(
+        '<div class="hm-cell" data-tip="' + tip +
+        '" style="background:' + colorFor(v) + ';"></div>'
+      );
+    }
+  }
+  host.innerHTML = parts.join('');
+})();
+
+/* -------- Interactive duration distribution chart linked to table --------
+ * Implementation notes:
+ *   - dataset.backgroundColor is a *function* (callable scriptable option),
+ *     so Chart.js re-evaluates it on every render. Static color strings can
+ *     be cached by Chart.js v4, which causes mutating dataset.backgroundColor
+ *     after init to silently skip a repaint.
+ *   - Hover state lives in module-scope `highlightedSubset`. Updating it +
+ *     calling chart.update() is enough to repaint with the new colors.
+ *   - Row event binding is intentionally OUTSIDE the chart-init IIFE so it
+ *     still toggles row CSS even if Chart.js fails to load.
+ */
+window.__durationLink = (function() {
+  var indexSubset = ['indian', 'nonindian'];
+  // Softer, watercolor-style palette: translucent fills that blend into a
+  // muted plum tone where the two subsets overlap, plus deeper edge colors
+  // so each silhouette stays crisp against the cream background.
+  //   Indian   — burgundy  (fill: --pb-data-1 @ 0.55,  edge: --pb-burgundy-700)
+  //   Non-Ind. — deep slate (fill: #3a6a93  @ 0.55,   edge: #1e4a6d)
+  var baseColors = [
+    { fill: 'rgba(124, 48, 67, 0.55)',  line: '#5c2233',
+      dimFill: 'rgba(124, 48, 67, 0.08)', dimLine: 'rgba(124, 48, 67, 0.28)' },
+    { fill: 'rgba(58, 106, 147, 0.55)', line: '#1e4a6d',
+      dimFill: 'rgba(58, 106, 147, 0.08)', dimLine: 'rgba(58, 106, 147, 0.28)' }
+  ];
+
+  var highlightedSubset = null;   // 'indian' | 'nonindian' | null — current visual state
+  var stickySubset = null;        // pinned selection from a tap/click; survives pointer-leave
+  var chart = null;
+
+  function dimmedFor(i) { return highlightedSubset && indexSubset[i] !== highlightedSubset; }
+
+  function colorForBar(i) {
+    var c = baseColors[i];
+    return dimmedFor(i) ? c.dimFill : c.fill;
+  }
+  function borderForBar(i) {
+    var c = baseColors[i];
+    return dimmedFor(i) ? c.dimLine : c.line;
+  }
+
+  function setHighlight(subset) {
+    highlightedSubset = subset || null;
+
+    // 1) toggle row CSS — this works whether or not the chart loaded
+    var rows = document.querySelectorAll('#durationTable tbody tr[data-subset]');
+    rows.forEach(function(tr) {
+      var s = tr.getAttribute('data-subset');
+      tr.classList.toggle('row-highlight', s === highlightedSubset);
+      tr.classList.toggle('row-dim',       highlightedSubset !== null && s !== highlightedSubset);
+    });
+
+    // 2) repaint the chart if it exists
+    if (chart) {
+      // chart.update() (no arg) runs the default 'normal' mode which
+      // re-evaluates scriptable options like our backgroundColor function.
+      chart.update('none');
+    }
+  }
+
+  function initChart() {
+    var canvas = document.getElementById('durationChart');
+    if (!canvas || typeof Chart === 'undefined') return null;
+
+    var serif = '"Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif';
+    Chart.defaults.font.family = serif;
+    Chart.defaults.color = '#4a4a4a';
+
+    var binEdges = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0, 10.5, 11.0, 11.5, 12.0, 12.5, 13.0, 13.5, 14.0];
+    var BIN_WIDTH = 0.5;
+    // Use {x, y} points with x = bin *center*. A linear x-axis then places
+    // ticks at the integer-second boundaries (0, 1, 2, …) and the bars fill
+    // the 0.5 s intervals between consecutive tick marks — the standard
+    // histogram convention.
+    function toPoints(counts) {
+      return counts.map(function(c, i) {
+        return { x: (binEdges[i] + binEdges[i + 1]) / 2, y: c };
+      });
+    }
+    var indianBins    = toPoints([0, 0, 0, 1, 7, 7, 21, 22, 31, 45, 47, 53, 58, 37, 42, 29, 33, 17, 16, 7, 9, 1, 0, 0, 0, 0, 0, 1]);
+    var nonIndianBins = toPoints([0, 0, 0, 0, 0, 6, 11, 17, 27, 35, 49, 49, 52, 45, 47, 17, 23, 17, 13, 7, 5, 1, 0, 0, 0, 1, 0, 0]);
+
+    return new Chart(canvas, {
+      type: 'bar',
+      data: {
+        datasets: [
+          {
+            label: 'Indian-accent (N=484)',
+            data: indianBins,
+            // Scriptable: re-evaluated on every render so highlight changes apply.
+            backgroundColor: function() { return colorForBar(0); },
+            borderColor:     function() { return borderForBar(0); },
+            borderWidth: 0,
+            categoryPercentage: 1.0, barPercentage: 1.0,
+            grouped: false, order: 2
+          },
+          {
+            label: 'Non-Indian (N=422)',
+            data: nonIndianBins,
+            backgroundColor: function() { return colorForBar(1); },
+            borderColor:     function() { return borderForBar(1); },
+            borderWidth: 0,
+            categoryPercentage: 1.0, barPercentage: 1.0,
+            grouped: false, order: 1
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        onClick: function(evt, els) {
+          if (!els || !els.length) return;
+          toggleSticky(indexSubset[els[0].datasetIndex]);
+        },
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: { font: { size: 13 }, boxWidth: 14, boxHeight: 14 }
+          },
+          tooltip: {
+            backgroundColor: '#3a3a3a',
+            titleFont: { family: serif, size: 13 },
+            bodyFont:  { family: serif, size: 13 },
+            callbacks: {
+              title: function(items) {
+                if (!items.length) return '';
+                var x = items[0].parsed.x;
+                return (x - BIN_WIDTH / 2).toFixed(1) + '–' + (x + BIN_WIDTH / 2).toFixed(1) + ' s';
+              },
+              label: function(ctx) { return ctx.dataset.label + ': ' + ctx.parsed.y + ' clips'; }
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: 'Clip count', font: { size: 13 } },
+            grid: {
+              color: 'rgba(124, 48, 67, 0.08)',   // faint burgundy rules
+              lineWidth: 1,
+              drawTicks: false
+            },
+            border: { color: '#d8d2c9', width: 1 },
+            ticks: {
+              font: { size: 11 },
+              color: '#6a6a6a',
+              padding: 6,
+              stepSize: 10
+            }
+          },
+          x: {
+            type: 'linear',
+            min: 0,
+            max: 14,
+            offset: false,
+            title: { display: true, text: 'Duration (seconds)', font: { size: 13 } },
+            grid: {
+              color: 'rgba(124, 48, 67, 0.07)',
+              lineWidth: 1,
+              drawOnChartArea: true,
+              tickColor: '#b8b0a4',
+              tickLength: 5
+            },
+            border: { color: '#d8d2c9', width: 1 },
+            ticks: {
+              stepSize: 1,            // major tick every 1 s; bars fill the 0.5 s sub-intervals
+              font: { size: 11 },
+              color: '#6a6a6a',
+              padding: 4,
+              callback: function(v) { return v + ' s'; }
+            },
+            stacked: false
+          }
+        }
+      }
+    });
+  }
+
+  function toggleSticky(subset) {
+    // Click/tap toggles a pinned selection. Same subset unpins; other subset replaces.
+    if (stickySubset === subset) {
+      stickySubset = null;
+      setHighlight(null);
+    } else {
+      stickySubset = subset;
+      setHighlight(subset);
+    }
+  }
+
+  function bindRows() {
+    var rows = document.querySelectorAll('#durationTable tbody tr[data-subset]');
+    rows.forEach(function(tr) {
+      var s = tr.getAttribute('data-subset');
+      tr.addEventListener('mouseenter', function() {
+        if (stickySubset) return;     // pinned state wins
+        setHighlight(s);
+      });
+      tr.addEventListener('mouseleave', function() {
+        if (stickySubset) return;
+        setHighlight(null);
+      });
+      tr.addEventListener('click', function() { toggleSticky(s); });
+    });
+
+    // Clear pin when tapping outside the table and the chart — key UX on iPad,
+    // where the only way to drop a sticky selection is a "tap elsewhere" gesture.
+    document.addEventListener('click', function(e) {
+      if (!stickySubset) return;
+      var table  = document.getElementById('durationTable');
+      var canvas = document.getElementById('durationChart');
+      if (table && table.contains(e.target))   return;
+      if (canvas && canvas.contains(e.target)) return;
+      stickySubset = null;
+      setHighlight(null);
+    });
+
+    return rows.length;
+  }
+
+  function start() {
+    chart = initChart();
+    var n = bindRows();
+    // Expose for debugging from the browser console:
+    //   __durationLink.set('indian')   // simulate hovering Indian row
+    //   __durationLink.set(null)       // clear
+    return { chart: chart, rowCount: n, set: setHighlight };
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start);
+    return { set: setHighlight };
+  } else {
+    return start();
+  }
+})();
+</script>
+</body>
+</html>

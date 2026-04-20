@@ -94,8 +94,9 @@ tr.highlight { background: #fdf0ef; }
 
 /* === Math Blocks === */
 .math-block {
-  background: #fff; border: 1px solid #ddd; border-radius: 6px;
+  background: #f5f4f0; border: 1px solid #ddd; border-radius: 6px;
   padding: 1.2em 1.5em; margin: 1.2em 0; text-align: center; overflow-x: auto;
+  font-size: 1.3em;
 }
 
 /* === Code / File-Tree Blocks === */
@@ -117,6 +118,68 @@ span.verdict.best       { background: #7c3043; color: #fff; }
 span.verdict.viable     { background: #27ae60; color: #fff; }
 span.verdict.partial    { background: #d4a017; color: #fff; }
 span.verdict.not-viable { background: #c0392b; color: #fff; }
+
+/* === Chart-table hover linking ===========================================
+   Convention for any Palatino-Burgundy doc where a Chart.js chart sits next
+   to a data table whose rows correspond 1:1 to chart datasets.
+
+   Visual contract — DIM-ONLY (no extra "highlight" treatment):
+     • Hovering a table row dims every OTHER dataset in the chart.
+     • The hovered subset stays at its baseline vivid color, unchanged.
+     • Two visual states only: normal (~α 0.85) and dimmed (~α 0.08–0.10).
+     Rationale: the eye reads "the others faded" much faster than "this one
+     got brighter and the others faded simultaneously."
+
+   Implementation rules (JS, not CSS):
+     1. dataset.backgroundColor / borderColor MUST be a *scriptable function*
+        — Chart.js v4 caches static color strings, so mutating them after
+        init and calling chart.update('none') silently skips the repaint.
+     2. Bind row mouseenter/mouseleave OUTSIDE any `if Chart undefined: return`
+        guard, so the row CSS still toggles even if Chart.js failed to load.
+     3. Do NOT add a chart-side onHover handler that mirrors the highlight
+        back to the table — it races with row mouseenter when the cursor
+        crosses the canvas en route to the row.
+
+   HTML setup:
+     <table id="..." class="linked">
+       <tr data-subset="indian">
+         <td><span class="legend-swatch" style="background:#7c3043;"></span>...</td>
+         ...
+       </tr>
+     </table>
+   ========================================================================= */
+.chart-wrap {
+  background: #faf9f7;
+  border: 1px solid #e0ddd5;
+  border-left: 3px solid #7c3043;
+  border-radius: 4px;
+  padding: 1em 1.2em 0.8em;
+  margin: 1.2em 0 0.6em;
+}
+.chart-wrap canvas { max-width: 100%; }
+.chart-wrap .chart-caption {
+  margin-top: 0.6em;
+  font-size: 0.88em;
+  color: #6a6a6a;
+  font-style: italic;
+  text-align: center;
+}
+.legend-swatch {
+  display: inline-block;
+  width: 0.85em; height: 0.85em;
+  border-radius: 2px;
+  margin-right: 0.45em;
+  vertical-align: -0.1em;
+}
+table.linked tbody tr {
+  transition: background-color 0.15s, opacity 0.15s;
+  cursor: default;
+}
+table.linked tbody tr.row-highlight {
+  background: #f5eaed;
+  box-shadow: inset 3px 0 0 #7c3043;
+}
+table.linked tbody tr.row-dim { opacity: 0.45; }
 
 /* === Inline TOC (mobile only) === */
 nav#toc { display: none; margin: 1em 0; }

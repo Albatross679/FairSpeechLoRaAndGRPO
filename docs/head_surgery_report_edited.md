@@ -96,6 +96,8 @@ Each hallucinated token in the hypothesis is categorized into one of three disjo
 | `syntactic_completion` | Fillers, grammatical padding (e.g., "you know", "and so on") |
 | `content_hallucination` | Fabricated content not in reference |
 
+These three buckets cover the **language-model-drift** branch of a broader ASR-hallucination taxonomy. Acoustic-trigger and long-form/structural hallucinations are out of scope for this classifier but are relevant for interpreting the §8b unhelpable set. Full taxonomy: [Appendix C](#appendix-c--asr-hallucination-taxonomy).
+
 ---
 
 ## 3. Model & inference setup
@@ -674,3 +676,54 @@ The 45 Indian-accent utterances with `baseline_count > 0` in [`baseline_predicti
 - **Insertion character is dominated by content hallucinations (`con`).** 36 of 45 utterances have at least one `con` insertion; the remaining 9 are pure `syn` (#13, #15 in B.1; #22, #23, #24, #26, #28, #30, #39 in B.2).
 - **Counter consistency.** Every utterance in the pool produces ≥1 INS chunk under the same normalisation pipeline used by the head-surgery counter, so the "Inserted tokens" column and `baseline_count` agree on all 45 rows. The tags shown are the normalised forms the aligner actually saw (lowercase, hyphens split); raw REF/HYP are preserved in the adjacent column for readability.
 - **The unhelpable group is enriched for proper-noun mis-recognition** (Ilkhanate, Hatzidakis, Banasura, Strombolian, Borisoglebsky, Buzztime, Littleport, Pickhaver, …). These errors are plausibly below the ceiling of any attention-masking intervention because the correct token has low probability mass at the top of the decoder distribution in the first place.
+
+---
+
+## Appendix C — ASR hallucination taxonomy
+
+The §2.3 classifier implements a **3-way split** (`syn` / `rep` / `con`) covering the language-model-drift branch of a broader ASR-hallucination taxonomy. This appendix situates those three tags in the wider landscape and flags which branches are out of scope for the head-surgery analysis.
+
+### C.1 Hierarchy
+
+```
+ASR hallucinations
+├── Acoustic-trigger      (audio → spurious text)
+│   ├── Silence hallucination
+│   ├── Noise / music hallucination
+│   └── Accent- or phonology-driven
+├── Language-model drift  (decoder fills indistinct audio with likely text) ← §2.3 classifier
+│   ├── Repetition loops               → rep
+│   ├── Syntactic completion           → syn
+│   ├── Content hallucination          → con
+│   └── Training-data artefacts        (e.g., "Thanks for watching")
+├── Long-form / structural (30-s window boundary effects)
+│   ├── Cross-segment bleed
+│   ├── Timestamp hallucination
+│   └── Language-switching
+└── Evaluation-time artefacts (not model errors)
+    ├── Normalisation-boundary (hyphen/casing/number format)
+    └── Tokenisation split  (compound words)
+```
+
+### C.2 What the §2.3 classifier captures
+
+| Taxonomy branch | Covered by `syn`/`rep`/`con`? | Notes |
+|---|---|---|
+| **Acoustic-trigger — silence** | No | Would require input-side energy/VAD features. The §11 Stage F energy-VAD scoring is a separate analysis. |
+| **Acoustic-trigger — noise/music** | No | Same — needs audio features, not text alignment. |
+| **Acoustic-trigger — accent-driven** | Partially, as `con` | Accent-induced content errors (`Byzantines` → `bison tens`) appear as `con` tokens but the classifier cannot distinguish them from other content hallucinations without accent metadata. |
+| **LM-drift — repetition** | Yes → `rep` | Baseline rate 0.00% on this subgroup (§4). |
+| **LM-drift — syntactic completion** | Yes → `syn` | Baseline 0.41% (§4). |
+| **LM-drift — content hallucination** | Yes → `con` | Baseline 0.86% (§4); dominates the 45-utterance pool (36/45 — §B.3). |
+| **LM-drift — training-data artefacts** | Tagged as `con` | Stock phrases from video captions ("Subtitled by…") would be categorised as `con` but are absent from the 45-utterance pool. |
+| **Long-form — cross-segment bleed** | Out of scope | Every CV25 clip fits in one 30-s window (§2.1), so this branch cannot manifest in this dataset. |
+| **Long-form — timestamp** | Out of scope | Generation config (`language="en", task="transcribe"`) disables timestamps. |
+| **Long-form — language-switching** | Out of scope | `language="en"` forces English. |
+| **Evaluation — normalisation boundary** | Neutralised | Resolved by running alignment on `EnglishTextNormalizer` output (Appendix B intro). |
+| **Evaluation — tokenisation split** | Neutralised | Same — normaliser splits compounds before alignment. |
+
+### C.3 Implications for the fixing-set analysis
+
+- The 45-utterance affected pool is an **LM-drift view** of the failure surface. Acoustic-trigger failures, if present, are invisible to it.
+- The **unhelpable-30 enrichment for proper-noun mangling** (§B.3) straddles the LM-drift / acoustic-trigger boundary: the underlying cause is accent-driven acoustic ambiguity, but the symptom manifests as a `con` token. Head masking targets the LM-drift layer only, which is why the unhelpable set is bounded from above.
+- Silence- and noise-triggered hallucinations are addressed separately by the Stage F energy-VAD head-score re-ranking (§11); they are orthogonal to the §7/§8 per-head sweep.

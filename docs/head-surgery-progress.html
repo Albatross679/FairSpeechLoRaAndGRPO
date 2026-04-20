@@ -4,12 +4,35 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Head-Surgery Diagnosis — Progress</title>
+<link rel="stylesheet" href="styles/author-card.css">
+<link rel="stylesheet" href="styles/pencil.css">
+<script defer src="styles/qr.js"></script>
+<script defer src="styles/pencil.js"></script>
 <style>
-  :root { font-size: 62.5%; }
+  :root {
+    font-size: 62.5%;
+    --accent: #7c3043;
+    --accent-hover: #a3415a;
+    --accent-visited: #5c2233;
+    --accent-tint: #f5eaed;
+    --fg: #4a4a4a;
+    --fg-strong: #3a3a3a;
+    --fg-muted: #7a7a7a;
+    --bg: #f5f4f0;
+    --bg-sidebar: #f0efeb;
+    --bg-surface: #faf9f7;
+    --bg-raised: #ffffff;
+    --border: #dddddd;
+    --border-soft: #e0ddd5;
+    --font-serif: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    --radius-sm: 4px;
+    --radius-md: 6px;
+  }
   html, body {
-    background: #f5f4f0;
-    color: #4a4a4a;
-    font-family: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-serif);
     font-size: 1.7rem;
     line-height: 1.618;
     margin: 0;
@@ -28,29 +51,29 @@
     top: 0;
     height: 100vh;
     overflow-y: auto;
-    background: #f0efeb;
+    background: var(--bg-sidebar);
     padding: 1.5em 1em;
-    border-right: 1px solid #ddd;
+    border-right: 1px solid var(--border);
     box-sizing: border-box;
     font-size: 1em;
   }
-  .sidebar strong { display: block; font-size: 1.15em; color: #3a3a3a; margin-bottom: 0.6em; }
+  .sidebar strong { display: block; font-size: 1.15em; color: var(--fg-strong); margin-bottom: 0.6em; }
   .sidebar ul { list-style: none; padding: 0; margin: 0; }
   .sidebar li { margin: 0.2em 0; }
   .sidebar a {
     display: block;
     padding: 0.3em 0.6em;
-    color: #4a4a4a;
+    color: var(--fg);
     text-decoration: none;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     line-height: 1.35;
   }
-  .sidebar a:hover { background: #ebe7e3; color: #7c3043; }
+  .sidebar a:hover { background: #ebe7e3; color: var(--accent); }
   .sidebar a.active {
     background: #ebe7e3;
-    color: #7c3043;
+    color: var(--accent);
     font-weight: 600;
-    border-left: 2px solid #7c3043;
+    border-left: 2px solid var(--accent);
   }
   .main-content {
     flex: 1;
@@ -59,7 +82,7 @@
     box-sizing: border-box;
   }
   h1, h2, h3, h4, h5, h6 {
-    color: #3a3a3a;
+    color: var(--fg-strong);
     font-family: inherit;
     font-weight: 700;
     line-height: 1.25;
@@ -69,50 +92,72 @@
   h1 { font-size: 2em; margin-top: 0.3em; }
   h2 {
     font-size: 1.7em;
-    border-bottom: 2px solid #7c3043;
+    border-bottom: 2px solid var(--accent);
     padding-bottom: 0.25em;
   }
   h3 { font-size: 1.45em; }
   h4 { font-size: 1.25em; }
   p.subtitle {
     font-size: 1.1em;
-    color: #7c3043;
+    color: var(--accent);
     font-style: italic;
     margin-top: -0.2em;
   }
-  hr { border: 0; border-top: 1px solid #ddd; margin: 1.5em 0; }
-  a { color: #7c3043; text-decoration: none; border-bottom: 1px dotted #7c3043; }
-  a:hover { color: #a3415a; border-bottom-color: #a3415a; }
-  a:visited { color: #5c2233; }
-  strong { color: #3a3a3a; }
+  hr { border: 0; border-top: 1px solid var(--border); margin: 1.5em 0; }
+  a { color: var(--accent); text-decoration: none; border-bottom: 1px dotted var(--accent); }
+  a:hover { color: var(--accent-hover); border-bottom-color: var(--accent-hover); }
+  a:visited { color: var(--accent-visited); }
+  strong { color: var(--fg-strong); }
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    background: var(--bg-surface);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    border: 1px solid var(--border-soft);
+  }
+  pre.code-block {
+    position: relative;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-sm);
+    padding: 1.2em 1.5em;
+    margin: 1.2em 0;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    line-height: 1.65;
+    color: var(--fg-strong);
+  }
   table {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.92em;
     margin: 1.2em 0;
-    border-top: 2px solid #7c3043;
-    border-bottom: 2px solid #7c3043;
+    border-top: 2px solid var(--accent);
+    border-bottom: 2px solid var(--accent);
   }
   thead th {
     padding: 0.6em 0.8em;
     text-align: left;
     font-weight: 700;
-    color: #3a3a3a;
-    border-bottom: 3px solid #7c3043;
+    color: var(--fg-strong);
+    border-bottom: 3px solid var(--accent);
   }
   tbody td {
     padding: 0.55em 0.8em;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid var(--border);
     vertical-align: top;
   }
   tbody tr:last-child td { border-bottom: none; }
-  tbody tr:hover { background: #f5eaed; }
+  tbody tr:hover { background: var(--accent-tint); }
   .callout {
-    border-left: 4px solid #7c3043;
+    border-left: 4px solid var(--accent);
     background: #f1f1f1;
     padding: 1em 1.2em;
     margin: 1.2em 0;
-    border-radius: 0 6px 6px 0;
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
   }
   .callout.warning { border-left-color: #d4a017; background: #fdf8e8; }
   .callout.danger  { border-left-color: #c0392b; background: #fdf0ef; }
@@ -129,7 +174,7 @@
   .badge.done  { background: #e1f2e6; color: #1e6c3b; border: 1px solid #27ae60; }
   .badge.code  { background: #fff5e5; color: #8a5a00; border: 1px solid #d4a017; }
   .badge.todo  { background: #fdf0ef; color: #8c2b20; border: 1px solid #c0392b; }
-  .badge.wip   { background: #f5eaed; color: #7c3043; border: 1px solid #7c3043; }
+  .badge.wip   { background: var(--accent-tint); color: var(--accent); border: 1px solid var(--accent); }
   .metric-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -137,27 +182,132 @@
     margin: 1.2em 0;
   }
   .metric {
-    background: #faf9f7;
-    border: 1px solid #ddd;
-    border-left: 3px solid #7c3043;
-    border-radius: 4px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-sm);
     padding: 0.9em 1.1em;
   }
-  .metric .label { font-size: 0.85em; color: #7c3043; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-  .metric .value { font-size: 1.5em; color: #3a3a3a; font-weight: 700; line-height: 1.1; margin-top: 0.15em; }
-  .metric .unit  { font-size: 0.72em; color: #7a7a7a; font-weight: 400; }
+  .metric .label { font-size: 0.85em; color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+  .metric .value { font-size: 1.5em; color: var(--fg-strong); font-weight: 700; line-height: 1.1; margin-top: 0.15em; }
+  .metric .unit  { font-size: 0.72em; color: var(--fg-muted); font-weight: 400; }
   nav#toc {
     display: none;
-    background: #f0efeb;
+    background: var(--bg-sidebar);
     padding: 1em 1.2em;
-    border-left: 3px solid #7c3043;
-    border-radius: 0 6px 6px 0;
+    border-left: 3px solid var(--accent);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
     margin-bottom: 1.5em;
   }
-  nav#toc strong { display: block; font-size: 1.05em; color: #3a3a3a; margin-bottom: 0.4em; }
+  nav#toc strong { display: block; font-size: 1.05em; color: var(--fg-strong); margin-bottom: 0.4em; }
   nav#toc ul { margin: 0; padding-left: 1.4em; }
-  footer { margin-top: 3em; padding-top: 1em; border-top: 1px solid #ddd; color: #7a7a7a; font-size: 0.9em; }
+  footer { margin-top: 3em; padding-top: 1em; border-top: 1px solid var(--border); color: var(--fg-muted); font-size: 0.9em; }
   footer small { font-size: 1em; }
+
+  /* === Document toolbar (search + expand/collapse) === */
+  .doc-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8em;
+    align-items: center;
+    margin: 1em 0 1.8em;
+    padding: 0.7em 0.9em;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-soft);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-sm);
+    font-size: 0.95em;
+  }
+  .doc-toolbar input[type="search"] {
+    flex: 1;
+    min-width: 14em;
+    font-family: var(--font-serif);
+    font-size: 1em;
+    padding: 0.35em 0.7em;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--fg);
+  }
+  .doc-toolbar input[type="search"]:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-tint);
+  }
+  .doc-toolbar .hit-count {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    color: var(--fg-muted);
+    white-space: nowrap;
+  }
+  .doc-toolbar button {
+    font-family: var(--font-serif);
+    font-size: 0.92em;
+    color: var(--accent);
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.3em 0.8em;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .doc-toolbar button:hover { background: var(--accent); color: var(--bg-raised); border-color: var(--accent); }
+
+  /* === Collapsible (details.pb) === */
+  details.pb {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-soft);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-sm);
+    margin: 1.2em 0;
+    padding: 0 1.1em;
+  }
+  details.pb > summary {
+    cursor: pointer;
+    padding: 0.7em 0.2em;
+    font-weight: 700;
+    color: var(--fg-strong);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.55em;
+  }
+  details.pb > summary::-webkit-details-marker { display: none; }
+  details.pb > summary::before {
+    content: "\25B8";
+    color: var(--accent);
+    font-size: 0.9em;
+    transition: transform 0.15s;
+    display: inline-block;
+    width: 1em;
+  }
+  details.pb[open] > summary::before { transform: rotate(90deg); }
+  details.pb > summary .sub { font-weight: 400; color: var(--fg-muted); font-size: 0.88em; font-style: italic; margin-left: 0.4em; }
+  details.pb[open] { padding-bottom: 0.8em; }
+
+  /* === Copy-to-clipboard button on code blocks === */
+  pre.code-block .copy-btn {
+    position: absolute;
+    top: 0.5em;
+    right: 0.6em;
+    font-family: var(--font-serif);
+    font-size: 0.82em;
+    color: var(--accent);
+    background: var(--bg-raised);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-sm);
+    padding: 0.12em 0.55em;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s, color 0.15s;
+  }
+  pre.code-block:hover .copy-btn { opacity: 1; }
+  pre.code-block .copy-btn:hover { background: var(--accent); color: var(--bg-raised); }
+  pre.code-block .copy-btn.copied { background: #27ae60; color: var(--bg-raised); border-color: #27ae60; opacity: 1; }
+
+  /* === Section-hidden filter for search === */
+  .section-hidden { display: none; }
+
   @media (max-width: 900px) {
     .page-wrapper { flex-direction: column; }
     .sidebar { display: none; }
@@ -171,15 +321,33 @@
     .main-content { max-width: 100%; padding: 0; }
     body { background: white; color: black; }
     a { color: black; border-bottom: none; }
-    h2 { page-break-after: avoid; }
-    tr, .callout, .metric { page-break-inside: avoid; }
+    a[href^="http"]::after,
+    a[href^="/"]::after  { content: " (" attr(href) ")"; font-family: var(--font-mono); font-size: 0.85em; color: #555; }
+    h2 { page-break-after: avoid; break-after: avoid; page-break-before: always; break-before: page; }
+    h1 + p.subtitle + hr + h2,
+    main > h2:first-of-type { page-break-before: auto; break-before: auto; }
+    tr, .callout, .metric, figure, details.pb, .author-sidebar { page-break-inside: avoid; break-inside: avoid; }
+    details.pb { border: 1px solid #ccc; }
+    details.pb[open] > summary::before { transform: none; }
+    details.pb:not([open]) > *:not(summary) { display: block !important; }
+    .doc-toolbar, .copy-btn { display: none !important; }
   }
 </style>
 </head>
-<body>
+<body data-pencil="on">
 <div class="page-wrapper">
 
 <aside class="sidebar" id="sidebar-toc">
+  <div class="author-sidebar" aria-label="Author">
+    <div class="ac-name-sm">Qifan Wen</div>
+    <div class="ac-role-sm">NLP class project · ASR fairness</div>
+    <div class="ac-qr-side" data-qr="https://www.linkedin.com/in/qifan-wen/" data-qr-size="184" aria-label="LinkedIn QR code"></div>
+    <ul class="ac-list">
+      <li><span class="ac-k">gh</span><a href="https://github.com/Albatross679">Albatross679</a></li>
+      <li><span class="ac-k">in</span><a href="https://www.linkedin.com/in/qifan-wen/">qifan-wen</a></li>
+      <li><span class="ac-k">@</span><a href="mailto:wen.679@buckeyemail.osu.edu">wen.679@osu.edu</a></li>
+    </ul>
+  </div>
   <strong>Contents</strong>
   <ul>
     <li><a href="#summary">At a Glance</a></li>
@@ -198,6 +366,13 @@
 <p class="subtitle">v2.0 §4.2 attention-head-level hallucination mitigation for Whisper-large-v3 · snapshot 2026-04-17</p>
 <hr>
 
+<div class="doc-toolbar" role="toolbar" aria-label="Document controls">
+  <input type="search" id="doc-search" placeholder="Filter sections (e.g. &ldquo;gate&rdquo;, &ldquo;tarball&rdquo;, &ldquo;stage&rdquo;)&hellip;" aria-label="Filter sections">
+  <span class="hit-count" id="doc-search-count">all sections visible</span>
+  <button type="button" id="doc-expand-all">Expand all</button>
+  <button type="button" id="doc-collapse-all">Collapse all</button>
+</div>
+
 <nav id="toc">
   <strong>Contents</strong>
   <ul>
@@ -211,6 +386,7 @@
   </ul>
 </nav>
 
+<section data-section="summary">
 <h2 id="summary">At a Glance</h2>
 
 <div class="metric-grid">
@@ -227,11 +403,15 @@
 <div class="callout">
   <strong>Bottom line:</strong> the implementation code for the diagnosis pipeline is essentially finished through Stage&nbsp;E. Nothing has been executed on a GPU yet, so every gate in the reproducibility contract is still pending. A truncated source tarball has reduced the evaluation subset from 510 to 484 Indian-accent utterances and — more consequentially — the non-Indian regression-guard set from ~2,584 to ~422.
 </div>
+</section>
 
+<section data-section="code-progress">
 <h2 id="code-progress">Code Progress</h2>
 
 <p>All through Task 12 has landed as code on <code>feat/head-surgery</code>. Tasks 13–16 remain to be written.</p>
 
+<details class="pb" open>
+  <summary>Task status table <span class="sub">17 rows · click to collapse</span></summary>
 <table>
   <thead>
     <tr><th style="width:5em;">Task</th><th>Scope</th><th style="width:7em;">Status</th><th style="width:9em;">Commit</th></tr>
@@ -256,13 +436,18 @@
     <tr><td>16</td><td>Per-head heatmap <em>(stretch)</em></td><td><span class="badge todo">not started</span></td><td>—</td></tr>
   </tbody>
 </table>
+</details>
 
 <p><em>Uncommitted:</em> <code>logs/head-surgery-stage-d-scoring.md</code> is untracked (a log entry for Task&nbsp;11 that hasn't been added to git).</p>
+</section>
 
+<section data-section="runtime-progress">
 <h2 id="runtime-progress">Runtime Progress</h2>
 
 <p>Zero GPU executions so far. <code>outputs/head_surgery/</code> is empty — no baseline metrics, no tune JSON, no pilot artifacts, no sweep CSV, no head scores. Every gate in the reproducibility contract is still pending.</p>
 
+<details class="pb" open>
+  <summary>Reproducibility gates <span class="sub">6 gates · click to collapse</span></summary>
 <table>
   <thead>
     <tr><th>Gate</th><th>What it checks</th><th>Required artifact</th><th>Status</th></tr>
@@ -276,7 +461,10 @@
     <tr><td>G5</td><td>Non-Indian baseline WER matches T7 CSVs</td><td><code>head_scores.csv</code></td><td><span class="badge todo">pending</span></td></tr>
   </tbody>
 </table>
+</details>
+</section>
 
+<section data-section="blocker">
 <h2 id="blocker">Blocker — Tarball Truncation</h2>
 
 <div class="callout danger">
@@ -306,7 +494,9 @@
 </table>
 
 <p>Commit <code>11f7d79</code> already adapted the ID fixture to the intersection of (strict Indian-accent filter) ∩ (clips actually on disk) = 484, and every commit after it is consistent with <code>n ∈ [505, 515]</code> being loosened to accept this value. The PRD now documents the 510/511 drift; the <em>484</em> adaptation is one step further.</p>
+</section>
 
+<section data-section="remaining">
 <h2 id="remaining">What Remains</h2>
 
 <h3>A. GPU runs against the existing code</h3>
@@ -333,7 +523,9 @@
   <li>Re-pull the B2 tarball to restore full 510 + 2,584 subsets (≈ 1&nbsp;hr download + extraction) &mdash; only if the writeup defensibility requires it.</li>
   <li>After Task 0 verification passes, delete the 76 GB tarball to free 76 GB of disk.</li>
 </ul>
+</section>
 
+<section data-section="disk">
 <h2 id="disk">Disk &amp; Resources</h2>
 
 <p>The project volume is 98 GB total, 82% used, 19 GB free. The single largest item is the 76 GB Common Voice 25 tarball.</p>
@@ -352,12 +544,15 @@
 </table>
 
 <p>Projected additional disk after all remaining stages run: Whisper-large-v3 fp16 weights (~3.1 GB in the HuggingFace cache) + <code>sweep.csv</code> (~100–170 MB) + pilot/tune/scores/decoding CSVs (~20 MB combined) &asymp; <strong>3.5–4 GB</strong>. Final headroom: ≈ 15 GB.</p>
+</section>
 
+<section data-section="next">
 <h2 id="next">Next Move</h2>
 
 <div class="callout success">
   <strong>Recommended path:</strong> commit the stray log entry; re-pull the B2 tarball in the background; in parallel, kick off Stage A baseline on the current n = 484 set to exercise Gate G1 and confirm the pipeline works end-to-end. If the re-pull succeeds, rerun Stage A on n = 510 and use that as the authoritative baseline. If it fails, document n = 484 as a limitation and proceed — the staged gate structure makes this safe.
 </div>
+</section>
 
 <hr>
 
@@ -374,8 +569,9 @@
 </div>
 
 <script>
+/* -------- Scroll-spy for sidebar TOC -------- */
 (function() {
-  var sidebarLinks = document.querySelectorAll('#sidebar-toc a');
+  var sidebarLinks = document.querySelectorAll('#sidebar-toc a[href^="#"]');
   var sections = [];
   sidebarLinks.forEach(function(link) {
     var id = link.getAttribute('href').slice(1);
@@ -393,6 +589,74 @@
   }
   window.addEventListener('scroll', onScroll, { passive: true });
   onScroll();
+})();
+
+/* -------- Section search filter -------- */
+(function() {
+  var input = document.getElementById('doc-search');
+  var countEl = document.getElementById('doc-search-count');
+  if (!input) return;
+  var sections = Array.from(document.querySelectorAll('section[data-section]'));
+  var tocItems = Array.from(document.querySelectorAll('#sidebar-toc ul a[href^="#"]'));
+  function apply() {
+    var q = input.value.trim().toLowerCase();
+    var visible = 0;
+    sections.forEach(function(sec) {
+      var hit = !q || sec.textContent.toLowerCase().indexOf(q) !== -1;
+      sec.classList.toggle('section-hidden', !hit);
+      if (hit) visible++;
+      var id = sec.getAttribute('data-section');
+      var link = tocItems.find(function(a) { return a.getAttribute('href') === '#' + id; });
+      if (link) link.parentElement.style.display = hit ? '' : 'none';
+    });
+    countEl.textContent = q
+      ? visible + ' of ' + sections.length + ' section' + (sections.length === 1 ? '' : 's') + ' match'
+      : 'all sections visible';
+  }
+  input.addEventListener('input', apply);
+  input.addEventListener('keydown', function(e) { if (e.key === 'Escape') { input.value = ''; apply(); } });
+})();
+
+/* -------- Expand all / collapse all for <details.pb> -------- */
+(function() {
+  var expandBtn = document.getElementById('doc-expand-all');
+  var collapseBtn = document.getElementById('doc-collapse-all');
+  if (!expandBtn || !collapseBtn) return;
+  var all = function() { return document.querySelectorAll('details.pb'); };
+  expandBtn.addEventListener('click', function() { all().forEach(function(d) { d.open = true; }); });
+  collapseBtn.addEventListener('click', function() { all().forEach(function(d) { d.open = false; }); });
+})();
+
+/* -------- Copy-to-clipboard on pre.code-block -------- */
+(function() {
+  var blocks = document.querySelectorAll('pre.code-block');
+  blocks.forEach(function(pre) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'copy-btn';
+    btn.textContent = 'Copy';
+    btn.setAttribute('aria-label', 'Copy code to clipboard');
+    btn.addEventListener('click', function() {
+      var text = pre.querySelector('code') ? pre.querySelector('code').innerText : pre.innerText;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(onCopied, onCopyFail);
+      } else {
+        try {
+          var ta = document.createElement('textarea');
+          ta.value = text; document.body.appendChild(ta);
+          ta.select(); document.execCommand('copy'); ta.remove();
+          onCopied();
+        } catch (e) { onCopyFail(); }
+      }
+      function onCopied() {
+        btn.classList.add('copied');
+        btn.textContent = 'Copied';
+        setTimeout(function() { btn.classList.remove('copied'); btn.textContent = 'Copy'; }, 1400);
+      }
+      function onCopyFail() { btn.textContent = 'Copy failed'; }
+    });
+    pre.appendChild(btn);
+  });
 })();
 </script>
 </body>
