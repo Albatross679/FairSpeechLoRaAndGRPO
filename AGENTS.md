@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENTS.md
 
 ## Project Overview
 
@@ -9,11 +9,14 @@ NLP class project investigating fairness in Automatic Speech Recognition (ASR) s
 ```
 FairSpeechLoRaAndGRPO/
 ├── .claude/           # Per-VM Claude Code install/settings (gitignored)
+├── .pkm/              # PKM/Obsidian workspace metadata
 ├── .codex/            # Local Codex hooks/settings (gitignored)
 ├── .pkm/              # PKM/Obsidian workspace metadata; DB gitignored
 ├── .planning/         # GSD planning artifacts (roadmaps, phases, research)
-├── CLAUDE.md          # This file
+├── AGENTS.md          # This file
+├── CLAUDE.md          # Claude Code counterpart to this file
 ├── pyproject.toml     # Project config
+├── autoresearch/      # Automated research/scaffolding artifacts
 ├── archive/           # Tracked archived/stale project lines
 ├── archive-local/     # Local-only archived data/results (gitignored)
 ├── fileClasses/       # FileClass definitions (Metadata Menu schema)
@@ -31,9 +34,9 @@ FairSpeechLoRaAndGRPO/
 ├── outputs/           # training run artifacts (tracked)
 ├── logs/              # One file per log entry (<topic>.md)
 ├── experiments/       # One file per experiment (<topic>.md)
-├── issues/            # One file per issue (<topic>.md)
+├── issues/            # One file per issue (<topic>.md); create if absent
 ├── knowledge/         # Domain knowledge and reference (<topic>.md)
-├── references/        # One file per reference (<topic>.md)
+├── references/        # One file per reference (<topic>.md); create if absent
 ├── tasks/             # PRDs and task specs (prd-<feature>.md)
 ├── tests/             # pytest modules
 ├── colm2026_conference.pdf       # Conference paper PDF
@@ -59,7 +62,7 @@ Archived head-surgery/hallucination work lives under `archive/head-surgery-2026-
 
 ## Documentation (IMPORTANT)
 
-Claude Code MUST document **as it goes** — immediately after each change, not batched at the end of the session. Each entry is a **separate file** in its subdirectory.
+Codex MUST document **as it goes** — immediately after each change, not batched at the end of the session. Each entry is a **separate file** in its subdirectory.
 
 Every Markdown documentation file MUST include `fileClass` as the **first** frontmatter property:
 
@@ -110,8 +113,9 @@ time — the plan set MUST be structured in this order:
    smoke tests, and dry-run validation gates.
 2. **VRAM maximization** — find a configuration (batch size, gradient
    accumulation, sequence length, precision, LoRA rank, gradient checkpointing,
-   etc.) that maximizes GPU memory utilization without OOM. Refer to the
-   `maximize-vram` skill.
+   etc.) that maximizes GPU memory utilization without OOM. Use
+   `docs/maximize-vram-playbook.html` when a dedicated `maximize-vram` skill is
+   not available.
 3. **Launch training** — kick off the full-scale run with monitoring
    (W&B dashboards, `babysit-training` skill) and checkpoint recovery.
 
@@ -125,9 +129,9 @@ When editing or creating HTML files, use concise and structured design (tables, 
 
 ## graphify
 
-This project has a graphify knowledge graph at graphify-out/.
+This project may have a graphify knowledge graph at graphify-out/.
 
 Rules:
-- Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
-- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
-- After modifying code files in this session, run `graphify update .` to keep the graph current (AST-only, no API cost)
+- Before answering architecture or codebase questions, read `graphify-out/GRAPH_REPORT.md` for god nodes and community structure **if it exists**.
+- If `graphify-out/wiki/index.md` exists, navigate it instead of reading raw files.
+- After modifying code files in this session, run `graphify update .` to keep the graph current (AST-only, no API cost), unless graphify is unavailable in the environment.

@@ -1,0 +1,1797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project State — Data Inventory</title>
+<style>
+/* =========================================================================
+   Palatino Burgundy — Colors & Type
+   Design tokens (CSS custom properties) + reset + base typography.
+   Warm, classic, bookish aesthetic for self-contained HTML reference docs.
+   Load this file first; components.css, author-card.css, and pencil.css
+   all consume tokens defined here.
+   ========================================================================= */
+
+:root {
+  /* ---------- COLOR TOKENS ---------- */
+
+  /* Primary burgundy ramp */
+  --pb-burgundy-700: #5c2233;   /* visited links */
+  --pb-burgundy-600: #7c3043;   /* PRIMARY accent */
+  --pb-burgundy-500: #a3415a;   /* hover / lighter rose */
+  --pb-burgundy-100: #f5eaed;   /* table row hover, highlighted leaf bg */
+
+  /* Neutrals (warm cream family) */
+  --pb-cream-50:  #f5f4f0;      /* page background */
+  --pb-cream-100: #f0efeb;      /* sidebar background */
+  --pb-cream-200: #ebe7e3;      /* sidebar hover/active bg */
+  --pb-cream-300: #e0ddd5;      /* figure borders */
+  --pb-paper:     #faf9f7;      /* figure / code-block fill */
+  --pb-white:     #ffffff;      /* checklist checkbox fill */
+
+  --pb-ink-900: #3a3a3a;        /* headings, thead */
+  --pb-ink-700: #4a4a4a;        /* body text */
+  --pb-ink-500: #6a6a6a;        /* figcaption, meta */
+  --pb-ink-300: #998;           /* code comments (italic) */
+  --pb-border:  #dddddd;        /* table / input borders */
+  --pb-border-soft: #e0ddd5;    /* figure border */
+
+  /* Callouts — earth-tones set (umber / ochre / burnt-umber / moss).
+     Pulled into the same warm-earth family as --pb-data-2/3/4 so callouts
+     and charts share one palette instead of fighting each other. */
+  --pb-callout-info-bg:       #efece3;   /* warm stone */
+  --pb-callout-info-border:   #8a7a5c;   /* umber */
+  --pb-callout-warn-bg:       #f7eed8;
+  --pb-callout-warn-border:   #b07a2e;   /* ochre */
+  --pb-callout-danger-bg:     #f6e5dc;
+  --pb-callout-danger-border: #a8412a;   /* burnt umber */
+  --pb-callout-ok-bg:         #e7ecdc;
+  --pb-callout-ok-border:     #5a7d5a;   /* moss */
+
+  /* Data palette (charts, categorical) */
+  --pb-data-1: #7c3043;   /* burgundy (primary) */
+  --pb-data-2: #b85c3a;   /* warm orange */
+  --pb-data-3: #c9944a;   /* gold */
+  --pb-data-4: #5a7d5a;   /* muted green */
+  --pb-data-5: #2a6496;   /* steel blue (contrast / eval) */
+
+  --pb-data-1-fill: rgba(124, 48, 67, 0.08);
+  --pb-data-1-line: rgba(124, 48, 67, 0.45);
+
+  /* ---------- SEMANTIC COLOR ROLES ---------- */
+  --fg:          var(--pb-ink-700);
+  --fg-strong:   var(--pb-ink-900);
+  --fg-muted:    var(--pb-ink-500);
+  --fg-faint:    var(--pb-ink-300);
+
+  --bg:          var(--pb-cream-50);
+  --bg-sidebar:  var(--pb-cream-100);
+  --bg-surface:  var(--pb-paper);
+  --bg-raised:   var(--pb-white);
+
+  --accent:         var(--pb-burgundy-600);
+  --accent-hover:   var(--pb-burgundy-500);
+  --accent-visited: var(--pb-burgundy-700);
+  --accent-tint:    var(--pb-burgundy-100);
+
+  --border:      var(--pb-border);
+  --border-soft: var(--pb-border-soft);
+
+  /* ---------- TYPOGRAPHY ---------- */
+  --font-serif: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --font-mono:  "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+
+  /* Root font-size is set on <html> at 62.5% so 1rem = 10px. */
+  --text-body:  1.7rem;         /* 17px */
+  --text-small: 0.92em;
+  --text-code:  0.9em;
+
+  --h1-size: 2em;
+  --h2-size: 1.7em;
+  --h3-size: 1.45em;
+  --h4-size: 1.25em;
+  --h5-size: 1.1em;
+  --h6-size: 1em;
+
+  --line-height-body:  1.618;   /* golden ratio */
+  --line-height-tight: 1.3;
+  --line-height-code:  1.65;
+
+  /* ---------- SPACING & SHAPE ---------- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --space-1: 0.4em;
+  --space-2: 0.6em;
+  --space-3: 1em;
+  --space-4: 1.2em;
+  --space-5: 1.5em;
+  --space-6: 2em;
+
+  --border-w-thin:     1px;
+  --border-w-rule:     2px;     /* h2 underline, table top/bottom */
+  --border-w-thead:    3px;     /* thead separator */
+  --border-accent-bar: 3px;     /* left bar on figures / code-blocks */
+  --border-callout:    4px;     /* callout left border */
+
+  /* ---------- ELEVATION ---------- */
+  /* The system is intentionally flat — structure comes from borders + left
+     rules, not drop shadows. Two tokens exist for interactive surfaces that
+     genuinely need lift (overlays, hovered cells). Avoid using these for
+     static document chrome. */
+  --shadow-sm: 0 1px 3px rgba(58, 42, 48, 0.08);
+  --shadow-md: 0 2px 10px rgba(58, 42, 48, 0.15);
+
+  /* ---------- LAYOUT ---------- */
+  --layout-max:           108em; /* page wrapper */
+  --layout-content:       80em;  /* main column */
+  --layout-sidebar:       240px;
+  --layout-breakpoint-md: 900px;
+  --layout-breakpoint-sm: 684px;
+  --layout-breakpoint-xs: 382px;
+}
+
+/* =========================================================================
+   RESET & BASE TYPOGRAPHY
+   ========================================================================= */
+
+html { font-size: 62.5%; scroll-behavior: smooth; }
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  font-family: var(--font-serif);
+  font-size: var(--text-body);
+  line-height: var(--line-height-body);
+  color: var(--fg);
+  background: var(--bg);
+  margin: 0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-serif);
+  color: var(--fg-strong);
+  line-height: var(--line-height-tight);
+  margin: 1.4em 0 0.5em;
+  font-weight: 700;
+}
+h1 { font-size: var(--h1-size); margin-top: 0; }
+h2 {
+  font-size: var(--h2-size);
+  border-bottom: var(--border-w-rule) solid var(--accent);
+  padding-bottom: 0.3em;
+}
+h3 { font-size: var(--h3-size); }
+h4 { font-size: var(--h4-size); }
+h5 { font-size: var(--h5-size); }
+h6 { font-size: var(--h6-size); }
+
+p { margin: 0 0 1em; }
+p.subtitle {
+  color: var(--fg-muted);
+  font-style: italic;
+  font-size: 1.1em;
+  margin-top: -0.6em;
+}
+
+a         { color: var(--accent);         text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:hover   { color: var(--accent-hover); }
+a:visited { color: var(--accent-visited); }
+
+strong { color: var(--fg-strong); font-weight: 700; }
+em     { font-style: italic; }
+
+hr { border: 0; border-top: 1px solid var(--border); margin: 2em 0; }
+
+ul, ol { padding-left: 1.5em; }
+li { margin-bottom: 0.3em; }
+
+blockquote {
+  margin: 1.2em 0;
+  padding: 0.5em 1.2em;
+  border-left: var(--border-callout) solid var(--accent);
+  background: var(--bg-surface);
+  color: var(--fg-muted);
+  font-style: italic;
+}
+
+/* Inline code default (pre.code-block lives in components.css). */
+code, pre {
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+}
+code {
+  background: var(--bg-surface);
+  padding: 0.15em 0.4em;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+}
+
+/* Body font-size shrinks on narrow viewports. */
+@media (max-width: 684px) { body { font-size: 1.35rem; } }
+@media (max-width: 382px) { body { font-size: 1.2rem; } }
+
+
+/* =========================================================================
+   Palatino Burgundy — Components
+   Layout, tables, callouts, figures, math, metric cards, checklists,
+   verdict + badge pills, chart wrappers, interactive widgets, sidebar,
+   footer, utilities, responsive + print.
+   Requires colors_and_type.css (for tokens and base typography).
+   ========================================================================= */
+
+/* =========================================================================
+   CODE BLOCK (pre)
+   ========================================================================= */
+
+pre.code-block {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-left: var(--border-accent-bar) solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 1.2em 1.5em;
+  margin: var(--space-4) 0;
+  overflow-x: auto;
+  line-height: var(--line-height-code);
+  color: var(--fg-strong);
+  font-size: 0.85em;
+}
+pre.code-block code    { display: block; background: transparent; border: 0; padding: 0; }
+pre.code-block .comment { color: var(--fg-faint); font-style: italic; }
+
+/* =========================================================================
+   TABLES
+   ========================================================================= */
+
+/* Auto-size default: the table shrinks to its content width instead of
+   stretching to fill its container. This keeps short-content tables (specs,
+   key-values, small comparisons) from looking sparse and scattered. The
+   table never exceeds its container — max-width: 100% caps it.
+
+   Opt-outs:
+     table.full-width     — restore the legacy 100%-wide behavior. Use for
+                            wide comparison matrices, dashboard-style tables,
+                            and anything that genuinely benefits from
+                            stretching.
+     table.dense          — tighter cell padding + slight font shrink. Use
+                            when you have lots of rows of short values.
+     table.lead           — left-aligned (not centered). Use when the table
+                            sits next to prose that flows around it, or
+                            when left-alignment reads better in a grid.
+   The wrapping <div class="table-wrap"> adds horizontal scroll for tables
+   that overflow their container on narrow viewports. */
+table {
+  width: auto;
+  max-width: 100%;
+  margin: 1.2em auto;
+  border-collapse: collapse;
+  font-size: var(--text-small);
+  border-top: var(--border-w-rule) solid var(--accent);
+  border-bottom: var(--border-w-rule) solid var(--accent);
+}
+table.full-width { width: 100%; margin-left: 0; margin-right: 0; }
+table.lead       { margin-left: 0; margin-right: auto; }
+
+thead th {
+  padding: 0.6em 0.8em;
+  text-align: left;
+  font-weight: 700;
+  color: var(--fg-strong);
+  border-bottom: var(--border-w-thead) solid var(--accent);
+  white-space: nowrap;          /* headers shouldn't wrap mid-label */
+}
+tbody td { padding: 0.55em 0.8em; border-bottom: 1px solid var(--border); }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--accent-tint); }
+tr.highlight   { background: var(--pb-callout-danger-bg); }
+
+/* Density variant: tighter padding + half-step font shrink. */
+table.dense            { font-size: calc(var(--text-small) * 0.92); }
+table.dense thead th,
+table.dense tbody td   { padding: 0.35em 0.6em; }
+
+/* Column-count-aware auto-scale. When a table's :has() says there are many
+   columns, shrink the font so cells stay readable inside the 56em main
+   column. Progressive: gets a little smaller at 8+ cols, smaller again at
+   12+. Supported everywhere modern (Chrome 105+, Safari 15.4+, FF 121+);
+   older browsers gracefully keep the default size. */
+@supports (selector(:has(*))) {
+  table:not(.dense):has(thead tr > th:nth-child(8))  { font-size: calc(var(--text-small) * 0.92); }
+  table:not(.dense):has(thead tr > th:nth-child(12)) { font-size: calc(var(--text-small) * 0.85); }
+  table:not(.dense):has(thead tr > th:nth-child(16)) { font-size: calc(var(--text-small) * 0.78); }
+}
+
+/* Horizontal-scroll wrapper for tables that still overflow on narrow
+   viewports. Markup: <div class="table-wrap"><table>…</table></div>.
+   The wrapper's burgundy edge-fade hint tells readers content is clipped. */
+.table-wrap {
+  overflow-x: auto;
+  margin: 1.2em 0;
+  /* right-edge fade when scrollable */
+  background:
+    linear-gradient(to right, var(--bg), var(--bg)) left center / 20px 100% no-repeat,
+    linear-gradient(to right, transparent, var(--bg)) right center / 24px 100% no-repeat,
+    radial-gradient(farthest-side at 0 50%, rgba(58, 42, 48, 0.12), transparent) left center / 12px 100% no-repeat,
+    radial-gradient(farthest-side at 100% 50%, rgba(58, 42, 48, 0.12), transparent) right center / 12px 100% no-repeat;
+  background-attachment: local, local, scroll, scroll;
+}
+.table-wrap > table { margin-top: 0; margin-bottom: 0; }
+
+/* Chart-linked tables: JS toggles .row-highlight and .row-dim on mouseenter.
+   See chart-wrap contract below for the bidirectional hover behavior. */
+table.linked tbody tr {
+  cursor: pointer;
+  transition: background-color 0.15s, opacity 0.15s;
+}
+table.linked tbody tr.row-highlight {
+  background: var(--accent-tint);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+table.linked tbody tr.row-dim { opacity: 0.45; }
+
+/* =========================================================================
+   CALLOUTS
+   ========================================================================= */
+
+.callout {
+  border-left: var(--border-callout) solid var(--accent);
+  background: var(--pb-callout-info-bg);
+  padding: 1em 1.2em;
+  margin: 1.2em 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+.callout.warning { border-left-color: var(--pb-callout-warn-border);   background: var(--pb-callout-warn-bg); }
+.callout.danger  { border-left-color: var(--pb-callout-danger-border); background: var(--pb-callout-danger-bg); }
+.callout.success { border-left-color: var(--pb-callout-ok-border);     background: var(--pb-callout-ok-bg); }
+
+/* =========================================================================
+   FIGURE / DIAGRAM
+   ========================================================================= */
+
+figure.diagram {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-left: var(--border-accent-bar) solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 1.3em 1.4em 1em;
+  margin: var(--space-5) 0;
+}
+figure.diagram svg { display: block; width: 100%; height: auto; max-width: 100%; }
+figure.diagram figcaption {
+  margin-top: 0.9em;
+  font-size: 0.88em;
+  color: var(--fg-muted);
+  font-style: italic;
+  text-align: center;
+}
+
+/* Raster-image figure (same frame, tighter padding for <img>). */
+.figure-img {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-left: var(--border-accent-bar) solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 1em 1.2em 0.7em;
+  margin: 1.4em 0;
+}
+.figure-img img { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+.figure-img figcaption {
+  margin-top: 0.7em;
+  font-size: 0.88em;
+  color: var(--fg-muted);
+  font-style: italic;
+  text-align: center;
+}
+
+/* =========================================================================
+   MATH BLOCK
+   ========================================================================= */
+
+.math-block {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+  margin: var(--space-4) 0;
+  text-align: center;
+  overflow-x: auto;
+  font-size: 1.3em;
+}
+
+/* =========================================================================
+   METRIC CARDS (big-number KPI grid)
+   ========================================================================= */
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.8em;
+  margin: 1.2em 0;
+}
+.metric {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-left: var(--border-accent-bar) solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.85em 1.05em;
+}
+.metric .label {
+  font-size: 0.78em;
+  color: var(--accent);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.metric .value {
+  font-size: 1.45em;
+  color: var(--fg-strong);
+  font-weight: 700;
+  line-height: 1.15;
+  margin-top: 0.15em;
+}
+.metric .unit {
+  font-size: 0.7em;
+  color: var(--fg-muted);
+  font-weight: 400;
+}
+
+/* =========================================================================
+   CHECKLIST
+   ========================================================================= */
+
+ul.checklist { list-style: none; padding: 0; }
+ul.checklist li {
+  position: relative;
+  padding: 0.35em 0.6em 0.35em 1.8em;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.15s;
+}
+ul.checklist li:hover { background: var(--pb-callout-info-bg); }
+ul.checklist li::before {
+  content: "";
+  position: absolute;
+  left: 0.2em; top: 0.55em;
+  width: 14px; height: 14px;
+  border: 1.5px solid var(--accent);
+  border-radius: 3px;
+  background: var(--bg-raised);
+}
+ul.checklist li.checked { color: var(--fg-muted); text-decoration: line-through; }
+ul.checklist li.checked::before {
+  background: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--bg-raised);
+}
+
+/* =========================================================================
+   VERDICT BADGES (for ratings: best / viable / partial / not-viable)
+   ========================================================================= */
+
+.verdict {
+  display: inline-block;
+  font-size: 0.85em;
+  font-weight: 700;
+  padding: 0.15em 0.55em;
+  border-radius: 3px;
+  letter-spacing: 0.02em;
+}
+.verdict.best       { background: var(--accent-tint);          color: var(--accent); }
+.verdict.viable     { background: var(--pb-callout-ok-bg);     color: var(--pb-callout-ok-border); }
+.verdict.partial    { background: var(--pb-callout-warn-bg);   color: var(--pb-callout-warn-border); }
+.verdict.not-viable { background: var(--pb-callout-danger-bg); color: var(--pb-callout-danger-border); }
+
+/* =========================================================================
+   BADGE PILLS
+   Inline status chips for test/check results. Sibling to .verdict (which
+   is for strategy/option ratings); use .badge for pass/fail-style states.
+   ========================================================================= */
+
+.badge {
+  display: inline-block;
+  padding: 0.1em 0.55em;
+  font-size: 0.82em;
+  font-weight: 600;
+  border-radius: 3px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.badge.pass  { background: var(--pb-callout-ok-bg);     color: #1e6c3b; border: 1px solid var(--pb-callout-ok-border); }
+.badge.warn  { background: var(--pb-callout-warn-bg);   color: #8a5a00; border: 1px solid var(--pb-callout-warn-border); }
+.badge.fail  { background: var(--pb-callout-danger-bg); color: #8c2b20; border: 1px solid var(--pb-callout-danger-border); }
+.badge.skip  { background: var(--pb-cream-200);         color: #555;    border: 1px solid #bbb; }
+.badge.redef { background: var(--accent-tint);          color: var(--accent); border: 1px solid var(--accent); }
+
+/* =========================================================================
+   CHART WRAPPER + LEGEND
+   Convention for docs where a Chart.js chart sits next to a data table
+   whose rows correspond 1:1 to chart datasets.
+
+   Visual contract — DIM-ONLY (no extra "highlight" treatment):
+     • Hovering a table row dims every OTHER dataset in the chart.
+     • The hovered subset stays at its baseline vivid color, unchanged.
+     • Two visual states only: normal (~α 0.85) and dimmed (~α 0.08-0.10).
+     Rationale: the eye reads "the others faded" much faster than "this one
+     got brighter and the others faded simultaneously."
+
+   Implementation rules (JS, not CSS):
+     1. dataset.backgroundColor / borderColor MUST be a scriptable function —
+        Chart.js v4 caches static color strings, so mutating them after init
+        and calling chart.update('none') silently skips the repaint.
+     2. Bind row mouseenter/mouseleave OUTSIDE any `if Chart undefined: return`
+        guard, so the row CSS still toggles even if Chart.js failed to load.
+     3. Do NOT add a chart-side onHover handler that mirrors the highlight
+        back to the table — it races with row mouseenter when the cursor
+        crosses the canvas en route to the row.
+   ========================================================================= */
+
+.chart-wrap {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-left: var(--border-accent-bar) solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 1em 1.2em 0.8em;
+  margin: 1.2em 0 0.6em;
+}
+.chart-wrap canvas { max-width: 100%; }
+.chart-wrap .chart-caption {
+  margin-top: 0.6em;
+  font-size: 0.88em;
+  color: var(--fg-muted);
+  font-style: italic;
+  text-align: center;
+}
+.legend-swatch {
+  display: inline-block;
+  width: 0.85em; height: 0.85em;
+  border-radius: 2px;
+  margin-right: 0.45em;
+  vertical-align: -0.1em;
+}
+
+/* =========================================================================
+   INTERACTIVE WIDGETS
+   ========================================================================= */
+
+/* Document toolbar: search box + filter buttons + hit counter. */
+.doc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8em;
+  align-items: center;
+  margin: 1em 0 1.8em;
+  padding: 0.7em 0.9em;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-left: var(--border-accent-bar) solid var(--accent);
+  border-radius: var(--radius-sm);
+  font-size: 0.95em;
+}
+.doc-toolbar input[type="search"] {
+  flex: 1;
+  min-width: 14em;
+  font-family: var(--font-serif);
+  font-size: 1em;
+  padding: 0.35em 0.7em;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--fg);
+}
+.doc-toolbar input[type="search"]:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-tint);
+}
+.doc-toolbar .hit-count {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+.doc-toolbar button {
+  font-family: var(--font-serif);
+  font-size: 0.92em;
+  color: var(--accent);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.3em 0.8em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.doc-toolbar button:hover { background: var(--accent); color: var(--bg-raised); border-color: var(--accent); }
+.doc-toolbar button.pressed {
+  background: var(--accent); color: var(--bg-raised); border-color: var(--accent);
+}
+.doc-toolbar button.pressed::before {
+  content: "●"; margin-right: 0.3em; font-size: 0.7em; vertical-align: 0.15em;
+}
+
+/* Collapsible section (<details class="pb">): framed accordion matching
+   the callout/figure chrome. Hides the default triangle and replaces it
+   with a burgundy chevron that rotates on open. */
+details.pb {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-left: var(--border-accent-bar) solid var(--accent);
+  border-radius: var(--radius-sm);
+  margin: 1.2em 0;
+  padding: 0 1.1em;
+}
+details.pb > summary {
+  cursor: pointer;
+  padding: 0.7em 0.2em;
+  font-weight: 700;
+  color: var(--fg-strong);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.55em;
+}
+details.pb > summary::-webkit-details-marker { display: none; }
+details.pb > summary::before {
+  content: "\25B8";
+  color: var(--accent);
+  font-size: 0.9em;
+  transition: transform 0.15s;
+  display: inline-block;
+  width: 1em;
+}
+details.pb[open] > summary::before { transform: rotate(90deg); }
+details.pb > summary .sub {
+  font-weight: 400;
+  color: var(--fg-muted);
+  font-size: 0.88em;
+  font-style: italic;
+  margin-left: 0.4em;
+}
+details.pb[open] { padding-bottom: 0.8em; }
+
+/* =========================================================================
+   LAYOUT: TWO-COLUMN WITH STICKY SIDEBAR
+   ========================================================================= */
+
+.page-wrapper { display: flex; max-width: var(--layout-max); margin: 0 auto; }
+.sidebar {
+  flex: 0 0 var(--layout-sidebar);
+  position: sticky; top: 0;
+  height: 100vh; overflow-y: auto;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+  padding: 1.2em 1em;
+  font-size: 1em;
+}
+.sidebar strong { font-size: 1.15em; display: block; margin-bottom: 0.8em; color: var(--fg-strong); }
+.sidebar ul { list-style: none; padding: 0; margin: 0.8em 0; }
+.sidebar li { margin-bottom: 0.2em; }
+.sidebar a {
+  display: block;
+  padding: 0.35em 0.7em;
+  color: var(--fg);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s;
+}
+.sidebar a:hover  { background: var(--pb-cream-200); color: var(--accent); }
+.sidebar a.active { background: var(--pb-cream-200); color: var(--accent); font-weight: 700; }
+
+/* Nested sidebar items (e.g., pipeline sub-stages under a section). */
+.sidebar ul.nested { padding-left: 0.7em; margin: 0.1em 0 0.4em; }
+.sidebar ul.nested a {
+  font-size: 0.88em;
+  padding: 0.18em 0.6em;
+  color: var(--fg-muted);
+}
+
+.main-content { flex: 1; max-width: var(--layout-content); padding: 13px 2em 2em 2.5em; }
+
+/* Inline TOC: hidden on desktop, shown as a fallback when the sidebar
+   collapses below --layout-breakpoint-md (tablet portrait etc.). */
+nav#toc { display: none; margin: 1em 0; }
+nav#toc strong { display: block; margin-bottom: 0.5em; color: var(--accent); }
+nav#toc ul { list-style: none; padding-left: 0; margin: 0; }
+nav#toc li { margin-bottom: 0.3em; }
+nav#toc a {
+  display: block;
+  padding: 0.3em 0.6em;
+  color: var(--fg);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+nav#toc a:hover { background: var(--pb-cream-200); color: var(--accent); }
+
+/* =========================================================================
+   FOOTER
+   ========================================================================= */
+
+footer { margin-top: 3em; padding-top: 1em; border-top: 1px solid var(--border); }
+footer p { font-size: 0.85em; color: var(--fg-muted); }
+
+/* =========================================================================
+   UTILITIES
+   ========================================================================= */
+
+/* Right-align numeric cells with tabular figures (digits of equal width). */
+.num, td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Hide a section (e.g., when a doc-toolbar filter unchecks its category). */
+.section-hidden { display: none; }
+
+/* =========================================================================
+   GLOSSARY TOOLTIP (<dfn> with nested .tip span)
+   Hover or keyboard-focus a <dfn> term to reveal a burgundy-framed card
+   containing a small mono .kind label and the definition body. Pure CSS —
+   no JS required. Supports optional inline visualizations inside the card
+   (see bit-format below).
+   ========================================================================= */
+
+dfn {
+  font-style: normal;
+  color: var(--fg-strong);
+  border-bottom: 1px dotted var(--accent);
+  cursor: help;
+  position: relative;
+}
+dfn:hover { color: var(--accent); }
+dfn .tip {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  left: 50%; bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  width: 320px;
+  background: var(--bg-surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.7em 0.9em;
+  /* Unified with .pb-tooltip so every glossary-tooltip surface in a Palatino
+     Burgundy doc reads at exactly one prose size. 1.5rem ≈ 15px — a touch
+     below body so the tooltip reads as secondary / marginalia, not as body
+     flow. (Previously 0.92em / 1.5 — mismatched .pb-tooltip by 9 %.) */
+  font-size: 1.5rem;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--fg);
+  box-shadow: var(--shadow-md);
+  z-index: 5;
+  transition: opacity 0.12s;
+  text-align: left;
+  pointer-events: none;
+}
+dfn .tip::after {
+  content: '';
+  position: absolute;
+  left: 50%; bottom: -6px;
+  width: 10px; height: 10px;
+  transform: translateX(-50%) rotate(45deg);
+  background: var(--bg-surface);
+  border-right: 1px solid var(--accent);
+  border-bottom: 1px solid var(--accent);
+}
+dfn .tip strong { color: var(--accent); font-weight: 700; }
+dfn .tip .kind {
+  font-family: var(--font-mono);
+  font-size: 0.78em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-muted);
+  display: block;
+  margin-bottom: 0.2em;
+}
+dfn:hover .tip, dfn:focus .tip { visibility: visible; opacity: 1; }
+
+/* Tooltips are rich containers: definition prose is the default, but a .tip
+   may also embed a small inline visualization — formula, stepped procedure,
+   field-value list, mini-legend, bit-strip, or compact diagram — when it aids
+   comprehension. Use the helper classes below (.tip-formula, .tip-steps,
+   .tip-kv-list, .tip-legend) which are sized to read well inside the 320px
+   tooltip shell. Keep embedded content under ~200 px tall; beyond that the
+   card stops feeling like a tooltip and a details.pb or figure is better. */
+
+/* -- Rich tooltip embeds (inside <dfn> .tip) -- */
+
+/* Centered mono formula strip. */
+.tip-formula {
+  display: block;
+  text-align: center;
+  font-family: var(--font-mono);
+  background: var(--bg);
+  border-left: 2px solid var(--accent);
+  padding: 0.45em 0.6em;
+  margin: 0.55em 0 0.3em;
+  border-radius: 3px;
+  font-size: 0.95em;
+  color: var(--fg-strong);
+}
+
+/* Numbered step list — burgundy counter discs, no bullet markers. */
+.tip-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0.5em 0 0.2em;
+  counter-reset: ts;
+  font-size: 0.9em;
+  line-height: 1.4;
+}
+.tip-steps li {
+  position: relative;
+  padding-left: 1.8em;
+  margin-bottom: 0.3em;
+}
+.tip-steps li::before {
+  counter-increment: ts;
+  content: counter(ts);
+  position: absolute;
+  left: 0; top: 0.15em;
+  width: 1.25em; height: 1.25em;
+  font-family: var(--font-mono);
+  font-size: 0.78em;
+  font-weight: 700;
+  line-height: 1.25em;
+  text-align: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--bg-surface);
+}
+
+/* Field-value list (label on left, value on right). */
+.tip-kv-list {
+  display: block;
+  margin: 0.55em 0 0.25em;
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+}
+.tip-kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8em;
+  padding: 0.22em 0.55em;
+  border-left: 2px solid var(--border-soft);
+  background: var(--bg);
+}
+.tip-kv + .tip-kv { margin-top: 2px; }
+.tip-kv .label { color: var(--fg-muted); }
+.tip-kv .val   { color: var(--accent); font-weight: 700; }
+.tip-kv.break          { border-left-color: var(--pb-callout-danger-border); }
+.tip-kv.break .val     { color: var(--pb-callout-danger-border); }
+
+/* One-line italic footer for a legend / caveat. */
+.tip-legend {
+  display: block;
+  font-size: 0.8em;
+  color: var(--fg-muted);
+  line-height: 1.4;
+  margin: 0.15em 0 0.2em;
+}
+
+/* =========================================================================
+   MATH-SYMBOL GLOSSARY TOOLTIP (sibling to dfn .tip)
+   -------------------------------------------------------------------------
+   Small hover-tooltips attached to KaTeX-rendered math glyphs. Two sources
+   of tooltip targets share this render system:
+
+     .pb-sym         — author-wrapped symbols via a KaTeX macro that emits
+                       \htmlClass{pb-sym pb-sym-<name>}{…}. Explicit, stable,
+                       disambiguates same glyph across meanings.
+     .pb-auto-sym    — auto-detected symbols: post-render DOM walker scans
+                       every .katex-html .mord, classifies base+subscript,
+                       looks up a registry, stamps data-pbtip + class.
+
+   Both trigger ONE shared <div class="pb-tooltip"> + <div class="pb-tooltip-arrow">
+   that live as direct children of <body>. This is load-bearing: a ::after
+   tooltip inside a .katex subtree inherits white-space:nowrap and
+   letter-spacing tweaks from KaTeX's own rules, and wrapping breaks. Moving
+   the tooltip to a body-level singleton escapes that inheritance entirely.
+
+   MINIMUM WIRING (any doc consuming this CSS):
+
+     1. Page already loads KaTeX CSS + katex.min.js + auto-render.min.js.
+     2. On DOMContentLoaded, append one .pb-tooltip and one .pb-tooltip-arrow
+        as body children.
+     3. Listen for delegated mouseover on '.pb-sym, .pb-auto-sym'; resolve
+        tooltip text (data-pbtip OR class→text registry) and set it via
+        tip.textContent. Per DESIGN §7 / Math row: call
+          renderMathInElement(tip, { delimiters:[{left:'$$',right:'$$',display:true},
+                                                  {left:'$',right:'$',display:false}],
+                                     throwOnError:false });
+        so every $…$ becomes real KaTeX.
+     4. Position with viewport clamping + .pb-tip-flip when there isn't room
+        above the symbol.
+     5. mouseout / scroll / resize → hide.
+
+   Tokens: --accent, --bg-surface, --shadow-md, --text-body.
+   ========================================================================= */
+
+/* Hover target chrome (both macro-wrapped and auto-detected variants). */
+.katex .pb-sym,
+.katex .pb-auto-sym {
+  cursor: help;
+  padding: 0.05em 0.12em;
+  margin: 0 0.01em;
+  border-radius: 3px;
+  transition: background-color 0.12s, color 0.12s;
+}
+.katex .pb-sym:hover,
+.katex .pb-auto-sym:hover {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+
+/* Shared tooltip body (positioned by JS via left/top inline styles). */
+.pb-tooltip {
+  position: fixed;
+  z-index: 10000;
+  display: none;
+  pointer-events: none;
+  left: 0; top: 0;
+  transform: translate(-50%, -100%);   /* default: above the symbol */
+  width: max-content;
+  max-width: min(380px, calc(100vw - 20px));
+  padding: 0.55em 0.8em;
+  font-family: var(--font-serif);
+  font-size: 1.5rem;                   /* ≈ 15px — uniform with dfn .tip */
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1.4;
+  color: var(--fg);
+  background: var(--bg-surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  /* Safety resets — never inherit any ambient KaTeX typographic tweaks. */
+  text-indent: 0;
+  letter-spacing: normal;
+  word-spacing: normal;
+  font-variant: normal;
+  font-feature-settings: normal;
+}
+.pb-tooltip.pb-tip-show  { display: block; }
+.pb-tooltip.pb-tip-flip  { transform: translate(-50%, 0); }   /* below symbol */
+
+/* Companion arrow — separate div so its rotate() doesn't collide with the
+   tooltip's translate(). */
+.pb-tooltip-arrow {
+  position: fixed;
+  z-index: 10001;
+  display: none;
+  pointer-events: none;
+  width: 9px; height: 9px;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--accent);
+  border-bottom: 1px solid var(--accent);
+  transform: rotate(45deg);             /* points down (tooltip above) */
+}
+.pb-tooltip-arrow.pb-tip-show  { display: block; }
+.pb-tooltip-arrow.pb-tip-flip  { transform: rotate(225deg); }  /* points up */
+
+/* =========================================================================
+   KATEX SIZE NORMALIZATION INSIDE TOOLTIPS
+   -------------------------------------------------------------------------
+   KaTeX's default `.katex { font-size: 1.21em }` scales every math atom
+   ~21 % larger than the surrounding text. That's right for body / display
+   math (math glyphs look cramped at 1em next to prose), but inside a
+   compact tooltip it creates visible jumps between prose ("— centerline
+   position,") and math ("r(s,t)"). Clamp to 1em inside both tooltip
+   surfaces so prose and math share one size — applies uniformly to
+   dfn.tip (prose glossary) and .pb-tooltip (math-symbol glossary).
+   ========================================================================= */
+dfn .tip .katex,
+.pb-tooltip .katex  { font-size: 1em; }
+/* Display math inside a tooltip (rare, via $$…$$) keeps a slight bump
+   so it still reads as "display" rather than inline. */
+dfn .tip .katex-display > .katex,
+.pb-tooltip .katex-display > .katex { font-size: 1.05em; }
+
+/* =========================================================================
+   DOC PATTERNS (framed content helpers used across long-form reports)
+   These share the burgundy-left-bar chrome family but compose into grids
+   and micro-widgets that don't warrant a full component.
+   ========================================================================= */
+
+/* -- TL;DR dual-column summary (What we did / What we didn't) -- */
+.tldr-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.9em;
+  margin: 0.6em 0 1.4em;
+}
+.tldr-col {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-left: var(--border-accent-bar) solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.85em 1.05em;
+}
+.tldr-col h3 {
+  margin: 0 0 0.4em;
+  font-size: 1em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+.tldr-col ul { margin: 0; padding-left: 1.1em; }
+.tldr-col li { margin-bottom: 0.25em; font-size: 0.93em; }
+
+/* Variant: open questions / not-yet-done. Warn-ochre accent. */
+.tldr-col.tldr-not-done            { border-left-color: var(--pb-callout-warn-border); }
+.tldr-col.tldr-not-done h3         { color: var(--pb-callout-warn-border); }
+
+@media (max-width: 684px) {
+  .tldr-columns { grid-template-columns: 1fr; }
+}
+
+/* -- Step grid (numbered protocol / procedure) --
+   Markup: <ol class="step-grid"><li><span class="step-num">1</span>
+           <span class="step-op">…</span><code class="step-tool">…</code></li></ol>
+*/
+.step-grid {
+  list-style: none;
+  padding: 0;
+  margin: 1.1em 0 1.4em;
+  display: grid;
+  gap: 0.7em;
+}
+.step-grid > li {
+  display: grid;
+  grid-template-columns: 2.4em 1fr;
+  column-gap: 0.8em;
+  row-gap: 0.15em;
+  align-items: start;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-left: var(--border-accent-bar) solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.7em 0.95em;
+  margin: 0;
+}
+.step-grid .step-num {
+  font-family: var(--font-mono);
+  font-size: 1.4em;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+.step-grid .step-op {
+  font-weight: 700;
+  color: var(--fg-strong);
+  font-size: 1.02em;
+  line-height: 1.3;
+}
+.step-grid .step-tool {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  color: var(--fg-muted);
+  line-height: 1.4;
+  word-break: break-word;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+/* -- Category / taxonomy card grid --
+   Definition cards with a mono name, prose definition, and italic example.
+   Optional <span class="kind-badge ..."> in the header. */
+.cat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.9em;
+  margin: 1.1em 0 1.4em;
+}
+.cat-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-left: var(--border-accent-bar) solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.85em 1.05em 1em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+}
+.cat-card > header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55em;
+  flex-wrap: wrap;
+  margin-bottom: 0.1em;
+}
+.cat-card .cat-name {
+  font-family: var(--font-mono);
+  font-size: 1em;
+  color: var(--fg-strong);
+  font-weight: 700;
+  background: transparent;
+  padding: 0;
+}
+.cat-card .cat-def {
+  margin: 0;
+  font-size: 0.97em;
+  line-height: 1.4;
+  color: var(--fg);
+}
+.cat-card .cat-ex {
+  margin: 0;
+  font-size: 0.88em;
+  font-style: italic;
+  line-height: 1.4;
+  color: var(--fg-muted);
+}
+.cat-card .cat-ex::before {
+  content: "e.g. ";
+  font-style: normal;
+  font-weight: 700;
+  font-size: 0.76em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-right: 0.25em;
+}
+
+/* -- Kind badge (categorical role chip used in cat-card headers and legends).
+   Sibling to .verdict (rating) and .badge (test state). Neutral is default;
+   .driver / .keystone reuse accent-tint and the danger palette. */
+.kind-badge {
+  display: inline-block;
+  padding: 0.1em 0.55em;
+  font-size: 0.76em;
+  font-weight: 700;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.kind-badge.neutral  { background: var(--pb-cream-200);         color: var(--fg-muted); border: 1px solid var(--border); }
+.kind-badge.driver   { background: var(--accent-tint);          color: var(--accent);   border: 1px solid var(--accent); }
+.kind-badge.keystone { background: var(--pb-callout-danger-bg); color: var(--pb-callout-danger-border); border: 1px solid var(--pb-callout-danger-border); }
+
+/* =========================================================================
+   SYM-LIST — body-scale symbol-definition list
+   =========================================================================
+   Replaces tables for "explain what these symbols mean after a formula"
+   contexts. Inspired by .tip-kv (the glossary-tooltip inner widget) but
+   sized for the main column.
+
+   Canonical pattern — mono-uppercase role labels:
+     <dl class="sym-list">
+       <dt>IN</dt>   <dd>controller state, $t_n$</dd>
+       <dt>OUT</dt>  <dd>$\boldsymbol{\kappa}_0(s_j, t_n), j = 0, \ldots, N_e - 2$</dd>
+     </dl>
+
+   Math-keyed variant — for notation / parameter lists where the symbol
+   itself is the key (use class="math" on a single dt, or .math-keys on
+   the dl for every row):
+     <dl class="sym-list math-keys">
+       <dt>$L$</dt>  <dd>rod rest length <span class="sym-num">0.5 m</span> <span class="sym-sub">geometry</span></dd>
+       <dt>$\boldsymbol{\kappa}_0(s,t)$</dt>  <dd>reference curvature (control)</dd>
+     </dl>
+
+   Value-side helper spans (inside <dd>):
+     .sym-unit — muted italic, for units / domain annotations
+     .sym-sub  — muted small, for role / reference / footnote labels
+     .sym-num  — burgundy bold tabular-nums, for numeric values
+     .kind-badge — inline role chip (reused)
+
+   Use this instead of a <table> whenever the table is really a flat
+   symbol-to-definition lookup with at most one value column plus one or
+   two annotation spans. Reserve <table> for genuinely multi-column
+   comparative data where every column carries independent signal. */
+.sym-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 1.1em;
+  row-gap: 3px;
+  margin: 1em 0 1.3em;
+  padding: 0;
+  align-items: stretch;
+}
+.sym-list > dt {
+  font-family: var(--font-mono);
+  font-size: 0.78em;
+  font-weight: 700;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.4em 0.75em;
+  border-left: 2px solid var(--accent);
+  background: var(--bg);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+}
+.sym-list > dt.math,
+.sym-list.math-keys > dt {
+  font-family: var(--font-serif);
+  font-size: 1em;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--fg-strong);
+  border-left-color: var(--border-soft);
+}
+.sym-list > dd {
+  margin: 0;
+  padding: 0.4em 0.5em 0.4em 0;
+  color: var(--fg);
+  font-size: 0.95em;
+  line-height: 1.5;
+  align-self: center;
+}
+.sym-list > dd > .sym-unit  { color: var(--fg-muted); font-style: italic; margin-left: 0.5em; font-size: 0.88em; }
+.sym-list > dd > .sym-sub   { color: var(--fg-muted); font-size: 0.88em; margin-left: 0.6em; }
+.sym-list > dd > .sym-num   { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; margin-left: 0.5em; }
+.sym-list > dd > .kind-badge { margin-left: 0.5em; vertical-align: 0; }
+.sym-list > dd code { font-size: 0.92em; }
+
+/* Stack to single column on narrow viewports so neither column starves. */
+@media (max-width: 684px) {
+  .sym-list { grid-template-columns: 1fr; row-gap: 6px; }
+  .sym-list > dt { white-space: normal; }
+  .sym-list > dd { padding: 0.35em 0.55em; border-left: 2px solid var(--border-soft); background: var(--bg); }
+}
+
+/* -- Inline horizontal bar row (label / track / value) --
+   Markup: <div class="bar-row"><span class="bar-label">…</span>
+           <div class="bar-track"><div class="bar" style="width:60%"></div></div>
+           <span class="bar-value">…</span></div> */
+.bar-row {
+  display: grid;
+  grid-template-columns: 5.5em 1fr auto;
+  align-items: center;
+  gap: 0.7em;
+  font-size: 0.88em;
+  margin: 0.3em 0;
+}
+.bar-label {
+  font-family: var(--font-mono);
+  color: var(--fg-muted);
+  font-size: 0.85em;
+}
+.bar-track {
+  height: 9px;
+  background: var(--pb-cream-200);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.bar {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1), background 0.35s;
+  border-radius: 5px;
+}
+.bar.alt { background: var(--pb-callout-danger-border); }
+.bar-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85em;
+  color: var(--fg);
+  min-width: 4.2em;
+  text-align: right;
+}
+
+/* -- Numeric-format bit strip (.bit-format) --
+   Markup: <span class="bit-format bf16">
+             <span class="bits"><span class="b s"></span><span class="b e"></span>…</span>
+             <span class="labels"><span class="lbl s">S</span><span class="lbl e">exp</span>
+                                  <span class="lbl m">mantissa</span></span>
+           </span>
+   Colors: sign = burgundy, exponent = ochre, mantissa = moss — matching
+   callout-warn and callout-ok tokens. */
+.bit-format { display: block; margin: 0.55em 0 0.35em; font-family: var(--font-mono); }
+.bit-format .bits   { display: grid; gap: 2px; margin-bottom: 4px; }
+.bit-format .b      { height: 14px; border-radius: 2px; }
+.bit-format .b.s    { background: var(--pb-burgundy-600); }
+.bit-format .b.e    { background: var(--pb-callout-warn-border); }
+.bit-format .b.m    { background: var(--pb-callout-ok-border); }
+.bit-format .labels { display: grid; gap: 2px; font-size: 0.78em; letter-spacing: 0.04em; text-transform: uppercase; }
+.bit-format .lbl    { text-align: center; }
+.bit-format .lbl.s  { color: var(--pb-burgundy-600); }
+.bit-format .lbl.e  { color: var(--pb-callout-warn-border); }
+.bit-format .lbl.m  { color: var(--pb-callout-ok-border); }
+
+/* Preset: bfloat16 (1 sign + 8 exponent + 7 mantissa = 16 bits). */
+.bit-format.bf16 .bits   { grid-template-columns: repeat(16, 1fr); }
+.bit-format.bf16 .labels { grid-template-columns: 1fr 8fr 7fr; }
+
+/* Preset: fp32 / IEEE-754 single (1 + 8 + 23 = 32 bits). */
+.bit-format.fp32 .bits   { grid-template-columns: repeat(32, 1fr); }
+.bit-format.fp32 .labels { grid-template-columns: 1fr 8fr 23fr; }
+
+/* Preset: fp16 / IEEE-754 half (1 + 5 + 10 = 16 bits). */
+.bit-format.fp16 .bits   { grid-template-columns: repeat(16, 1fr); }
+.bit-format.fp16 .labels { grid-template-columns: 1fr 5fr 10fr; }
+
+/* -- Numeric-format rail (inline caption marking a diagram's format) -- */
+.format-rail {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.2em 0.1em 0.2em 0.5em;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--fg-muted);
+}
+.format-rail::before {
+  content: "";
+  display: inline-block;
+  width: 0; height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid var(--accent);
+  opacity: 0.75;
+  flex-shrink: 0;
+}
+.format-rail .fmt-label {
+  color: var(--accent);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.82em;
+}
+
+/* -- Token-role rows (label-caps in mono + value, used inside figures) -- */
+.tok-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.6em;
+  align-items: baseline;
+  margin: 0.2em 0;
+}
+.tok-role {
+  font-family: var(--font-mono);
+  font-size: 0.7em;
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+
+/* -- References list (<ol class="refs">) --
+   Tighter leading than default ol, .ref-note renders italic sub-lines. */
+ol.refs {
+  padding-left: 1.5em;
+  margin: 0.8em 0 1.4em;
+}
+ol.refs li {
+  margin-bottom: 0.75em;
+  line-height: 1.5;
+  padding-left: 0.25em;
+}
+ol.refs li strong { color: var(--fg-strong); font-weight: 600; }
+ol.refs li em     { color: var(--fg); }
+ol.refs .ref-note {
+  display: block;
+  margin-top: 0.15em;
+  font-size: 0.92em;
+  font-style: italic;
+  color: var(--fg-muted);
+  line-height: 1.45;
+}
+
+/* =========================================================================
+   FIGURE (raster image)
+   ========================================================================= */
+
+/* Raster / image figure — same framing chrome as figure.diagram (SVG), but
+   with tighter inner padding since <img> already carries its own mat.
+   Consume with <figure class="figure-img"><img …><figcaption>…</figcaption></figure>. */
+.figure-img {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-left: var(--border-accent-bar) solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 1em 1.2em 0.7em;
+  margin: var(--space-5) 0;
+}
+.figure-img img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+.figure-img figcaption {
+  margin-top: 0.7em;
+  font-size: 0.88em;
+  color: var(--fg-muted);
+  font-style: italic;
+  text-align: center;
+}
+
+/* =========================================================================
+   PIPELINE (annotated protocol / flow)
+   =========================================================================
+   Vertical sequence of stage cards on the left, italic "why" annotations in
+   a second column on the right. Stages reuse the step-grid primitives
+   (.step-num / .step-op / .step-tool) so numbered protocols and pipelines
+   share numerical vocabulary. Optional .format-rail rows can sit between
+   stages to mark a change of numeric format (e.g. "BF16 · decoder attn").
+
+   Structure:
+     <div class="pipeline">
+       <div class="stage">
+         <span class="step-num">1</span>
+         <span class="step-op">stage title</span>
+         <code class="step-tool">tool / command</code>
+       </div>
+       <p class="why">why this stage exists</p>
+       <div class="format-rail"><span class="fmt-label">BF16</span> decoder attn</div>
+       <div class="stage">…</div>
+       <p class="why">…</p>
+     </div>
+
+   This is the figure-grade pipeline. For the small inline pipeline fragment
+   used inside a glossary tooltip, see .logmel-vis below. */
+.pipeline {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  column-gap: 1.3em;
+  row-gap: 0.3em;
+  margin: var(--space-4) 0 var(--space-5);
+  align-items: stretch;
+}
+.pipeline > .stage,
+.pipeline > .format-rail { grid-column: 1; }
+.pipeline > .why         { grid-column: 2; }
+
+.pipeline .stage {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-left: var(--border-accent-bar) solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.65em 0.95em 0.75em;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.9em;
+  row-gap: 0.2em;
+  align-items: baseline;
+}
+.pipeline .stage .step-num {
+  font-family: var(--font-mono);
+  font-size: 1.4em;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+.pipeline .stage .step-op {
+  font-weight: 700;
+  color: var(--fg-strong);
+  font-size: 1.02em;
+  line-height: 1.3;
+}
+.pipeline .stage .step-tool {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  color: var(--fg-muted);
+  line-height: 1.4;
+  word-break: break-word;
+  background: transparent;
+  padding: 0;
+}
+
+.pipeline .why {
+  font-size: 0.92em;
+  font-style: italic;
+  color: var(--fg-muted);
+  line-height: 1.5;
+  align-self: center;
+  padding: 0 0.2em;
+}
+.pipeline .why code {
+  font-style: normal;
+  font-size: 0.9em;
+}
+
+@media (max-width: 720px) {
+  .pipeline { grid-template-columns: 1fr; row-gap: 0.2em; }
+  .pipeline > .why { grid-column: 1; padding: 0 0.4em 0.5em; }
+}
+
+/* =========================================================================
+   GLOSSARY-TOOLTIP VISUAL EMBEDS (log-mel, GELU, p-value)
+   =========================================================================
+   Small, self-contained visual fragments designed to live inside a
+   <dfn class="tip">…</dfn> body. They follow the same visual-first
+   philosophy as .bit-format, .tip-formula, and .tip-steps: lead with a
+   diagram, let prose be a caption.
+
+   All three presets cap at ~260px wide and ~60px tall so they fit inside
+   the 320px tooltip card without scroll. Promote the embed out of the
+   tooltip (into a figure.diagram or details.pb) if it outgrows that box. */
+
+/* -- .logmel-vis — horizontal pipeline fragment (stage pills + arrow glyphs).
+   Use for any short left-to-right transformation chain where a full
+   .pipeline figure would be overkill (feature extraction, tokenization
+   steps, preprocessing flow). The terminal stage gets .final, which swaps
+   the burgundy accent for callout-ok moss to signal "output reached". */
+.logmel-vis {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin: 0.55em 0 0.25em;
+  font-family: var(--font-mono);
+  font-size: 0.72em;
+}
+.logmel-vis .stage {
+  padding: 2px 5px;
+  border: 1px solid var(--border-soft);
+  border-left: 2px solid var(--accent);
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--fg);
+  white-space: nowrap;
+}
+.logmel-vis .stage.final {
+  border-left-color: var(--pb-callout-ok-border);
+  color: var(--pb-callout-ok-border);
+  font-weight: 700;
+}
+.logmel-vis .arrow {
+  color: var(--fg-muted);
+  font-weight: 700;
+}
+
+/* -- .gelu-vis — slot for an inline SVG activation-curve sparkline.
+   Pair with a hand-drawn <svg viewBox="0 0 …"> inside the tooltip; this
+   class just enforces the sizing box and margins. Reuse for any small
+   curve embed (sigmoid, softmax-temperature, learning-rate schedule). */
+.gelu-vis {
+  display: block;
+  width: 100%;
+  max-width: 260px;
+  height: auto;
+  margin: 0.5em auto 0.2em;
+}
+
+/* -- .pval-vis — slot for an inline SVG null-distribution-with-tails fig.
+   Same geometry as .gelu-vis. Use for statistical-test explainers
+   (p-value shaded tails, confidence intervals, power curves). */
+.pval-vis {
+  display: block;
+  width: 100%;
+  max-width: 260px;
+  height: auto;
+  margin: 0.5em auto 0.2em;
+}
+
+/* =========================================================================
+   RESPONSIVE (layout rules; typography breakpoints live in colors_and_type.css)
+   ========================================================================= */
+
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main-content { padding: 1em; max-width: 100%; }
+  nav#toc {
+    display: block;
+    background: var(--bg-sidebar);
+    padding: 1em;
+    border-radius: var(--radius-md);
+  }
+}
+
+/* =========================================================================
+   PRINT
+   ========================================================================= */
+
+@media print {
+  body { background: #fff; font-size: 11pt; }
+  .sidebar { display: none; }
+  .main-content { max-width: 100%; padding: 0; }
+  nav#toc { display: block; background: transparent; padding: 0; }
+  h2 { break-after: avoid; }
+  table, .callout, figure.diagram, .figure-img, details.pb,
+  .tldr-col, .cat-card, .step-grid > li { break-inside: avoid; }
+  a { color: #333; }
+  .doc-toolbar { display: none !important; }
+  /* Hide hover-only tooltips — they're unreachable on paper. If the
+     content matters for print, promote it out of the .tip. */
+  dfn .tip { display: none !important; }
+  /* Flatten all collapsibles so every section prints. */
+  details.pb > summary::before { transform: none; }
+  details.pb:not([open]) > *:not(summary) { display: block !important; }
+}
+
+
+/* Project State local refinements — token-only additions. */
+.main-content { padding-bottom: 4em; }
+.state-kicker {
+  font-family: var(--font-mono);
+  color: var(--accent);
+  font-size: 0.78em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.4em;
+}
+.state-summary {
+  display: grid;
+  gap: 0.75em;
+  margin: 1em 0 1.4em;
+}
+.state-row {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-left: var(--border-accent-bar) solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.75em 1em;
+}
+.state-row strong { display: block; margin-bottom: 0.15em; }
+.path-list code { word-break: break-word; }
+.compact-list li { margin-bottom: 0.15em; }
+.chapter-rule {
+  font-family: var(--font-mono);
+  color: var(--fg-muted);
+  font-size: 0.82em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.status-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45em;
+  align-items: center;
+}
+
+</style>
+</head>
+<body>
+<div class="page-wrapper">
+
+<aside class="sidebar" id="sidebar-toc">
+  <strong>Project State</strong>
+  <ul>
+    <li><a href="#snapshot">Snapshot</a></li>
+    <li><a href="#chapter-data">1. Data already available</a></li>
+    <li><a href="#caveats">Caveats</a></li>
+  </ul>
+</aside>
+
+<main class="main-content">
+  <div class="state-kicker">FairSpeechLoRaAndGRPO · personal state file</div>
+  <h1>Project State — Data Inventory</h1>
+  <p class="subtitle">Concise map of what data/results are already processed locally. Updated 2026-04-27.</p>
+  <hr>
+
+  <nav id="toc" aria-label="Contents (mobile)">
+    <strong>Contents</strong>
+    <ul>
+      <li><a href="#snapshot">Snapshot</a></li>
+      <li><a href="#chapter-data">1. Data already available</a></li>
+      <li><a href="#caveats">Caveats</a></li>
+    </ul>
+  </nav>
+
+  <section data-section="snapshot">
+    <h2 id="snapshot">Snapshot</h2>
+    <div class="metric-grid">
+      <div class="metric"><div class="label">Common Voice clips</div><div class="value">16,398 <span class="unit">local MP3s</span></div></div>
+      <div class="metric"><div class="label">CV inference files</div><div class="value">117 <span class="unit">9 models × 13 conditions</span></div></div>
+      <div class="metric"><div class="label">CV metadata files</div><div class="value">117</div></div>
+      <div class="metric"><div class="label">LibriSpeech clean rows</div><div class="value">2,620 <span class="unit">per complete model CSV</span></div></div>
+      <div class="metric"><div class="label">Perturbation tables</div><div class="value">9 <span class="unit">accent / gender / age</span></div></div>
+      <div class="metric"><div class="label">FairSpeech local state</div><div class="value">partial <span class="unit">figures only, not raw result tables</span></div></div>
+    </div>
+
+    <div class="callout success">
+      <strong>Usable now:</strong> Common Voice clean + perturbation fairness analysis is already processed enough for accent/gender/age discussion.
+    </div>
+  </section>
+
+  <section data-section="chapter-data">
+    <h2 id="chapter-data">1. Data already available</h2>
+    <p class="chapter-rule">Chapter 1 · current local processed data</p>
+
+    <h3>1.1 Common Voice — complete local working set</h3>
+    <div class="state-summary">
+      <div class="state-row">
+        <strong>Raw audio and manifest are local.</strong>
+        <ul class="compact-list path-list">
+          <li><code>datasets/common_voice_24_clips/</code> — 16,398 MP3 clips.</li>
+          <li><code>datasets/common_voice_24_clips.zip</code> — archive copy.</li>
+          <li><code>datasets/data/cv_test_manifest.csv</code> — 16,398 rows with text, audio path, gender, accent, age, and client ID.</li>
+        </ul>
+      </div>
+      <div class="state-row">
+        <strong>Clean and perturbed inference results are present.</strong>
+        <ul class="compact-list">
+          <li>9 models.</li>
+          <li>13 conditions per model: clean, 3 noise levels, 3 reverb levels, 3 silence levels, 3 masking levels.</li>
+          <li>Every Common Voice prediction CSV has 16,398 rows.</li>
+        </ul>
+      </div>
+      <div class="state-row">
+        <strong>Fairness axes available in CV.</strong>
+        <table>
+          <thead><tr><th>Axis</th><th>Usable groups</th><th class="num">Main counts</th></tr></thead>
+          <tbody>
+            <tr><td>Accent</td><td>US, Indian, England, Canada, Australia, African</td><td class="num">1,193 · 511 · 381 · 99 · 98 · 51</td></tr>
+            <tr><td>Gender</td><td>male, female</td><td class="num">1,753 · 534</td></tr>
+            <tr><td>Age</td><td>twenties, thirties, teens, forties, fifties</td><td class="num">1,305 · 463 · 366 · 244 · 129</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3>1.2 Common Voice results already computed</h3>
+    <div class="state-row">
+      <strong>Artifact means a pipeline output we can inspect or reuse directly.</strong>
+      <ul class="compact-list">
+        <li><strong>Prediction CSVs</strong> — one row per utterance: reference text, model transcript, WER, demographics, model name, and architecture label.</li>
+        <li><strong>Metadata JSONs</strong> — run-level information: model ID, total utterances, overall WER, device, batch size, elapsed time, and timestamp.</li>
+        <li><strong>Analysis outputs</strong> — computed summaries from predictions: group WERs, max/min fairness ratios, relative gaps, error decomposition, and plot/table files.</li>
+      </ul>
+    </div>
+    <table>
+      <thead><tr><th>Artifact</th><th>What it contains</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><code>datasets/results/commonvoice/</code></td><td>Raw model outputs for CV: prediction CSVs and run metadata JSONs for all clean and perturbed runs.</td><td><span class="badge pass">present</span></td></tr>
+        <tr><td><code>datasets/results/commonvoice/analysis/</code></td><td>Clean-audio fairness analysis: summaries, WER-by-group plots, LaTeX tables, and error decomposition.</td><td><span class="badge pass">present</span></td></tr>
+        <tr><td><code>datasets/results/tables/</code></td><td>Machine-readable perturbation summaries: WER, insertion rate, and fairness-gap amplification by demographic axis.</td><td><span class="badge pass">present</span></td></tr>
+        <tr><td><code>datasets/results/figures/</code></td><td>Human-readable figures plus source CSVs for paper-style CV fairness and perturbation plots.</td><td><span class="badge pass">present</span></td></tr>
+      </tbody>
+    </table>
+
+    <h3>1.3 Models already run on Common Voice</h3>
+    <div class="state-row">
+      <strong>The “13 conditions” are the same for every model.</strong>
+      <table>
+        <thead><tr><th>Condition group</th><th>Specific runs</th><th class="num">Count</th></tr></thead>
+        <tbody>
+          <tr><td>Original audio</td><td>clean</td><td class="num">1</td></tr>
+          <tr><td>Additive noise</td><td>SNR 20 dB, SNR 10 dB, SNR 0 dB</td><td class="num">3</td></tr>
+          <tr><td>Reverberation</td><td>0.3 s, 0.6 s, 1.0 s</td><td class="num">3</td></tr>
+          <tr><td>Silence injection</td><td>25%, 50%, 75%</td><td class="num">3</td></tr>
+          <tr><td>Chunk masking</td><td>10%, 20%, 30%</td><td class="num">3</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <table>
+      <thead><tr><th>Generation</th><th>Models</th><th class="num">Conditions each</th></tr></thead>
+      <tbody>
+        <tr><td>Gen 1</td><td>wav2vec2-large</td><td class="num">13</td></tr>
+        <tr><td>Gen 2</td><td>whisper-small, whisper-medium, whisper-large-v3</td><td class="num">13</td></tr>
+        <tr><td>Gen 3</td><td>qwen3-asr-0.6b, qwen3-asr-1.7b, canary-qwen-2.5b, granite-speech-3.3-2b, granite-speech-3.3-8b</td><td class="num">13</td></tr>
+      </tbody>
+    </table>
+
+    <h3>1.4 LibriSpeech — clean baseline only</h3>
+    <div class="state-row">
+      <ul class="compact-list path-list">
+        <li><code>datasets/data/ls_manifest.csv</code> — 2,620 rows, no demographic columns.</li>
+        <li><code>datasets/results/librispeech/</code> — clean prediction CSVs for 9 models.</li>
+        <li>Local LibriSpeech audio paths are external OSC paths, so raw audio is not available locally.</li>
+      </ul>
+    </div>
+
+    <h3>1.5 FairSpeech — not locally complete</h3>
+    <div class="callout warning">
+      <strong>Current local state:</strong> FairSpeech underlying prediction CSVs and full analysis JSON are not present. Only downstream figure artifacts are visible, such as <code>fig1_ethnicity_heatmap</code>.
+    </div>
+  </section>
+
+  <section data-section="caveats">
+    <h2 id="caveats">Caveats</h2>
+    <ul class="checklist">
+      <li class="checked"><strong>CV perturbation results exist.</strong> We have prediction tables and analysis outputs, not necessarily stored perturbed audio files.</li>
+      <li class="checked"><strong>CV demographics are sparse.</strong> Accent/gender/age analyses use labeled subsets, not all 16,398 clips.</li>
+      <li><strong>Resolve source-of-truth mismatch before final claims.</strong> <code>summary.csv</code> and <code>summary_7models.csv</code> disagree for Granite-8B.</li>
+      <li><strong>FairSpeech needs teammate data or rerun access</strong> before making local ethnicity-result claims from raw tables.</li>
+    </ul>
+  </section>
+
+  <footer>
+    <p>Next chapters can be appended here as the project state changes.</p>
+  </footer>
+</main>
+</div>
+</body>
+</html>
