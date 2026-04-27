@@ -95,12 +95,12 @@
 
 <table>
   <thead>
-    <tr><th>Step</th><th>What Happens</th><th>Survivors</th></tr>
+    <tr><th>Step</th><th>What Happens</th><th class="num">Survivors</th></tr>
   </thead>
   <tbody>
-    <tr><td>Rung 1 (e.g., step 25)</td><td>All trials report loss. Bottom 2/3 pruned.</td><td>~33%</td></tr>
-    <tr><td>Rung 2 (e.g., step 50)</td><td>Survivors report again. Bottom 2/3 of survivors pruned.</td><td>~11%</td></tr>
-    <tr><td>Rung 3 (e.g., step 100)</td><td>Final survivors complete full training.</td><td>~4%</td></tr>
+    <tr><td>Rung 1 (e.g., step 25)</td><td>All trials report loss. Bottom 2/3 pruned.</td><td class="num">~33%</td></tr>
+    <tr><td>Rung 2 (e.g., step 50)</td><td>Survivors report again. Bottom 2/3 of survivors pruned.</td><td class="num">~11%</td></tr>
+    <tr><td>Rung 3 (e.g., step 100)</td><td>Final survivors complete full training.</td><td class="num">~4%</td></tr>
   </tbody>
 </table>
 
@@ -145,13 +145,13 @@
 
 <table>
   <thead>
-    <tr><th>Rank</th><th>Components Summed</th><th>Raw $\|BAx\|$</th><th>Relative to rank-4</th></tr>
+    <tr><th class="num">Rank</th><th class="num">Components Summed</th><th>Raw $\|BAx\|$</th><th class="num">Relative to rank-4</th></tr>
   </thead>
   <tbody>
-    <tr><td>4</td><td>4 terms</td><td>$\sim 4c$</td><td>1&times;</td></tr>
-    <tr><td>8</td><td>8 terms</td><td>$\sim 8c$</td><td>2&times;</td></tr>
-    <tr><td>16</td><td>16 terms</td><td>$\sim 16c$</td><td>4&times;</td></tr>
-    <tr><td>32</td><td>32 terms</td><td>$\sim 32c$</td><td>8&times;</td></tr>
+    <tr><td class="num">4</td><td class="num">4 terms</td><td>$\sim 4c$</td><td class="num">1&times;</td></tr>
+    <tr><td class="num">8</td><td class="num">8 terms</td><td>$\sim 8c$</td><td class="num">2&times;</td></tr>
+    <tr><td class="num">16</td><td class="num">16 terms</td><td>$\sim 16c$</td><td class="num">4&times;</td></tr>
+    <tr><td class="num">32</td><td class="num">32 terms</td><td>$\sim 32c$</td><td class="num">8&times;</td></tr>
   </tbody>
 </table>
 
@@ -283,12 +283,12 @@
 
 <table>
   <thead>
-    <tr><th>Alpha Setting</th><th>Ratio ($\alpha/r$)</th><th>Scaling</th><th>Effect</th></tr>
+    <tr><th>Alpha Setting</th><th class="num">Ratio ($\alpha/r$)</th><th class="num">Scaling</th><th>Effect</th></tr>
   </thead>
   <tbody>
-    <tr><td>$\alpha = r$</td><td>1</td><td>1.0</td><td>Adapter contributes at "natural" magnitude</td></tr>
-    <tr class="highlight"><td>$\alpha = 2r$ (our winner)</td><td>2</td><td>2.0</td><td>Adapter contributes 2&times; stronger</td></tr>
-    <tr><td>$\alpha < r$</td><td>&lt; 1</td><td>&lt; 1.0</td><td>Damped, conservative updates</td></tr>
+    <tr><td>$\alpha = r$</td><td class="num">1</td><td class="num">1.0</td><td>Adapter contributes at "natural" magnitude</td></tr>
+    <tr class="highlight"><td>$\alpha = 2r$ (our winner)</td><td class="num">2</td><td class="num">2.0</td><td>Adapter contributes 2&times; stronger</td></tr>
+    <tr><td>$\alpha < r$</td><td class="num">&lt; 1</td><td class="num">&lt; 1.0</td><td>Damped, conservative updates</td></tr>
   </tbody>
 </table>
 
@@ -317,13 +317,13 @@
 
 <table>
   <thead>
-    <tr><th>Rank</th><th>Standard ($\alpha/r$)</th><th>RsLoRA ($\alpha/\sqrt{r}$)</th><th>Gradient Ratio</th></tr>
+    <tr><th class="num">Rank</th><th>Standard ($\alpha/r$)</th><th>RsLoRA ($\alpha/\sqrt{r}$)</th><th class="num">Gradient Ratio</th></tr>
   </thead>
   <tbody>
-    <tr><td>4</td><td>$\alpha/4 = 2.0$</td><td>$\alpha/2 = 4.0$</td><td>2.0&times;</td></tr>
-    <tr><td>8</td><td>$\alpha/8 = 1.0$</td><td>$\alpha/2.83 = 2.83$</td><td>2.83&times;</td></tr>
-    <tr><td>16</td><td>$\alpha/16 = 0.5$</td><td>$\alpha/4 = 2.0$</td><td>4.0&times;</td></tr>
-    <tr class="highlight"><td><strong>32</strong></td><td>$\alpha/32 = 0.25$</td><td>$\alpha/5.66 = 1.41$</td><td><strong>5.66&times;</strong></td></tr>
+    <tr><td class="num">4</td><td>$\alpha/4 = 2.0$</td><td>$\alpha/2 = 4.0$</td><td class="num">2.0&times;</td></tr>
+    <tr><td class="num">8</td><td>$\alpha/8 = 1.0$</td><td>$\alpha/2.83 = 2.83$</td><td class="num">2.83&times;</td></tr>
+    <tr><td class="num">16</td><td>$\alpha/16 = 0.5$</td><td>$\alpha/4 = 2.0$</td><td class="num">4.0&times;</td></tr>
+    <tr class="highlight"><td class="num"><strong>32</strong></td><td>$\alpha/32 = 0.25$</td><td>$\alpha/5.66 = 1.41$</td><td class="num"><strong>5.66&times;</strong></td></tr>
   </tbody>
 </table>
 <p><em>Values shown with $\alpha = 8$ (our sweep winner's alpha).</em></p>

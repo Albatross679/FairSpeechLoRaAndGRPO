@@ -1,0 +1,204 @@
+/* =========================================================================
+   Palatino Burgundy — Colors & Type
+   Design tokens (CSS custom properties) + reset + base typography.
+   Warm, classic, bookish aesthetic for self-contained HTML reference docs.
+   Load this file first; components.css, author-card.css, and pencil.css
+   all consume tokens defined here.
+   ========================================================================= */
+
+:root {
+  /* ---------- COLOR TOKENS ---------- */
+
+  /* Primary burgundy ramp */
+  --pb-burgundy-700: #5c2233;   /* visited links */
+  --pb-burgundy-600: #7c3043;   /* PRIMARY accent */
+  --pb-burgundy-500: #a3415a;   /* hover / lighter rose */
+  --pb-burgundy-100: #f5eaed;   /* table row hover, highlighted leaf bg */
+
+  /* Neutrals (warm cream family) */
+  --pb-cream-50:  #f5f4f0;      /* page background */
+  --pb-cream-100: #f0efeb;      /* sidebar background */
+  --pb-cream-200: #ebe7e3;      /* sidebar hover/active bg */
+  --pb-cream-300: #e0ddd5;      /* figure borders */
+  --pb-paper:     #faf9f7;      /* figure / code-block fill */
+  --pb-white:     #ffffff;      /* checklist checkbox fill */
+
+  --pb-ink-900: #3a3a3a;        /* headings, thead */
+  --pb-ink-700: #4a4a4a;        /* body text */
+  --pb-ink-500: #6a6a6a;        /* figcaption, meta */
+  --pb-ink-300: #998;           /* code comments (italic) */
+  --pb-border:  #dddddd;        /* table / input borders */
+  --pb-border-soft: #e0ddd5;    /* figure border */
+
+  /* Callouts — earth-tones set (umber / ochre / burnt-umber / moss).
+     Pulled into the same warm-earth family as --pb-data-2/3/4 so callouts
+     and charts share one palette instead of fighting each other. */
+  --pb-callout-info-bg:       #efece3;   /* warm stone */
+  --pb-callout-info-border:   #8a7a5c;   /* umber */
+  --pb-callout-warn-bg:       #f7eed8;
+  --pb-callout-warn-border:   #b07a2e;   /* ochre */
+  --pb-callout-danger-bg:     #f6e5dc;
+  --pb-callout-danger-border: #a8412a;   /* burnt umber */
+  --pb-callout-ok-bg:         #e7ecdc;
+  --pb-callout-ok-border:     #5a7d5a;   /* moss */
+
+  /* Data palette (charts, categorical) */
+  --pb-data-1: #7c3043;   /* burgundy (primary) */
+  --pb-data-2: #b85c3a;   /* warm orange */
+  --pb-data-3: #c9944a;   /* gold */
+  --pb-data-4: #5a7d5a;   /* muted green */
+  --pb-data-5: #2a6496;   /* steel blue (contrast / eval) */
+
+  --pb-data-1-fill: rgba(124, 48, 67, 0.08);
+  --pb-data-1-line: rgba(124, 48, 67, 0.45);
+
+  /* ---------- SEMANTIC COLOR ROLES ---------- */
+  --fg:          var(--pb-ink-700);
+  --fg-strong:   var(--pb-ink-900);
+  --fg-muted:    var(--pb-ink-500);
+  --fg-faint:    var(--pb-ink-300);
+
+  --bg:          var(--pb-cream-50);
+  --bg-sidebar:  var(--pb-cream-100);
+  --bg-surface:  var(--pb-paper);
+  --bg-raised:   var(--pb-white);
+
+  --accent:         var(--pb-burgundy-600);
+  --accent-hover:   var(--pb-burgundy-500);
+  --accent-visited: var(--pb-burgundy-700);
+  --accent-tint:    var(--pb-burgundy-100);
+
+  --border:      var(--pb-border);
+  --border-soft: var(--pb-border-soft);
+
+  /* ---------- TYPOGRAPHY ---------- */
+  --font-serif: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --font-mono:  "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+
+  /* Root font-size is set on <html> at 62.5% so 1rem = 10px. */
+  --text-body:  1.7rem;         /* 17px */
+  --text-small: 0.92em;
+  --text-code:  0.9em;
+
+  --h1-size: 2em;
+  --h2-size: 1.7em;
+  --h3-size: 1.45em;
+  --h4-size: 1.25em;
+  --h5-size: 1.1em;
+  --h6-size: 1em;
+
+  --line-height-body:  1.618;   /* golden ratio */
+  --line-height-tight: 1.3;
+  --line-height-code:  1.65;
+
+  /* ---------- SPACING & SHAPE ---------- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --space-1: 0.4em;
+  --space-2: 0.6em;
+  --space-3: 1em;
+  --space-4: 1.2em;
+  --space-5: 1.5em;
+  --space-6: 2em;
+
+  --border-w-thin:     1px;
+  --border-w-rule:     2px;     /* h2 underline, table top/bottom */
+  --border-w-thead:    3px;     /* thead separator */
+  --border-accent-bar: 3px;     /* left bar on figures / code-blocks */
+  --border-callout:    4px;     /* callout left border */
+
+  /* ---------- ELEVATION ---------- */
+  /* The system is intentionally flat — structure comes from borders + left
+     rules, not drop shadows. Two tokens exist for interactive surfaces that
+     genuinely need lift (overlays, hovered cells). Avoid using these for
+     static document chrome. */
+  --shadow-sm: 0 1px 3px rgba(58, 42, 48, 0.08);
+  --shadow-md: 0 2px 10px rgba(58, 42, 48, 0.15);
+
+  /* ---------- LAYOUT ---------- */
+  --layout-max:           108em; /* page wrapper */
+  --layout-content:       80em;  /* main column */
+  --layout-sidebar:       240px;
+  --layout-breakpoint-md: 900px;
+  --layout-breakpoint-sm: 684px;
+  --layout-breakpoint-xs: 382px;
+}
+
+/* =========================================================================
+   RESET & BASE TYPOGRAPHY
+   ========================================================================= */
+
+html { font-size: 62.5%; scroll-behavior: smooth; }
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  font-family: var(--font-serif);
+  font-size: var(--text-body);
+  line-height: var(--line-height-body);
+  color: var(--fg);
+  background: var(--bg);
+  margin: 0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-serif);
+  color: var(--fg-strong);
+  line-height: var(--line-height-tight);
+  margin: 1.4em 0 0.5em;
+  font-weight: 700;
+}
+h1 { font-size: var(--h1-size); margin-top: 0; }
+h2 {
+  font-size: var(--h2-size);
+  border-bottom: var(--border-w-rule) solid var(--accent);
+  padding-bottom: 0.3em;
+}
+h3 { font-size: var(--h3-size); }
+h4 { font-size: var(--h4-size); }
+h5 { font-size: var(--h5-size); }
+h6 { font-size: var(--h6-size); }
+
+p { margin: 0 0 1em; }
+p.subtitle {
+  color: var(--fg-muted);
+  font-style: italic;
+  font-size: 1.1em;
+  margin-top: -0.6em;
+}
+
+a         { color: var(--accent);         text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:hover   { color: var(--accent-hover); }
+a:visited { color: var(--accent-visited); }
+
+strong { color: var(--fg-strong); font-weight: 700; }
+em     { font-style: italic; }
+
+hr { border: 0; border-top: 1px solid var(--border); margin: 2em 0; }
+
+ul, ol { padding-left: 1.5em; }
+li { margin-bottom: 0.3em; }
+
+blockquote {
+  margin: 1.2em 0;
+  padding: 0.5em 1.2em;
+  border-left: var(--border-callout) solid var(--accent);
+  background: var(--bg-surface);
+  color: var(--fg-muted);
+  font-style: italic;
+}
+
+/* Inline code default (pre.code-block lives in components.css). */
+code, pre {
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+}
+code {
+  background: var(--bg-surface);
+  padding: 0.15em 0.4em;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+}
+
+/* Body font-size shrinks on narrow viewports. */
+@media (max-width: 684px) { body { font-size: 1.35rem; } }
+@media (max-width: 382px) { body { font-size: 1.2rem; } }

@@ -7,11 +7,15 @@ NLP class project investigating fairness in Automatic Speech Recognition (ASR) s
 ## Directory Structure
 
 ```
-NLPClassProject/
-├── .claude/           # Claude Code settings and memory
+FairSpeechLoRaAndGRPO/
+├── .claude/           # Per-VM Claude Code install/settings (gitignored)
+├── .codex/            # Local Codex hooks/settings (gitignored)
+├── .pkm/              # PKM/Obsidian workspace metadata; DB gitignored
 ├── .planning/         # GSD planning artifacts (roadmaps, phases, research)
 ├── CLAUDE.md          # This file
 ├── pyproject.toml     # Project config
+├── archive/           # Tracked archived/stale project lines
+├── archive-local/     # Local-only archived data/results (gitignored)
 ├── fileClasses/       # FileClass definitions (Metadata Menu schema)
 ├── scripts/
 │   ├── data/          # prepare_*, extract_*, generate_perturbations
@@ -19,12 +23,12 @@ NLPClassProject/
 │   ├── metrics/       # compute_fairness_*, compute_perturbation_*, error_decomposition_*
 │   ├── plots/         # generate_*_plots, regenerate_figures_large_fonts
 │   ├── validation/    # validate_splits, validate_*_perturbed_test, validate_test_run
-│   ├── analysis/      # whisper_hallucination_analysis, parse_bootstrap_cis, prepare_overleaf
+│   ├── analysis/      # parse_bootstrap_cis, prepare_overleaf, and other one-off paper utilities
 │   ├── setup/         # shell: download_musan, download_rirs, setup_nemo, launch_priority_batch
 │   └── training/      # LoRA / GRPO training infrastructure (package: scripts.training)
 ├── docs/              # HTML explainers and project-overview
-├── datasets/          # (gitignored) audio and manifests
-├── outputs/           # (gitignored) training run artifacts
+├── datasets/          # (gitignored; created locally) audio and manifests/results
+├── outputs/           # training run artifacts (tracked)
 ├── logs/              # One file per log entry (<topic>.md)
 ├── experiments/       # One file per experiment (<topic>.md)
 ├── issues/            # One file per issue (<topic>.md)
@@ -42,9 +46,11 @@ NLPClassProject/
 - **metrics/** — consumes prediction CSVs → produces analysis JSONs
 - **plots/** — consumes analysis JSONs → produces figures
 - **validation/** — sanity checks for splits and perturbation runs (exit code based)
-- **analysis/** — one-off deep-dives and paper-prep utilities
+- **analysis/** — one-off deep-dives and paper-prep utilities; hallucination/head-surgery analysis was archived on 2026-04-27
 - **setup/** — one-time install and data download scripts (bash)
 - **training/** — LoRA/GRPO training; imported as the `scripts.training` Python package. **Do not move files inside** — package path is load-bearing for cross-imports.
+
+Archived head-surgery/hallucination work lives under `archive/head-surgery-2026-04-27/`; local ignored payloads live under `archive-local/head-surgery-2026-04-27/`.
 
 
 ## Credentials
@@ -116,3 +122,12 @@ launches. Do not collapse these three steps into a single plan.
 ## HTML Style
 
 When editing or creating HTML files, use concise and structured design (tables, lists, cards, grids) rather than wordy paragraph layouts. Prefer scannable content over prose.
+
+## graphify
+
+This project has a graphify knowledge graph at graphify-out/.
+
+Rules:
+- Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
+- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
+- After modifying code files in this session, run `graphify update .` to keep the graph current (AST-only, no API cost)

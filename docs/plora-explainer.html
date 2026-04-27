@@ -257,13 +257,13 @@ pre.code-block .str { color: #5a7d5a; }
     <h3>Why so many adapters fit</h3>
     <p>Consider the memory breakdown for a rank-64 adapter on Qwen-2.5-7B:</p>
     <table>
-      <thead><tr><th>Component</th><th>Memory</th><th>% of Base</th></tr></thead>
+      <thead><tr><th>Component</th><th class="num">Memory</th><th class="num">% of Base</th></tr></thead>
       <tbody>
-        <tr><td>Frozen base model (bf16)</td><td>~14 GB</td><td>100%</td></tr>
-        <tr><td>One rank-64 LoRA adapter (weights)</td><td>~0.48 GB</td><td>3.4%</td></tr>
-        <tr><td>Adapter optimizer states (AdamW)</td><td>~0.96 GB</td><td>6.9%</td></tr>
-        <tr><td>Adapter gradients</td><td>~0.48 GB</td><td>3.4%</td></tr>
-        <tr class="highlight"><td><strong>Total per adapter</strong></td><td><strong>~1.9 GB</strong></td><td><strong>13.7%</strong></td></tr>
+        <tr><td>Frozen base model (bf16)</td><td class="num">~14 GB</td><td class="num">100%</td></tr>
+        <tr><td>One rank-64 LoRA adapter (weights)</td><td class="num">~0.48 GB</td><td class="num">3.4%</td></tr>
+        <tr><td>Adapter optimizer states (AdamW)</td><td class="num">~0.96 GB</td><td class="num">6.9%</td></tr>
+        <tr><td>Adapter gradients</td><td class="num">~0.48 GB</td><td class="num">3.4%</td></tr>
+        <tr class="highlight"><td><strong>Total per adapter</strong></td><td class="num"><strong>~1.9 GB</strong></td><td class="num"><strong>13.7%</strong></td></tr>
       </tbody>
     </table>
     <p>
@@ -325,13 +325,13 @@ pre.code-block .str { color: #5a7d5a; }
 
     <h3>Models and setup</h3>
     <table>
-      <thead><tr><th>Model</th><th>Params</th><th>Hardware</th><th>Max Packed Adapters</th></tr></thead>
+      <thead><tr><th>Model</th><th class="num">Params</th><th>Hardware</th><th class="num">Max Packed Adapters</th></tr></thead>
       <tbody>
-        <tr><td>LLaMA-3.2-3B</td><td>3B</td><td>8&times; A100-40GB</td><td>~20</td></tr>
-        <tr class="highlight"><td>Qwen-2.5-7B</td><td>7B</td><td>8&times; A100-40GB</td><td>10</td></tr>
-        <tr><td>Qwen-2.5-14B</td><td>14B</td><td>8&times; A100-40GB</td><td>~5</td></tr>
-        <tr><td>Qwen-2.5-32B</td><td>32B</td><td>8&times; A100-40GB</td><td>~2&ndash;3</td></tr>
-        <tr><td>LLaMA-3.1-8B</td><td>8B</td><td>8&times; A10-24GB</td><td>~6</td></tr>
+        <tr><td>LLaMA-3.2-3B</td><td class="num">3B</td><td>8&times; A100-40GB</td><td class="num">~20</td></tr>
+        <tr class="highlight"><td>Qwen-2.5-7B</td><td class="num">7B</td><td>8&times; A100-40GB</td><td class="num">10</td></tr>
+        <tr><td>Qwen-2.5-14B</td><td class="num">14B</td><td>8&times; A100-40GB</td><td class="num">~5</td></tr>
+        <tr><td>Qwen-2.5-32B</td><td class="num">32B</td><td>8&times; A100-40GB</td><td class="num">~2&ndash;3</td></tr>
+        <tr><td>LLaMA-3.1-8B</td><td class="num">8B</td><td>8&times; A10-24GB</td><td class="num">~6</td></tr>
       </tbody>
     </table>
     <p>

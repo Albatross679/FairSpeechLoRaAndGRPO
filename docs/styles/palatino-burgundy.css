@@ -1,149 +1,539 @@
-/* =============================================================
-   Palatino Burgundy — Shared base for sidebar reference docs
-   Warm serif + burgundy accents, sticky sidebar + scroll-spy
-   ============================================================= */
+/* =========================================================================
+   Palatino Burgundy — Components
+   Layout, tables, callouts, figures, math, metric cards, checklists,
+   verdict + badge pills, chart wrappers, interactive widgets, sidebar,
+   footer, utilities, responsive + print.
+   Requires colors_and_type.css (for tokens and base typography).
+   ========================================================================= */
 
-/* === Reset & Typography === */
-html { font-size: 62.5%; scroll-behavior: smooth; }
-*, *::before, *::after { box-sizing: border-box; }
-body {
-  font-family: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
-  font-size: 1.7rem;
-  line-height: 1.618;
-  color: #4a4a4a;
-  background: #f5f4f0;
-  margin: 0; padding: 0;
-}
-h1, h2, h3, h4, h5, h6 { color: #3a3a3a; margin-top: 1.5em; margin-bottom: 0.5em; }
-h1 { font-size: 2em; margin-top: 0; }
-h2 { font-size: 1.7em; border-bottom: 2px solid #7c3043; padding-bottom: 0.25em; }
-h3 { font-size: 1.45em; }
-h4 { font-size: 1.25em; }
-h5 { font-size: 1.1em; }
-h6 { font-size: 1em; }
-p { margin: 0.8em 0; }
-a { color: #7c3043; text-decoration: none; }
-a:visited { color: #5c2233; }
-a:hover { color: #a3415a; text-decoration: underline; }
-hr { border: none; border-top: 1px solid #ddd; margin: 1.5em 0; }
-strong { color: #3a3a3a; }
-ul, ol { padding-left: 1.5em; }
-li { margin-bottom: 0.3em; }
-code {
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-  font-size: 0.88em;
-  background: #faf9f7;
-  padding: 0.15em 0.4em;
-  border-radius: 3px;
-  border: 1px solid #e0ddd8;
-}
-blockquote {
-  border-left: 3px solid #7c3043;
-  margin: 1.2em 0;
-  padding: 0.5em 1.2em;
-  background: #faf9f7;
-  color: #555;
-}
+/* =========================================================================
+   CODE BLOCK (pre)
+   ========================================================================= */
 
-/* === Layout: Two-Column with Sticky Sidebar === */
-.page-wrapper { display: flex; max-width: 80em; margin: 0 auto; }
-.sidebar {
-  width: 240px; min-width: 240px;
-  position: sticky; top: 0; height: 100vh;
-  overflow-y: auto; padding: 1.5em 1em;
-  background: #f0efeb; border-right: 1px solid #ddd;
-  font-size: 1em;
+pre.code-block {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-left: var(--border-accent-bar) solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 1.2em 1.5em;
+  margin: var(--space-4) 0;
+  overflow-x: auto;
+  line-height: var(--line-height-code);
+  color: var(--fg-strong);
+  font-size: 0.85em;
 }
-.sidebar strong { font-size: 1.15em; display: block; margin-bottom: 0.8em; color: #3a3a3a; }
-.sidebar ul { list-style: none; padding: 0; margin: 0; }
-.sidebar li { margin-bottom: 0.2em; }
-.sidebar a {
-  display: block; padding: 0.35em 0.7em; border-radius: 4px;
-  color: #4a4a4a; font-size: 0.95em; transition: background 0.15s;
-}
-.sidebar a:hover { background: #ebe7e3; color: #7c3043; text-decoration: none; }
-.sidebar a.active { background: #ebe7e3; color: #7c3043; font-weight: 600; }
-.main-content { flex: 1; max-width: 56em; padding: 13px 2em 2em 2.5em; }
+pre.code-block code    { display: block; background: transparent; border: 0; padding: 0; }
+pre.code-block .comment { color: var(--fg-faint); font-style: italic; }
 
-/* === Subtitle === */
-p.subtitle { font-size: 1.15em; color: #666; margin-top: -0.3em; }
+/* =========================================================================
+   TABLES
+   ========================================================================= */
 
-/* === Tables === */
 table {
-  width: 100%; border-collapse: collapse; font-size: 0.92em;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-small);
   margin: 1.2em 0;
-  border-top: 2px solid #7c3043; border-bottom: 2px solid #7c3043;
+  border-top: var(--border-w-rule) solid var(--accent);
+  border-bottom: var(--border-w-rule) solid var(--accent);
 }
 thead th {
-  padding: 0.6em 0.8em; text-align: left; font-weight: 700;
-  color: #3a3a3a; border-bottom: 3px solid #7c3043;
+  padding: 0.6em 0.8em;
+  text-align: left;
+  font-weight: 700;
+  color: var(--fg-strong);
+  border-bottom: var(--border-w-thead) solid var(--accent);
 }
-tbody td { padding: 0.55em 0.8em; border-bottom: 1px solid #ddd; }
+tbody td { padding: 0.55em 0.8em; border-bottom: 1px solid var(--border); }
 tbody tr:last-child td { border-bottom: none; }
-tbody tr:hover { background: #f5eaed; }
-tr.highlight { background: #fdf0ef; }
+tbody tr:hover { background: var(--accent-tint); }
+tr.highlight   { background: var(--pb-callout-danger-bg); }
 
-/* === Callouts === */
+/* Chart-linked tables: JS toggles .row-highlight and .row-dim on mouseenter.
+   See chart-wrap contract below for the bidirectional hover behavior. */
+table.linked tbody tr {
+  cursor: pointer;
+  transition: background-color 0.15s, opacity 0.15s;
+}
+table.linked tbody tr.row-highlight {
+  background: var(--accent-tint);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+table.linked tbody tr.row-dim { opacity: 0.45; }
+
+/* =========================================================================
+   CALLOUTS
+   ========================================================================= */
+
 .callout {
-  border-left: 4px solid #7c3043; background: #f1f1f1;
-  padding: 1em 1.2em; margin: 1.2em 0; border-radius: 0 6px 6px 0;
+  border-left: var(--border-callout) solid var(--accent);
+  background: var(--pb-callout-info-bg);
+  padding: 1em 1.2em;
+  margin: 1.2em 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
 }
-.callout.warning { border-left-color: #d4a017; background: #fdf8e8; }
-.callout.danger  { border-left-color: #c0392b; background: #fdf0ef; }
-.callout.success { border-left-color: #27ae60; background: #edf9f1; }
+.callout.warning { border-left-color: var(--pb-callout-warn-border);   background: var(--pb-callout-warn-bg); }
+.callout.danger  { border-left-color: var(--pb-callout-danger-border); background: var(--pb-callout-danger-bg); }
+.callout.success { border-left-color: var(--pb-callout-ok-border);     background: var(--pb-callout-ok-bg); }
 
-/* === Math Blocks === */
+/* =========================================================================
+   FIGURE / DIAGRAM
+   ========================================================================= */
+
+figure.diagram {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-left: var(--border-accent-bar) solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 1.3em 1.4em 1em;
+  margin: var(--space-5) 0;
+}
+figure.diagram svg { display: block; width: 100%; height: auto; max-width: 100%; }
+figure.diagram figcaption {
+  margin-top: 0.9em;
+  font-size: 0.88em;
+  color: var(--fg-muted);
+  font-style: italic;
+  text-align: center;
+}
+
+/* Raster-image figure (same frame, tighter padding for <img>). */
+.figure-img {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-left: var(--border-accent-bar) solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 1em 1.2em 0.7em;
+  margin: 1.4em 0;
+}
+.figure-img img { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+.figure-img figcaption {
+  margin-top: 0.7em;
+  font-size: 0.88em;
+  color: var(--fg-muted);
+  font-style: italic;
+  text-align: center;
+}
+
+/* =========================================================================
+   MATH BLOCK
+   ========================================================================= */
+
 .math-block {
-  background: #fff; border: 1px solid #ddd; border-radius: 6px;
-  padding: 1.2em 1.5em; margin: 1.2em 0; text-align: center; overflow-x: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+  margin: var(--space-4) 0;
+  text-align: center;
+  overflow-x: auto;
+  font-size: 1.3em;
 }
 
-/* === Code / File-Tree Blocks === */
-pre.code-block {
-  background: #faf9f7; border: 1px solid #ddd; border-left: 3px solid #7c3043;
-  border-radius: 4px; padding: 1.2em 1.5em; margin: 1.2em 0; overflow-x: auto;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-  font-size: 0.85em; line-height: 1.65; color: #3a3a3a;
-}
-pre.code-block code { display: block; background: none; border: none; padding: 0; }
-pre.code-block .comment { color: #998; font-style: italic; }
+/* =========================================================================
+   METRIC CARDS (big-number KPI grid)
+   ========================================================================= */
 
-/* === Verdict Badges === */
-span.verdict {
-  display: inline-block; padding: 0.15em 0.6em; border-radius: 3px;
-  font-size: 0.85em; font-weight: 600; vertical-align: middle;
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.8em;
+  margin: 1.2em 0;
 }
-span.verdict.best       { background: #7c3043; color: #fff; }
-span.verdict.viable     { background: #27ae60; color: #fff; }
-span.verdict.partial    { background: #d4a017; color: #fff; }
-span.verdict.not-viable { background: #c0392b; color: #fff; }
+.metric {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-left: var(--border-accent-bar) solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.85em 1.05em;
+}
+.metric .label {
+  font-size: 0.78em;
+  color: var(--accent);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.metric .value {
+  font-size: 1.45em;
+  color: var(--fg-strong);
+  font-weight: 700;
+  line-height: 1.15;
+  margin-top: 0.15em;
+}
+.metric .unit {
+  font-size: 0.7em;
+  color: var(--fg-muted);
+  font-weight: 400;
+}
 
-/* === Inline TOC (mobile only) === */
+/* =========================================================================
+   CHECKLIST
+   ========================================================================= */
+
+ul.checklist { list-style: none; padding: 0; }
+ul.checklist li {
+  position: relative;
+  padding: 0.35em 0.6em 0.35em 1.8em;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.15s;
+}
+ul.checklist li:hover { background: var(--pb-callout-info-bg); }
+ul.checklist li::before {
+  content: "";
+  position: absolute;
+  left: 0.2em; top: 0.55em;
+  width: 14px; height: 14px;
+  border: 1.5px solid var(--accent);
+  border-radius: 3px;
+  background: var(--bg-raised);
+}
+ul.checklist li.checked { color: var(--fg-muted); text-decoration: line-through; }
+ul.checklist li.checked::before {
+  background: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--bg-raised);
+}
+
+/* =========================================================================
+   VERDICT BADGES (for ratings: best / viable / partial / not-viable)
+   ========================================================================= */
+
+.verdict {
+  display: inline-block;
+  font-size: 0.85em;
+  font-weight: 700;
+  padding: 0.15em 0.55em;
+  border-radius: 3px;
+  letter-spacing: 0.02em;
+}
+.verdict.best       { background: var(--accent-tint);          color: var(--accent); }
+.verdict.viable     { background: var(--pb-callout-ok-bg);     color: var(--pb-callout-ok-border); }
+.verdict.partial    { background: var(--pb-callout-warn-bg);   color: var(--pb-callout-warn-border); }
+.verdict.not-viable { background: var(--pb-callout-danger-bg); color: var(--pb-callout-danger-border); }
+
+/* =========================================================================
+   BADGE PILLS
+   Inline status chips for test/check results. Sibling to .verdict (which
+   is for strategy/option ratings); use .badge for pass/fail-style states.
+   ========================================================================= */
+
+.badge {
+  display: inline-block;
+  padding: 0.1em 0.55em;
+  font-size: 0.82em;
+  font-weight: 600;
+  border-radius: 3px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.badge.pass  { background: var(--pb-callout-ok-bg);     color: #1e6c3b; border: 1px solid var(--pb-callout-ok-border); }
+.badge.warn  { background: var(--pb-callout-warn-bg);   color: #8a5a00; border: 1px solid var(--pb-callout-warn-border); }
+.badge.fail  { background: var(--pb-callout-danger-bg); color: #8c2b20; border: 1px solid var(--pb-callout-danger-border); }
+.badge.skip  { background: var(--pb-cream-200);         color: #555;    border: 1px solid #bbb; }
+.badge.redef { background: var(--accent-tint);          color: var(--accent); border: 1px solid var(--accent); }
+
+/* =========================================================================
+   CHART WRAPPER + LEGEND
+   Convention for docs where a Chart.js chart sits next to a data table
+   whose rows correspond 1:1 to chart datasets.
+
+   Visual contract — DIM-ONLY (no extra "highlight" treatment):
+     • Hovering a table row dims every OTHER dataset in the chart.
+     • The hovered subset stays at its baseline vivid color, unchanged.
+     • Two visual states only: normal (~α 0.85) and dimmed (~α 0.08-0.10).
+     Rationale: the eye reads "the others faded" much faster than "this one
+     got brighter and the others faded simultaneously."
+
+   Implementation rules (JS, not CSS):
+     1. dataset.backgroundColor / borderColor MUST be a scriptable function —
+        Chart.js v4 caches static color strings, so mutating them after init
+        and calling chart.update('none') silently skips the repaint.
+     2. Bind row mouseenter/mouseleave OUTSIDE any `if Chart undefined: return`
+        guard, so the row CSS still toggles even if Chart.js failed to load.
+     3. Do NOT add a chart-side onHover handler that mirrors the highlight
+        back to the table — it races with row mouseenter when the cursor
+        crosses the canvas en route to the row.
+   ========================================================================= */
+
+.chart-wrap {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-left: var(--border-accent-bar) solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 1em 1.2em 0.8em;
+  margin: 1.2em 0 0.6em;
+}
+.chart-wrap canvas { max-width: 100%; }
+.chart-wrap .chart-caption {
+  margin-top: 0.6em;
+  font-size: 0.88em;
+  color: var(--fg-muted);
+  font-style: italic;
+  text-align: center;
+}
+.legend-swatch {
+  display: inline-block;
+  width: 0.85em; height: 0.85em;
+  border-radius: 2px;
+  margin-right: 0.45em;
+  vertical-align: -0.1em;
+}
+
+/* =========================================================================
+   INTERACTIVE WIDGETS
+   ========================================================================= */
+
+/* Document toolbar: search box + filter buttons + hit counter. */
+.doc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8em;
+  align-items: center;
+  margin: 1em 0 1.8em;
+  padding: 0.7em 0.9em;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-left: var(--border-accent-bar) solid var(--accent);
+  border-radius: var(--radius-sm);
+  font-size: 0.95em;
+}
+.doc-toolbar input[type="search"] {
+  flex: 1;
+  min-width: 14em;
+  font-family: var(--font-serif);
+  font-size: 1em;
+  padding: 0.35em 0.7em;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--fg);
+}
+.doc-toolbar input[type="search"]:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-tint);
+}
+.doc-toolbar .hit-count {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+.doc-toolbar button {
+  font-family: var(--font-serif);
+  font-size: 0.92em;
+  color: var(--accent);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.3em 0.8em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.doc-toolbar button:hover { background: var(--accent); color: var(--bg-raised); border-color: var(--accent); }
+.doc-toolbar button.pressed {
+  background: var(--accent); color: var(--bg-raised); border-color: var(--accent);
+}
+.doc-toolbar button.pressed::before {
+  content: "●"; margin-right: 0.3em; font-size: 0.7em; vertical-align: 0.15em;
+}
+
+/* Collapsible section (<details class="pb">): framed accordion matching
+   the callout/figure chrome. Hides the default triangle and replaces it
+   with a burgundy chevron that rotates on open. */
+details.pb {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-left: var(--border-accent-bar) solid var(--accent);
+  border-radius: var(--radius-sm);
+  margin: 1.2em 0;
+  padding: 0 1.1em;
+}
+details.pb > summary {
+  cursor: pointer;
+  padding: 0.7em 0.2em;
+  font-weight: 700;
+  color: var(--fg-strong);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.55em;
+}
+details.pb > summary::-webkit-details-marker { display: none; }
+details.pb > summary::before {
+  content: "\25B8";
+  color: var(--accent);
+  font-size: 0.9em;
+  transition: transform 0.15s;
+  display: inline-block;
+  width: 1em;
+}
+details.pb[open] > summary::before { transform: rotate(90deg); }
+details.pb > summary .sub {
+  font-weight: 400;
+  color: var(--fg-muted);
+  font-size: 0.88em;
+  font-style: italic;
+  margin-left: 0.4em;
+}
+details.pb[open] { padding-bottom: 0.8em; }
+
+/* =========================================================================
+   LAYOUT: TWO-COLUMN WITH STICKY SIDEBAR
+   ========================================================================= */
+
+.page-wrapper { display: flex; max-width: var(--layout-max); margin: 0 auto; }
+.sidebar {
+  flex: 0 0 var(--layout-sidebar);
+  position: sticky; top: 0;
+  height: 100vh; overflow-y: auto;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+  padding: 1.2em 1em;
+  font-size: 1em;
+}
+.sidebar strong { font-size: 1.15em; display: block; margin-bottom: 0.8em; color: var(--fg-strong); }
+.sidebar ul { list-style: none; padding: 0; margin: 0.8em 0; }
+.sidebar li { margin-bottom: 0.2em; }
+.sidebar a {
+  display: block;
+  padding: 0.35em 0.7em;
+  color: var(--fg);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s;
+}
+.sidebar a:hover  { background: var(--pb-cream-200); color: var(--accent); }
+.sidebar a.active { background: var(--pb-cream-200); color: var(--accent); font-weight: 700; }
+
+/* Nested sidebar items (e.g., pipeline sub-stages under a section). */
+.sidebar ul.nested { padding-left: 0.7em; margin: 0.1em 0 0.4em; }
+.sidebar ul.nested a {
+  font-size: 0.88em;
+  padding: 0.18em 0.6em;
+  color: var(--fg-muted);
+}
+
+.main-content { flex: 1; max-width: var(--layout-content); padding: 13px 2em 2em 2.5em; }
+
+/* Inline TOC: hidden on desktop, shown as a fallback when the sidebar
+   collapses below --layout-breakpoint-md (tablet portrait etc.). */
 nav#toc { display: none; margin: 1em 0; }
-nav#toc strong { color: #7c3043; display: block; margin-bottom: 0.5em; }
-nav#toc ul { padding-left: 1.2em; }
+nav#toc strong { display: block; margin-bottom: 0.5em; color: var(--accent); }
+nav#toc ul { list-style: none; padding-left: 0; margin: 0; }
 nav#toc li { margin-bottom: 0.3em; }
+nav#toc a {
+  display: block;
+  padding: 0.3em 0.6em;
+  color: var(--fg);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+nav#toc a:hover { background: var(--pb-cream-200); color: var(--accent); }
 
-/* === Footer === */
-footer { margin-top: 3em; padding-top: 1em; border-top: 1px solid #ddd; }
-footer p { font-size: 0.85em; color: #888; }
+/* =========================================================================
+   FOOTER
+   ========================================================================= */
 
-/* === Responsive === */
+footer { margin-top: 3em; padding-top: 1em; border-top: 1px solid var(--border); }
+footer p { font-size: 0.85em; color: var(--fg-muted); }
+
+/* =========================================================================
+   UTILITIES
+   ========================================================================= */
+
+/* Right-align numeric cells with tabular figures (digits of equal width). */
+.num, td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Hide a section (e.g., when a doc-toolbar filter unchecks its category). */
+.section-hidden { display: none; }
+
+/* =========================================================================
+   GLOSSARY TOOLTIP (<dfn> with nested .tip span)
+   ========================================================================= */
+
+dfn {
+  font-style: normal;
+  color: var(--fg-strong);
+  border-bottom: 1px dotted var(--accent);
+  cursor: help;
+  position: relative;
+}
+dfn:hover { color: var(--accent); }
+dfn .tip {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  left: 50%; bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  width: 320px;
+  background: var(--bg-surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.7em 0.9em;
+  font-size: 0.92em;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--fg);
+  box-shadow: var(--shadow-md);
+  z-index: 5;
+  transition: opacity 0.12s;
+  text-align: left;
+  pointer-events: none;
+}
+dfn .tip::after {
+  content: '';
+  position: absolute;
+  left: 50%; bottom: -6px;
+  width: 10px; height: 10px;
+  transform: translateX(-50%) rotate(45deg);
+  background: var(--bg-surface);
+  border-right: 1px solid var(--accent);
+  border-bottom: 1px solid var(--accent);
+}
+dfn .tip strong { color: var(--accent); font-weight: 700; }
+dfn .tip .kind {
+  font-family: var(--font-mono);
+  font-size: 0.78em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-muted);
+  display: block;
+  margin-bottom: 0.2em;
+}
+dfn:hover .tip, dfn:focus .tip { visibility: visible; opacity: 1; }
+
+/* =========================================================================
+   RESPONSIVE (layout rules; typography breakpoints live in colors_and_type.css)
+   ========================================================================= */
+
 @media (max-width: 900px) {
   .sidebar { display: none; }
-  nav#toc { display: block; background: #f0efeb; padding: 1em; border-radius: 6px; }
   .main-content { padding: 1em; max-width: 100%; }
+  nav#toc {
+    display: block;
+    background: var(--bg-sidebar);
+    padding: 1em;
+    border-radius: var(--radius-md);
+  }
 }
-@media (max-width: 684px) { body { font-size: 1.35rem; } }
-@media (max-width: 382px) { body { font-size: 1.2rem; } }
 
-/* === Print === */
+/* =========================================================================
+   PRINT
+   ========================================================================= */
+
 @media print {
-  .sidebar { display: none; }
-  nav#toc { display: block; }
-  .main-content { max-width: 100%; padding: 0; }
   body { background: #fff; font-size: 11pt; }
+  .sidebar { display: none; }
+  .main-content { max-width: 100%; padding: 0; }
+  nav#toc { display: block; background: transparent; padding: 0; }
   h2 { break-after: avoid; }
-  table, .callout { break-inside: avoid; }
+  table, .callout, figure.diagram, .figure-img, details.pb { break-inside: avoid; }
   a { color: #333; }
+  .doc-toolbar { display: none !important; }
+  /* Flatten all collapsibles so every section prints. */
+  details.pb > summary::before { transform: none; }
+  details.pb:not([open]) > *:not(summary) { display: block !important; }
 }

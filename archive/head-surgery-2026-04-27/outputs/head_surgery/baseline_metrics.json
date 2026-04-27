@@ -1,0 +1,14 @@
+{
+  "n": 484,
+  "insertion_rate_total": 0.012691914022517911,
+  "insertion_rate_repetition": 0.0,
+  "insertion_rate_syntactic": 0.0040941658137154556,
+  "insertion_rate_content": 0.008597748208802457,
+  "seconds": 59.5,
+  "model_revision": "06f233fe06e710322aca913c1bc4249a0d71fce1",
+  "generate_config": {
+    "max_new_tokens": 440,
+    "language": "en",
+    "task": "transcribe"
+  }
+}

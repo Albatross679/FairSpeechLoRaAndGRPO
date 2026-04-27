@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Head-Surgery Diagnosis — Progress</title>
+<link rel="stylesheet" href="styles/author-card.css">
+<link rel="stylesheet" href="styles/pencil.css">
+<script defer src="styles/qr.js"></script>
+<script defer src="styles/pencil.js"></script>
+<style>
+  :root {
+    font-size: 62.5%;
+    --accent: #7c3043;
+    --accent-hover: #a3415a;
+    --accent-visited: #5c2233;
+    --accent-tint: #f5eaed;
+    --fg: #4a4a4a;
+    --fg-strong: #3a3a3a;
+    --fg-muted: #7a7a7a;
+    --bg: #f5f4f0;
+    --bg-sidebar: #f0efeb;
+    --bg-surface: #faf9f7;
+    --bg-raised: #ffffff;
+    --border: #dddddd;
+    --border-soft: #e0ddd5;
+    --font-serif: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    --radius-sm: 4px;
+    --radius-md: 6px;
+  }
+  html, body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-serif);
+    font-size: 1.7rem;
+    line-height: 1.618;
+    margin: 0;
+    padding: 0;
+  }
+  .page-wrapper {
+    display: flex;
+    max-width: 80em;
+    margin: 0 auto;
+    align-items: flex-start;
+  }
+  .sidebar {
+    width: 240px;
+    flex: 0 0 240px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    background: var(--bg-sidebar);
+    padding: 1.5em 1em;
+    border-right: 1px solid var(--border);
+    box-sizing: border-box;
+    font-size: 1em;
+  }
+  .sidebar strong { display: block; font-size: 1.15em; color: var(--fg-strong); margin-bottom: 0.6em; }
+  .sidebar ul { list-style: none; padding: 0; margin: 0; }
+  .sidebar li { margin: 0.2em 0; }
+  .sidebar a {
+    display: block;
+    padding: 0.3em 0.6em;
+    color: var(--fg);
+    text-decoration: none;
+    border-radius: var(--radius-sm);
+    line-height: 1.35;
+  }
+  .sidebar a:hover { background: #ebe7e3; color: var(--accent); }
+  .sidebar a.active {
+    background: #ebe7e3;
+    color: var(--accent);
+    font-weight: 600;
+    border-left: 2px solid var(--accent);
+  }
+  .main-content {
+    flex: 1;
+    max-width: 56em;
+    padding: 13px 2em 2em 2.5em;
+    box-sizing: border-box;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    color: var(--fg-strong);
+    font-family: inherit;
+    font-weight: 700;
+    line-height: 1.25;
+    margin-top: 1.6em;
+    margin-bottom: 0.6em;
+  }
+  h1 { font-size: 2em; margin-top: 0.3em; }
+  h2 {
+    font-size: 1.7em;
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 0.25em;
+  }
+  h3 { font-size: 1.45em; }
+  h4 { font-size: 1.25em; }
+  p.subtitle {
+    font-size: 1.1em;
+    color: var(--accent);
+    font-style: italic;
+    margin-top: -0.2em;
+  }
+  hr { border: 0; border-top: 1px solid var(--border); margin: 1.5em 0; }
+  a { color: var(--accent); text-decoration: none; border-bottom: 1px dotted var(--accent); }
+  a:hover { color: var(--accent-hover); border-bottom-color: var(--accent-hover); }
+  a:visited { color: var(--accent-visited); }
+  strong { color: var(--fg-strong); }
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    background: var(--bg-surface);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    border: 1px solid var(--border-soft);
+  }
+  pre.code-block {
+    position: relative;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-sm);
+    padding: 1.2em 1.5em;
+    margin: 1.2em 0;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    line-height: 1.65;
+    color: var(--fg-strong);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92em;
+    margin: 1.2em 0;
+    border-top: 2px solid var(--accent);
+    border-bottom: 2px solid var(--accent);
+  }
+  thead th {
+    padding: 0.6em 0.8em;
+    text-align: left;
+    font-weight: 700;
+    color: var(--fg-strong);
+    border-bottom: 3px solid var(--accent);
+  }
+  tbody td {
+    padding: 0.55em 0.8em;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--accent-tint); }
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: #f1f1f1;
+    padding: 1em 1.2em;
+    margin: 1.2em 0;
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  }
+  .callout.warning { border-left-color: #d4a017; background: #fdf8e8; }
+  .callout.danger  { border-left-color: #c0392b; background: #fdf0ef; }
+  .callout.success { border-left-color: #27ae60; background: #edf9f1; }
+  .badge {
+    display: inline-block;
+    padding: 0.12em 0.55em;
+    font-size: 0.82em;
+    font-weight: 600;
+    border-radius: 3px;
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+  .badge.done  { background: #e1f2e6; color: #1e6c3b; border: 1px solid #27ae60; }
+  .badge.code  { background: #fff5e5; color: #8a5a00; border: 1px solid #d4a017; }
+  .badge.todo  { background: #fdf0ef; color: #8c2b20; border: 1px solid #c0392b; }
+  .badge.wip   { background: var(--accent-tint); color: var(--accent); border: 1px solid var(--accent); }
+  .metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 0.8em;
+    margin: 1.2em 0;
+  }
+  .metric {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-sm);
+    padding: 0.9em 1.1em;
+  }
+  .metric .label { font-size: 0.85em; color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+  .metric .value { font-size: 1.5em; color: var(--fg-strong); font-weight: 700; line-height: 1.1; margin-top: 0.15em; }
+  .metric .unit  { font-size: 0.72em; color: var(--fg-muted); font-weight: 400; }
+  nav#toc {
+    display: none;
+    background: var(--bg-sidebar);
+    padding: 1em 1.2em;
+    border-left: 3px solid var(--accent);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    margin-bottom: 1.5em;
+  }
+  nav#toc strong { display: block; font-size: 1.05em; color: var(--fg-strong); margin-bottom: 0.4em; }
+  nav#toc ul { margin: 0; padding-left: 1.4em; }
+  footer { margin-top: 3em; padding-top: 1em; border-top: 1px solid var(--border); color: var(--fg-muted); font-size: 0.9em; }
+  footer small { font-size: 1em; }
+
+  /* === Document toolbar (search + expand/collapse) === */
+  .doc-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8em;
+    align-items: center;
+    margin: 1em 0 1.8em;
+    padding: 0.7em 0.9em;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-soft);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-sm);
+    font-size: 0.95em;
+  }
+  .doc-toolbar input[type="search"] {
+    flex: 1;
+    min-width: 14em;
+    font-family: var(--font-serif);
+    font-size: 1em;
+    padding: 0.35em 0.7em;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--fg);
+  }
+  .doc-toolbar input[type="search"]:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-tint);
+  }
+  .doc-toolbar .hit-count {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    color: var(--fg-muted);
+    white-space: nowrap;
+  }
+  .doc-toolbar button {
+    font-family: var(--font-serif);
+    font-size: 0.92em;
+    color: var(--accent);
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.3em 0.8em;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .doc-toolbar button:hover { background: var(--accent); color: var(--bg-raised); border-color: var(--accent); }
+
+  /* === Collapsible (details.pb) === */
+  details.pb {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-soft);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-sm);
+    margin: 1.2em 0;
+    padding: 0 1.1em;
+  }
+  details.pb > summary {
+    cursor: pointer;
+    padding: 0.7em 0.2em;
+    font-weight: 700;
+    color: var(--fg-strong);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.55em;
+  }
+  details.pb > summary::-webkit-details-marker { display: none; }
+  details.pb > summary::before {
+    content: "\25B8";
+    color: var(--accent);
+    font-size: 0.9em;
+    transition: transform 0.15s;
+    display: inline-block;
+    width: 1em;
+  }
+  details.pb[open] > summary::before { transform: rotate(90deg); }
+  details.pb > summary .sub { font-weight: 400; color: var(--fg-muted); font-size: 0.88em; font-style: italic; margin-left: 0.4em; }
+  details.pb[open] { padding-bottom: 0.8em; }
+
+  /* === Copy-to-clipboard button on code blocks === */
+  pre.code-block .copy-btn {
+    position: absolute;
+    top: 0.5em;
+    right: 0.6em;
+    font-family: var(--font-serif);
+    font-size: 0.82em;
+    color: var(--accent);
+    background: var(--bg-raised);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-sm);
+    padding: 0.12em 0.55em;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s, color 0.15s;
+  }
+  pre.code-block:hover .copy-btn { opacity: 1; }
+  pre.code-block .copy-btn:hover { background: var(--accent); color: var(--bg-raised); }
+  pre.code-block .copy-btn.copied { background: #27ae60; color: var(--bg-raised); border-color: #27ae60; opacity: 1; }
+
+  /* === Section-hidden filter for search === */
+  .section-hidden { display: none; }
+
+  @media (max-width: 900px) {
+    .page-wrapper { flex-direction: column; }
+    .sidebar { display: none; }
+    .main-content { padding: 1em; max-width: 100%; }
+    nav#toc { display: block; }
+  }
+  @media (max-width: 684px) { html, body { font-size: 1.35rem; } }
+  @media (max-width: 382px) { html, body { font-size: 1.2rem; } }
+  @media print {
+    .sidebar { display: none; }
+    .main-content { max-width: 100%; padding: 0; }
+    body { background: white; color: black; }
+    a { color: black; border-bottom: none; }
+    a[href^="http"]::after,
+    a[href^="/"]::after  { content: " (" attr(href) ")"; font-family: var(--font-mono); font-size: 0.85em; color: #555; }
+    h2 { page-break-after: avoid; break-after: avoid; page-break-before: always; break-before: page; }
+    h1 + p.subtitle + hr + h2,
+    main > h2:first-of-type { page-break-before: auto; break-before: auto; }
+    tr, .callout, .metric, figure, details.pb, .author-sidebar { page-break-inside: avoid; break-inside: avoid; }
+    details.pb { border: 1px solid #ccc; }
+    details.pb[open] > summary::before { transform: none; }
+    details.pb:not([open]) > *:not(summary) { display: block !important; }
+    .doc-toolbar, .copy-btn { display: none !important; }
+  }
+</style>
+</head>
+<body data-pencil="on">
+<div class="page-wrapper">
+
+<aside class="sidebar" id="sidebar-toc">
+  <div class="author-sidebar" aria-label="Author">
+    <div class="ac-name-sm">Qifan Wen</div>
+    <div class="ac-role-sm">NLP class project · ASR fairness</div>
+    <div class="ac-qr-side" data-qr="https://www.linkedin.com/in/qifan-wen/" data-qr-size="184" aria-label="LinkedIn QR code"></div>
+    <ul class="ac-list">
+      <li><span class="ac-k">gh</span><a href="https://github.com/Albatross679">Albatross679</a></li>
+      <li><span class="ac-k">in</span><a href="https://www.linkedin.com/in/qifan-wen/">qifan-wen</a></li>
+      <li><span class="ac-k">@</span><a href="mailto:wen.679@buckeyemail.osu.edu">wen.679@osu.edu</a></li>
+    </ul>
+  </div>
+  <strong>Contents</strong>
+  <ul>
+    <li><a href="#summary">At a Glance</a></li>
+    <li><a href="#code-progress">Code Progress</a></li>
+    <li><a href="#runtime-progress">Runtime Progress</a></li>
+    <li><a href="#blocker">Blocker — Tarball Truncation</a></li>
+    <li><a href="#remaining">What Remains</a></li>
+    <li><a href="#disk">Disk &amp; Resources</a></li>
+    <li><a href="#next">Next Move</a></li>
+  </ul>
+</aside>
+
+<div class="main-content">
+
+<h1>Head-Surgery Diagnosis — Progress</h1>
+<p class="subtitle">v2.0 §4.2 attention-head-level hallucination mitigation for Whisper-large-v3 · snapshot 2026-04-17</p>
+<hr>
+
+<div class="doc-toolbar" role="toolbar" aria-label="Document controls">
+  <input type="search" id="doc-search" placeholder="Filter sections (e.g. &ldquo;gate&rdquo;, &ldquo;tarball&rdquo;, &ldquo;stage&rdquo;)&hellip;" aria-label="Filter sections">
+  <span class="hit-count" id="doc-search-count">all sections visible</span>
+  <button type="button" id="doc-expand-all">Expand all</button>
+  <button type="button" id="doc-collapse-all">Collapse all</button>
+</div>
+
+<nav id="toc">
+  <strong>Contents</strong>
+  <ul>
+    <li><a href="#summary">At a Glance</a></li>
+    <li><a href="#code-progress">Code Progress</a></li>
+    <li><a href="#runtime-progress">Runtime Progress</a></li>
+    <li><a href="#blocker">Blocker — Tarball Truncation</a></li>
+    <li><a href="#remaining">What Remains</a></li>
+    <li><a href="#disk">Disk &amp; Resources</a></li>
+    <li><a href="#next">Next Move</a></li>
+  </ul>
+</nav>
+
+<section data-section="summary">
+<h2 id="summary">At a Glance</h2>
+
+<div class="metric-grid">
+  <div class="metric"><div class="label">Branch</div><div class="value">feat/head-surgery</div></div>
+  <div class="metric"><div class="label">Commits</div><div class="value">14 <span class="unit">ahead of master</span></div></div>
+  <div class="metric"><div class="label">Tasks code-complete</div><div class="value">13 / 17 <span class="unit">(T0–T12)</span></div></div>
+  <div class="metric"><div class="label">GPU runs</div><div class="value">0</div></div>
+  <div class="metric"><div class="label">Gates exercised</div><div class="value">0 / 6</div></div>
+  <div class="metric"><div class="label">Indian-accent subset</div><div class="value">484 <span class="unit">(planned 510; midterm 511)</span></div></div>
+  <div class="metric"><div class="label">Non-Indian guard</div><div class="value">~422 <span class="unit">(planned 2,584)</span></div></div>
+  <div class="metric"><div class="label">Disk free</div><div class="value">19 GB <span class="unit">/ 98 GB</span></div></div>
+</div>
+
+<div class="callout">
+  <strong>Bottom line:</strong> the implementation code for the diagnosis pipeline is essentially finished through Stage&nbsp;E. Nothing has been executed on a GPU yet, so every gate in the reproducibility contract is still pending. A truncated source tarball has reduced the evaluation subset from 510 to 484 Indian-accent utterances and — more consequentially — the non-Indian regression-guard set from ~2,584 to ~422.
+</div>
+</section>
+
+<section data-section="code-progress">
+<h2 id="code-progress">Code Progress</h2>
+
+<p>All through Task 12 has landed as code on <code>feat/head-surgery</code>. Tasks 13–16 remain to be written.</p>
+
+<details class="pb" open>
+  <summary>Task status table <span class="sub">17 rows · click to collapse</span></summary>
+<table>
+  <thead>
+    <tr><th style="width:5em;" class="num">Task</th><th>Scope</th><th style="width:7em;">Status</th><th style="width:9em;">Commit</th></tr>
+  </thead>
+  <tbody>
+    <tr><td class="num">0</td><td>Targeted CV25 extraction + manifests</td><td><span class="badge wip">partial</span></td><td>11f7d79</td></tr>
+    <tr><td class="num">1</td><td>Scaffolding</td><td><span class="badge done">done</span></td><td>b26552d</td></tr>
+    <tr><td class="num">2</td><td>Indian-accent ID snapshot (n = 484)</td><td><span class="badge done">done</span></td><td>11f7d79</td></tr>
+    <tr><td class="num">3</td><td>Reproducibility config (T9)</td><td><span class="badge done">done</span></td><td>fe52997 · 92deda5</td></tr>
+    <tr><td class="num">4</td><td>Serial head-mask hook (T1 serial)</td><td><span class="badge done">done</span></td><td>b75df95</td></tr>
+    <tr><td class="num">5</td><td>Batched head-mask hook (T1 batched)</td><td><span class="badge done">done</span></td><td>38cddf4</td></tr>
+    <tr><td class="num">6</td><td>Stage A baseline — code only</td><td><span class="badge code">code only</span></td><td>2dff86c</td></tr>
+    <tr><td class="num">7</td><td>Stage A.5 batch-size tuner — code only</td><td><span class="badge code">code only</span></td><td>a020c08</td></tr>
+    <tr><td class="num">8</td><td>Stage B pilot sweep — code only</td><td><span class="badge code">code only</span></td><td>551ba0d</td></tr>
+    <tr><td class="num">9</td><td>Stage C full sweep — code only</td><td><span class="badge code">code only</span></td><td>587d7af</td></tr>
+    <tr><td class="num">10</td><td>T4 insertion-classifier integration test</td><td><span class="badge done">done</span></td><td>c9e35d3</td></tr>
+    <tr><td class="num">11</td><td>Stage D scoring + bootstrap + guard — code only</td><td><span class="badge code">code only</span></td><td>e389d16</td></tr>
+    <tr><td class="num">12</td><td>Stage E decoding ablation grid — code only</td><td><span class="badge code">code only</span></td><td>847a8cb</td></tr>
+    <tr><td class="num">13</td><td>Stage F energy-based VAD</td><td><span class="badge todo">not started</span></td><td>—</td></tr>
+    <tr><td class="num">14</td><td>Stage G aggregate report</td><td><span class="badge todo">not started</span></td><td>—</td></tr>
+    <tr><td class="num">15</td><td>End-to-end smoke + milestone log</td><td><span class="badge todo">not started</span></td><td>—</td></tr>
+    <tr><td class="num">16</td><td>Per-head heatmap <em>(stretch)</em></td><td><span class="badge todo">not started</span></td><td>—</td></tr>
+  </tbody>
+</table>
+</details>
+
+<p><em>Uncommitted:</em> <code>logs/head-surgery-stage-d-scoring.md</code> is untracked (a log entry for Task&nbsp;11 that hasn't been added to git).</p>
+</section>
+
+<section data-section="runtime-progress">
+<h2 id="runtime-progress">Runtime Progress</h2>
+
+<p>Zero GPU executions so far. <code>outputs/head_surgery/</code> is empty — no baseline metrics, no tune JSON, no pilot artifacts, no sweep CSV, no head scores. Every gate in the reproducibility contract is still pending.</p>
+
+<details class="pb" open>
+  <summary>Reproducibility gates <span class="sub">6 gates · click to collapse</span></summary>
+<table>
+  <thead>
+    <tr><th>Gate</th><th>What it checks</th><th>Required artifact</th><th>Status</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>G1</td><td>Baseline reproduces 9.62% ± 0.5&nbsp;pp</td><td><code>baseline_metrics.json</code></td><td><span class="badge todo">pending</span></td></tr>
+    <tr><td>G1.5</td><td>Batch-size tune completes under 90% VRAM</td><td><code>tune_batch_size.json</code></td><td><span class="badge todo">pending</span></td></tr>
+    <tr><td>G2</td><td>Pilot layer shows head-level signal (Δ both signs)</td><td><code>pilot_metrics.json</code></td><td><span class="badge todo">pending</span></td></tr>
+    <tr><td>G3</td><td>Batched sweep matches serial pilot to 1e−4 WER</td><td><code>sweep.csv</code> + replay</td><td><span class="badge todo">pending</span></td></tr>
+    <tr><td>G4</td><td>Full sweep completeness (32 × 20 × N rows)</td><td><code>sweep.csv</code></td><td><span class="badge todo">pending</span></td></tr>
+    <tr><td>G5</td><td>Non-Indian baseline WER matches T7 CSVs</td><td><code>head_scores.csv</code></td><td><span class="badge todo">pending</span></td></tr>
+  </tbody>
+</table>
+</details>
+</section>
+
+<section data-section="blocker">
+<h2 id="blocker">Blocker — Tarball Truncation</h2>
+
+<div class="callout danger">
+  <strong>Root cause:</strong> <code>tar&nbsp;-xzf&nbsp;cv-corpus-25.0-en.tar.gz</code> finished with <em>unexpected EOF in archive</em>. The 81&nbsp;GB source file from Backblaze&nbsp;B2 is short, and only 906 of the needed 3,094 MP3 clips landed on disk.
+</div>
+
+<table>
+  <thead>
+    <tr><th>Subset</th><th>Plan target</th><th class="num">Actual on disk</th><th class="num">Shortfall</th><th>Impact</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Indian-accent (diagnosis)</td>
+      <td>510 <small>(midterm 511)</small></td>
+      <td class="num"><strong>484</strong></td>
+      <td class="num">−5.1%</td>
+      <td>Gate G1's 9.62% ± 0.5&nbsp;pp target is built on a different 511-subset. Exact reproduction not guaranteed on n = 484; loosening G1 to ±1.0&nbsp;pp is defensible.</td>
+    </tr>
+    <tr>
+      <td>Non-Indian regression guard</td>
+      <td>2,584</td>
+      <td class="num"><strong>~422</strong></td>
+      <td class="num">−84%</td>
+      <td>Composite non-Indian WER is still computable, but its CI widens substantially. Guard still tracks <em>Δ</em> (masked − baseline), which is paired, so it remains informative — just noisier.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Commit <code>11f7d79</code> already adapted the ID fixture to the intersection of (strict Indian-accent filter) ∩ (clips actually on disk) = 484, and every commit after it is consistent with <code>n ∈ [505, 515]</code> being loosened to accept this value. The PRD now documents the 510/511 drift; the <em>484</em> adaptation is one step further.</p>
+</section>
+
+<section data-section="remaining">
+<h2 id="remaining">What Remains</h2>
+
+<h3>A. GPU runs against the existing code</h3>
+<ol>
+  <li><strong>Stage A baseline</strong> (Task 6 step 5) &rarr; Gate G1 on n = 484.</li>
+  <li><strong>Stage A.5 tuner</strong> (Task 7 step 3) &rarr; chosen batch size written to <code>tune_batch_size.json</code>.</li>
+  <li><strong>Stage B pilot</strong> (Task 8 step 3) &rarr; Gate G2 on one pilot layer × 20 heads × 50 utterances.</li>
+  <li><strong>Stage C full sweep</strong> (Task 9 step 3) &rarr; Gates G3 + G4 over 32 × 20 × 484 conditions — the long pole.</li>
+  <li><strong>Stage D scoring</strong> (Task 11 step 6) &rarr; <code>head_scores.csv</code>, <code>top_k_heads.csv</code>, Gate G5.</li>
+  <li><strong>Stage E decoding grid</strong> (Task 12 step 3) &rarr; <code>decoding_scores.csv</code>.</li>
+</ol>
+
+<h3>B. Code still to write</h3>
+<ul>
+  <li><strong>Task 13</strong> — Stage F energy-based VAD (T8).</li>
+  <li><strong>Task 14</strong> — Stage G aggregate report assembly (T6).</li>
+  <li><strong>Task 15</strong> — End-to-end artifact-presence smoke and milestone-complete log.</li>
+  <li><strong>Task 16 (stretch)</strong> — Per-head Δ insertion-rate heatmap for the writeup.</li>
+</ul>
+
+<h3>C. Optional cleanup</h3>
+<ul>
+  <li>Commit the untracked <code>logs/head-surgery-stage-d-scoring.md</code>.</li>
+  <li>Re-pull the B2 tarball to restore full 510 + 2,584 subsets (≈ 1&nbsp;hr download + extraction) &mdash; only if the writeup defensibility requires it.</li>
+  <li>After Task 0 verification passes, delete the 76 GB tarball to free 76 GB of disk.</li>
+</ul>
+</section>
+
+<section data-section="disk">
+<h2 id="disk">Disk &amp; Resources</h2>
+
+<p>The project volume is 98 GB total, 82% used, 19 GB free. The single largest item is the 76 GB Common Voice 25 tarball.</p>
+
+<table>
+  <thead>
+    <tr><th>Artifact</th><th class="num">Size</th><th>Notes</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>datasets/cv-corpus-25.0-en.tar.gz</code></td><td class="num">76 GB</td><td>Source; truncated. Deletable after Task 0 verification.</td></tr>
+    <tr><td><code>datasets/cv-corpus-25.0-2026-03-09/</code></td><td class="num">696 MB</td><td>Extracted TSVs + 906 MP3 clips.</td></tr>
+    <tr><td><code>datasets/…/en/clips/</code></td><td class="num">15 MB</td><td>906 clips (484 Indian + ~422 non-Indian).</td></tr>
+    <tr><td><code>outputs/head_surgery/</code></td><td class="num">0 B</td><td>Empty — no runs yet.</td></tr>
+    <tr><td>Scripts, docs, PDFs, logs</td><td class="num">~4 MB</td><td>Everything else combined.</td></tr>
+  </tbody>
+</table>
+
+<p>Projected additional disk after all remaining stages run: Whisper-large-v3 fp16 weights (~3.1 GB in the HuggingFace cache) + <code>sweep.csv</code> (~100–170 MB) + pilot/tune/scores/decoding CSVs (~20 MB combined) &asymp; <strong>3.5–4 GB</strong>. Final headroom: ≈ 15 GB.</p>
+</section>
+
+<section data-section="next">
+<h2 id="next">Next Move</h2>
+
+<div class="callout success">
+  <strong>Recommended path:</strong> commit the stray log entry; re-pull the B2 tarball in the background; in parallel, kick off Stage A baseline on the current n = 484 set to exercise Gate G1 and confirm the pipeline works end-to-end. If the re-pull succeeds, rerun Stage A on n = 510 and use that as the authoritative baseline. If it fails, document n = 484 as a limitation and proceed — the staged gate structure makes this safe.
+</div>
+</section>
+
+<hr>
+
+<footer>
+  <p><small>
+    Snapshot date: 2026-04-17 ·
+    Branch: <code>feat/head-surgery</code> @ <code>847a8cb</code> ·
+    Specs: <a href="../tasks/prd-head-surgery-diagnosis.md">PRD</a> ·
+    <a href="superpowers/plans/2026-04-17-head-surgery-diagnosis.md">Implementation plan</a>
+  </small></p>
+</footer>
+
+</div>
+</div>
+
+<script>
+/* -------- Scroll-spy for sidebar TOC -------- */
+(function() {
+  var sidebarLinks = document.querySelectorAll('#sidebar-toc a[href^="#"]');
+  var sections = [];
+  sidebarLinks.forEach(function(link) {
+    var id = link.getAttribute('href').slice(1);
+    var el = document.getElementById(id);
+    if (el) sections.push({ id: id, el: el, link: link });
+  });
+  function onScroll() {
+    var scrollY = window.scrollY + 80;
+    var current = null;
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].el.offsetTop <= scrollY) current = sections[i];
+    }
+    sidebarLinks.forEach(function(l) { l.classList.remove('active'); });
+    if (current) current.link.classList.add('active');
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+
+/* -------- Section search filter -------- */
+(function() {
+  var input = document.getElementById('doc-search');
+  var countEl = document.getElementById('doc-search-count');
+  if (!input) return;
+  var sections = Array.from(document.querySelectorAll('section[data-section]'));
+  var tocItems = Array.from(document.querySelectorAll('#sidebar-toc ul a[href^="#"]'));
+  function apply() {
+    var q = input.value.trim().toLowerCase();
+    var visible = 0;
+    sections.forEach(function(sec) {
+      var hit = !q || sec.textContent.toLowerCase().indexOf(q) !== -1;
+      sec.classList.toggle('section-hidden', !hit);
+      if (hit) visible++;
+      var id = sec.getAttribute('data-section');
+      var link = tocItems.find(function(a) { return a.getAttribute('href') === '#' + id; });
+      if (link) link.parentElement.style.display = hit ? '' : 'none';
+    });
+    countEl.textContent = q
+      ? visible + ' of ' + sections.length + ' section' + (sections.length === 1 ? '' : 's') + ' match'
+      : 'all sections visible';
+  }
+  input.addEventListener('input', apply);
+  input.addEventListener('keydown', function(e) { if (e.key === 'Escape') { input.value = ''; apply(); } });
+})();
+
+/* -------- Expand all / collapse all for <details.pb> -------- */
+(function() {
+  var expandBtn = document.getElementById('doc-expand-all');
+  var collapseBtn = document.getElementById('doc-collapse-all');
+  if (!expandBtn || !collapseBtn) return;
+  var all = function() { return document.querySelectorAll('details.pb'); };
+  expandBtn.addEventListener('click', function() { all().forEach(function(d) { d.open = true; }); });
+  collapseBtn.addEventListener('click', function() { all().forEach(function(d) { d.open = false; }); });
+})();
+
+/* -------- Copy-to-clipboard on pre.code-block -------- */
+(function() {
+  var blocks = document.querySelectorAll('pre.code-block');
+  blocks.forEach(function(pre) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'copy-btn';
+    btn.textContent = 'Copy';
+    btn.setAttribute('aria-label', 'Copy code to clipboard');
+    btn.addEventListener('click', function() {
+      var text = pre.querySelector('code') ? pre.querySelector('code').innerText : pre.innerText;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(onCopied, onCopyFail);
+      } else {
+        try {
+          var ta = document.createElement('textarea');
+          ta.value = text; document.body.appendChild(ta);
+          ta.select(); document.execCommand('copy'); ta.remove();
+          onCopied();
+        } catch (e) { onCopyFail(); }
+      }
+      function onCopied() {
+        btn.classList.add('copied');
+        btn.textContent = 'Copied';
+        setTimeout(function() { btn.classList.remove('copied'); btn.textContent = 'Copy'; }, 1400);
+      }
+      function onCopyFail() { btn.textContent = 'Copy failed'; }
+    });
+    pre.appendChild(btn);
+  });
+})();
+</script>
+</body>
+</html>

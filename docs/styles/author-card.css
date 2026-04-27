@@ -1,0 +1,176 @@
+/* =========================================================================
+   Palatino Burgundy — Author Card component
+   Requires colors_and_type.css (for --accent, --bg-surface, etc.)
+   Pair with qr.js for inline-generated QR codes (elements with [data-qr]).
+   ========================================================================= */
+
+/* ---------- FULL variant ---------- */
+.author-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 1.6em 1.8em;
+  margin: 1.4em 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1.6em;
+  align-items: center;
+}
+.author-card .ac-meta {
+  font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+  font-size: 0.78em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  margin-bottom: 0.3em;
+}
+.author-card .ac-name {
+  font-family: var(--font-serif);
+  font-size: 1.9em;
+  font-weight: 700;
+  color: var(--fg-strong);
+  margin: 0 0 0.15em;
+  line-height: 1.15;
+  border: none;
+  padding: 0;
+}
+.author-card .ac-sub {
+  font-size: 1em;
+  color: var(--fg-muted);
+  font-style: italic;
+  margin: 0 0 1em;
+}
+.author-card dl.ac-links {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 1.1em;
+  row-gap: 0.35em;
+  font-size: 0.95em;
+}
+.author-card dl.ac-links dt {
+  color: var(--fg-muted);
+  font-style: italic;
+  font-size: 0.88em;
+  align-self: baseline;
+}
+.author-card dl.ac-links dd {
+  margin: 0;
+  font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+  font-size: 0.88em;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.author-card dl.ac-links a { color: var(--accent); }
+.author-card dl.ac-links a:hover { color: var(--accent-hover); }
+
+.author-card .ac-qr {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 0.5em;
+  padding: 0.8em;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  min-width: 148px;
+}
+.author-card .ac-qr svg {
+  display: block;
+  width: 124px; height: 124px;
+}
+.author-card .ac-qr .ac-qr-caption {
+  font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+  font-size: 0.72em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  text-align: center;
+}
+
+@media (max-width: 560px) {
+  .author-card { grid-template-columns: 1fr; justify-items: start; }
+  .author-card .ac-qr { align-self: stretch; }
+}
+
+/* ---------- COMPACT variant ---------- */
+.author-compact {
+  display: flex;
+  align-items: center;
+  gap: 1.2em;
+  padding: 0.9em 1.1em;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-soft);
+  margin: 1.6em 0;
+  font-size: 0.95em;
+}
+.author-compact .ac-qr-mini { flex: 0 0 auto; }
+.author-compact .ac-qr-mini svg { width: 62px; height: 62px; display: block; }
+.author-compact .ac-text { flex: 1; min-width: 0; }
+.author-compact .ac-name-inline {
+  font-weight: 700; color: var(--fg-strong); font-size: 1.08em;
+}
+.author-compact .ac-sep { color: var(--border); margin: 0 0.5em; }
+.author-compact .ac-line {
+  font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+  font-size: 0.82em;
+  color: var(--fg-muted);
+  margin-top: 0.25em;
+  display: flex; flex-wrap: wrap; gap: 0.3em 1em;
+}
+.author-compact .ac-line a { color: var(--accent); }
+
+/* ---------- SIDEBAR variant ---------- */
+.author-sidebar {
+  padding: 0.9em 0.8em;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  margin-bottom: 1.4em;
+  font-size: 1.3rem;
+}
+.author-sidebar .ac-name-sm {
+  font-weight: 700; color: var(--fg-strong);
+  font-size: 1.4em; line-height: 1.25;
+  margin: 0 0 0.15em;
+}
+.author-sidebar .ac-collab-sm {
+  color: var(--fg-muted); font-size: 0.9em;
+  margin: 0 0 0.15em; line-height: 1.25;
+}
+.author-sidebar .ac-collab-sm .ac-collab-k {
+  font-style: italic; margin-right: 0.3em;
+}
+.author-sidebar .ac-role-sm {
+  color: var(--fg-muted); font-style: italic;
+  font-size: 0.9em; margin-bottom: 0.7em;
+}
+.author-sidebar .ac-qr-side { display: block; margin: 0.4em auto 0.35em; }
+.author-sidebar .ac-qr-side svg { width: 100%; height: auto; display: block; }
+.author-sidebar .ac-qr-caption-side {
+  display: block;
+  text-align: center;
+  font-size: 1em;
+  font-style: italic;
+  color: var(--fg-muted);
+  margin: 0 0 0.7em;
+  text-decoration: none;
+}
+.author-sidebar .ac-qr-caption-side:hover { color: var(--accent); text-decoration: underline; }
+.author-sidebar .ac-list {
+  list-style: none; padding: 0; margin: 0;
+  font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+  font-size: 1em;
+}
+.author-sidebar .ac-list li { padding: 0.18em 0; border-bottom: 1px dashed var(--border); }
+.author-sidebar .ac-list li:last-child { border-bottom: none; }
+.author-sidebar .ac-list .ac-k { color: var(--fg-muted); font-style: italic; margin-right: 0.4em; }
+.author-sidebar .ac-list .ac-repo-label {
+  color: var(--fg-muted); font-style: italic; margin-right: 0.35em;
+}
+.author-sidebar .ac-list a { color: var(--accent); }
+
+@media print {
+  .author-card { break-inside: avoid; }
+  .ac-qr .ac-qr-caption { display: none; }
+}

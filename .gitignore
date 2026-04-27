@@ -7,11 +7,19 @@ dist/
 build/
 *.egg
 .eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+htmlcov/
+coverage.xml
+.coverage
 
 # Virtual environments
 .venv/
 venv/
 env/
+.env
 
 # IDE
 .vscode/
@@ -24,12 +32,21 @@ Thumbs.db
 
 # Data & results (large files, not tracked)
 data/
+!scripts/data/
+!scripts/data/*.py
 results/
-outputs/
 checkpoints/
+model/
+output/
+mlruns/
 *.wav
 *.flac
 *.mp3
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.safetensors
 
 # Archives
 *.zip
@@ -44,3 +61,12 @@ temp.md
 
 # Per-VM Claude Code install (skills, agents, commands cloned by /gsd-update)
 .claude/
+
+# Local Codex/PKM/graph tooling state
+.codex/
+.pkm/*.db
+graphify-out/
+.graphify_detect.json
+.graphify_python
+docs/_deploy-head-surgery/
+archive-local/

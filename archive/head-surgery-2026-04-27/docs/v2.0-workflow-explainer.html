@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>v2.0 Attention Head Surgery — Workflow Explainer</title>
+<style>
+  html { font-size: 62.5%; }
+  body {
+    font-family: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    font-size: 1.7rem;
+    line-height: 1.618;
+    color: #4a4a4a;
+    background: #f5f4f0;
+    margin: 0;
+    padding: 0;
+  }
+  .page-wrapper {
+    display: flex;
+    max-width: 80em;
+    margin: 0 auto;
+  }
+  .sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    background: #f0efeb;
+    padding: 1.5em 1em 1.5em 1.5em;
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    max-height: 100vh;
+    overflow-y: auto;
+    border-right: 1px solid #e5e2dd;
+  }
+  .sidebar strong { color: #3a3a3a; font-size: 1.15em; display: block; margin-bottom: 0.8em; }
+  .sidebar ul { list-style: none; padding-left: 0; margin: 0; font-size: 1em; }
+  .sidebar li { margin: 0.3em 0; }
+  .sidebar a {
+    color: #4a4a4a;
+    text-decoration: none;
+    display: block;
+    padding: 0.3em 0.6em;
+    border-radius: 3px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .sidebar a:hover { background: #ebe7e3; color: #7c3043; }
+  .sidebar a.active { background: #ebe7e3; color: #7c3043; font-weight: 600; }
+  .main-content {
+    flex: 1;
+    max-width: 56em;
+    padding: 13px 2em 2em 2.5em;
+    min-width: 0;
+  }
+  h1, h2, h3, h4, h5, h6 { color: #3a3a3a; line-height: 1.3; margin-top: 1.5em; }
+  h1 { font-size: 2em; margin-top: 0.3em; margin-bottom: 0.1em; }
+  h2 {
+    font-size: 1.7em;
+    border-bottom: 2px solid #7c3043;
+    padding-bottom: 0.25em;
+    margin-top: 2em;
+  }
+  h3 { font-size: 1.45em; }
+  h4 { font-size: 1.25em; color: #7c3043; }
+  p { margin: 0.8em 0; }
+  p.subtitle { color: #7c3043; font-style: italic; font-size: 1.1em; margin-top: 0; }
+  a { color: #7c3043; text-decoration: none; }
+  a:hover { color: #a3415a; text-decoration: underline; }
+  a:visited { color: #5c2233; }
+  strong { color: #3a3a3a; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92em;
+    margin: 1.2em 0;
+    border-top: 2px solid #7c3043;
+    border-bottom: 2px solid #7c3043;
+  }
+  thead th {
+    padding: 0.6em 0.8em;
+    text-align: left;
+    font-weight: 700;
+    color: #3a3a3a;
+    border-bottom: 3px solid #7c3043;
+  }
+  tbody td {
+    padding: 0.55em 0.8em;
+    border-bottom: 1px solid #ddd;
+    vertical-align: top;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #f5eaed; }
+
+  .callout {
+    border-left: 4px solid #7c3043;
+    background: #f1f1f1;
+    padding: 1em 1.2em;
+    margin: 1.2em 0;
+    border-radius: 0 6px 6px 0;
+  }
+  .callout.warning {
+    border-left-color: #d4a017;
+    background: #fdf8e8;
+  }
+  .callout.danger {
+    border-left-color: #c0392b;
+    background: #fdf0ef;
+  }
+  .callout.success {
+    border-left-color: #27ae60;
+    background: #edf9f1;
+  }
+
+  /* Four-arm flow grid */
+  .arm-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1.2em;
+    margin: 1.5em 0;
+  }
+  .arm-card {
+    border: 1px solid #ddd;
+    border-top: 4px solid #7c3043;
+    background: #faf9f7;
+    padding: 1em 1.2em;
+    border-radius: 4px;
+  }
+  .arm-card.primary { border-top-color: #7c3043; background: #faeef1; }
+  .arm-card.side { border-top-color: #b85c3a; }
+  .arm-card.stretch { border-top-color: #c9944a; opacity: 0.95; }
+  .arm-card h4 { margin-top: 0; margin-bottom: 0.4em; }
+  .arm-card .arm-tag {
+    display: inline-block;
+    font-size: 0.75em;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #7c3043;
+    margin-bottom: 0.4em;
+  }
+  .arm-card.side .arm-tag { color: #b85c3a; }
+  .arm-card.stretch .arm-tag { color: #c9944a; }
+  .arm-card p { font-size: 0.95em; margin: 0.4em 0; }
+
+  /* Decision cards */
+  .decision-card {
+    border: 1px solid #ddd;
+    border-left: 4px solid #7c3043;
+    background: #faf9f7;
+    padding: 1em 1.3em;
+    margin: 1.3em 0;
+    border-radius: 0 6px 6px 0;
+  }
+  .decision-card h3 { margin-top: 0.2em; }
+  .decision-card .plain { font-style: italic; color: #5c2233; margin-bottom: 0.6em; }
+  .decision-card .options { margin: 0.6em 0; }
+  .decision-card .option-row {
+    display: grid;
+    grid-template-columns: 150px 1fr;
+    gap: 0.8em;
+    padding: 0.4em 0;
+    border-bottom: 1px dashed #e5e2dd;
+  }
+  .decision-card .option-row:last-child { border-bottom: none; }
+  .decision-card .option-row strong { color: #7c3043; }
+  .decision-card .option-row.rec strong { color: #27ae60; }
+  .decision-card .rec-tag {
+    display: inline-block;
+    font-size: 0.7em;
+    font-weight: 700;
+    background: #27ae60;
+    color: #fff;
+    padding: 0.15em 0.5em;
+    border-radius: 3px;
+    vertical-align: middle;
+    margin-left: 0.4em;
+  }
+
+  /* Glossary list */
+  dl.glossary dt {
+    color: #7c3043;
+    font-weight: 700;
+    margin-top: 0.8em;
+  }
+  dl.glossary dd {
+    margin-left: 1.5em;
+    margin-bottom: 0.4em;
+  }
+
+  /* Flow arrow */
+  .flow-diagram {
+    background: #faf9f7;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 1em 1.3em;
+    margin: 1.3em 0;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.85em;
+    line-height: 1.7;
+    color: #3a3a3a;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  footer {
+    margin-top: 3em;
+    padding-top: 1.2em;
+    border-top: 1px solid #ddd;
+    color: #888;
+    font-size: 0.9em;
+  }
+
+  @media (max-width: 900px) {
+    .page-wrapper { flex-direction: column; }
+    .sidebar { position: static; width: auto; max-height: none; border-right: none; border-bottom: 1px solid #e5e2dd; }
+    .main-content { padding: 1.5em; }
+    body { font-size: 1.35rem; }
+  }
+  @media (max-width: 382px) { body { font-size: 1.2rem; } }
+
+  @media print {
+    .sidebar { display: none; }
+    .main-content { max-width: 100%; padding: 0; }
+    .decision-card, .arm-card, .callout { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="page-wrapper">
+
+  <aside class="sidebar" id="sidebar-toc">
+    <strong>Contents</strong>
+    <ul>
+      <li><a href="#problem">1. The Problem</a></li>
+      <li><a href="#whats-a-head">2. What's an Attention Head?</a></li>
+      <li><a href="#workflow">3. The 4-Arm Workflow</a></li>
+      <li><a href="#ship-first">4. Ship Diagnosis First</a></li>
+      <li><a href="#decisions">5. Decisions You Need to Make</a></li>
+      <li><a href="#pitfalls">6. Watch Out For</a></li>
+      <li><a href="#glossary">7. Glossary</a></li>
+    </ul>
+  </aside>
+
+  <div class="main-content">
+
+    <h1>Attention Head Surgery — v2.0 Workflow Explainer</h1>
+    <p class="subtitle">A plain-language guide before you make scoping decisions</p>
+    <hr>
+
+    <div class="callout">
+      <strong>Why this document exists.</strong> Milestone v2.0 pivots from GRPO (v1.0, paused) to
+      attention head surgery on Whisper-large-v3. Before I ask you to decide on MVP scope, regression
+      guards, sweep scope, and driving-ness thresholds, this page explains what those terms mean and
+      why each choice matters. Read sections 1–4, then the decision cards in section 5.
+    </div>
+
+    <!-- ================================================================== -->
+    <h2 id="problem">1. The Problem</h2>
+
+    <p>Your midterm found a specific failure mode of Whisper-large-v3. It's the most accurate ASR model
+    tested — but on Indian-accented English speech, it hallucinates words that weren't spoken.</p>
+
+    <table>
+      <caption style="text-align: left; padding: 0.4em 0; font-weight: 600;">Whisper-large-v3 on Indian-accent Common Voice (n=511, from midterm §3.2)</caption>
+      <thead>
+        <tr><th>Metric</th><th>Value</th><th>Meaning</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Insertion rate</td><td><strong>9.62%</strong></td><td>~1 in 10 words is invented (not in the reference transcript)</td></tr>
+        <tr><td>Insertions as % of all errors</td><td><strong>50.7%</strong></td><td>Over half of errors are invented words, not mis-recognitions</td></tr>
+        <tr><td>Repetition insertions</td><td>43%</td><td>Autoregressive loops ("the the the the...")</td></tr>
+        <tr><td>Syntactic insertions</td><td>48%</td><td>Filler function words</td></tr>
+        <tr><td>Content insertions</td><td>9%</td><td>Semantic fabrications (imagined nouns/verbs)</td></tr>
+        <tr><td>Whisper-small baseline</td><td>3.22%</td><td>The small model hallucinates less; the large model gets worse — non-monotonic with scale</td></tr>
+        <tr><td>All Gen-3 models (Qwen3, Granite)</td><td>&lt;3.1%</td><td>This is Whisper-specific, not an LLM-era problem</td></tr>
+      </tbody>
+    </table>
+
+    <h3>The reference methodology: Calm-Whisper</h3>
+
+    <p>A paper from Interspeech 2025 (<em>Wang et al., "Calm-Whisper"</em>) showed that on <strong>non-speech audio</strong>
+    (where Whisper hallucinates text out of silence), just <strong>3 of 20 decoder self-attention heads drive
+    75% of the hallucinations</strong>. Fine-tuning just those 3 heads reduced hallucination by 80% with
+    almost no degradation on LibriSpeech.</p>
+
+    <p>v2.0 adapts that methodology from <em>non-speech hallucination</em> to <em>accent hallucination</em>. Same
+    model (Whisper-large-v3), same mechanism (per-head analysis), different failure mode.</p>
+
+    <div class="callout warning">
+      <strong>Caveat.</strong> Calm-Whisper's "3 of 20 heads" finding was on a different dataset and a different
+      type of hallucination. The same heads may or may not be responsible for accent hallucination.
+      The v2.0 contribution is <em>finding out</em>, not assuming.
+    </div>
+
+    <!-- ================================================================== -->
+    <h2 id="whats-a-head">2. What's an Attention Head?</h2>
+
+    <p>Think of Whisper's decoder as a factory with 32 floors. Each floor has 20 specialist workers
+    (attention heads). Each worker looks at a different slice of the previous words + audio and decides
+    what to focus on. Their outputs are averaged and passed up to the next floor.</p>
+
+    <table>
+      <thead>
+        <tr><th>Dimension</th><th>Count</th><th>In plain language</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Decoder layers</td><td>32</td><td>32 floors in the factory</td></tr>
+        <tr><td>Self-attention heads per layer</td><td>20</td><td>20 specialists per floor</td></tr>
+        <tr><td>Total positions</td><td><strong>640</strong></td><td>640 workers total (32 × 20)</td></tr>
+      </tbody>
+    </table>
+
+    <h3>What "masking a head" means</h3>
+
+    <p>To test if a head is hallucination-driving, we set its contribution to zero — the worker is
+    still at their desk but their output is discarded. Then we re-run inference and measure:
+    does the hallucination rate drop?</p>
+
+    <table>
+      <thead>
+        <tr><th>If masking head <em>h</em> ...</th><th>Then <em>h</em> is ...</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Drops insertion rate (9.62% → 4%) and doesn't hurt other accents</td><td><strong>hallucination-driving</strong> — a candidate for surgery</td></tr>
+        <tr><td>Changes nothing</td><td>neutral — ignore it</td></tr>
+        <tr><td>Drops insertion rate BUT hurts WER on other accents</td><td>doing useful work elsewhere — don't touch it</td></tr>
+        <tr><td>Raises insertion rate</td><td>actually preventing hallucination — definitely don't touch it</td></tr>
+      </tbody>
+    </table>
+
+    <!-- ================================================================== -->
+    <h2 id="workflow">3. The 4-Arm Workflow</h2>
+
+    <p>v2.0 has four possible interventions. They're independent — you can do any subset.
+    The primary contribution is <strong>Arm 1 (Diagnosis)</strong>; the others are side-quests or stretch.</p>
+
+    <div class="arm-grid">
+      <div class="arm-card primary">
+        <span class="arm-tag">Arm 1 — Primary</span>
+        <h4>Diagnosis Sweep</h4>
+        <p><strong>What:</strong> Mask each of the 640 heads one at a time, re-run inference on 511
+        Indian-accent utterances, measure which heads drop insertion rate.</p>
+        <p><strong>Output:</strong> A ranked list of hallucination-driving heads (a.k.a. <em>top-k heads</em>) +
+        a 32×20 heatmap for the writeup.</p>
+        <p><strong>Why primary:</strong> This alone is a complete, citable contribution — independent
+        replication of Calm-Whisper on a new failure mode.</p>
+      </div>
+
+      <div class="arm-card side">
+        <span class="arm-tag">Arm 2 — Side-quest</span>
+        <h4>Decoding Ablation</h4>
+        <p><strong>What:</strong> Try cheap decoder tweaks — beam size, <code>repetition_penalty</code>,
+        <code>no_repeat_ngram_size</code>. No training, just re-run inference with different decoding settings.</p>
+        <p><strong>Output:</strong> A grid of "what if we just turned this knob?" numbers.</p>
+        <p><strong>Purpose:</strong> Answers the unavoidable reviewer question
+        <em>"couldn't you just set repetition_penalty=1.3 and call it a day?"</em> with real numbers.</p>
+      </div>
+
+      <div class="arm-card side">
+        <span class="arm-tag">Arm 3 — Side-quest</span>
+        <h4>VAD Preprocessing</h4>
+        <p><strong>What:</strong> Run a voice-activity detector (silero-vad) over the audio FIRST,
+        strip out silence, THEN feed the trimmed audio to Whisper.</p>
+        <p><strong>Output:</strong> Insertion rate on the same 511 utterances with/without VAD, plus
+        interaction with the existing silence-injection perturbations (25/50/75%).</p>
+        <p><strong>Purpose:</strong> Tests whether silence is the trigger. Requested by midterm §4.2.</p>
+      </div>
+
+      <div class="arm-card stretch">
+        <span class="arm-tag">Arm 4 — Stretch</span>
+        <h4>Selective Fine-Tuning</h4>
+        <p><strong>What:</strong> Take the top-k heads identified in Arm 1 and fine-tune ONLY those
+        heads on clean accent-diverse audio. Everything else in the model stays frozen.</p>
+        <p><strong>Output:</strong> A fine-tuned checkpoint that reduces Indian-accent insertions
+        without hurting other accents.</p>
+        <p><strong>Why stretch:</strong> Can't start until Arm 1 is done, takes the most time, and
+        carries the most risk (head collapse, catastrophic forgetting, overfit at n=306 training samples).</p>
+      </div>
+    </div>
+
+    <h3>How the arms depend on each other</h3>
+
+    <div class="flow-diagram">     ┌──────────────────────────────┐
+     │  Phase A — Infrastructure    │  (hooks, splits, baseline reproduce)
+     └──────────────┬───────────────┘
+                    │
+                    ▼
+     ┌──────────────────────────────┐
+     │  Phase B — Diagnosis sweep   │◄── the required deliverable
+     └──┬───────────┬──────────┬────┘
+        │           │          │
+   ┌────┴───┐   ┌───┴───┐  ┌───┴────┐
+   │Phase C │   │Phase D│  │Phase E │  (stretch, gated on B)
+   │Decode  │   │ VAD   │  │Fine-   │
+   │ablation│   │preproc│  │tune    │
+   └────┬───┘   └───┬───┘  └───┬────┘
+        │           │          │
+        └───────────┼──────────┘
+                    ▼
+     ┌──────────────────────────────┐
+     │  Phase F — Full evaluation   │  (writeup tables, Pareto plots)
+     └──────────────────────────────┘</div>
+
+    <p>Phases C and D can run in parallel (they don't need each other). Phase E cannot start until
+    Phase B publishes the head ranking.</p>
+
+    <!-- ================================================================== -->
+    <h2 id="ship-first">4. The "Ship Diagnosis First" Principle</h2>
+
+    <div class="callout success">
+      <strong>Bottom line.</strong> Arm 1 (Diagnosis) is a complete contribution on its own. If only
+      one thing ships, it must be Arm 1. If Arm 1 finishes early, add Arms 2 / 3 / 4 in that
+      priority order. If Arm 1 is late, cut everything else.
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>Scenario</th><th>What ships</th><th>Is the project defensible?</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Only Arm 1 ships</td><td>Diagnosis + heatmap + ranked head list with bootstrap CIs</td><td>✓ Yes — a clean replication/refutation of Calm-Whisper on a new failure mode</td></tr>
+        <tr><td>Arm 1 + 2 ship</td><td>Diagnosis + decoding baseline table</td><td>✓ Stronger — addresses the obvious reviewer question</td></tr>
+        <tr><td>Arm 1 + 4 ship</td><td>Diagnosis + intervention that actually reduces insertions</td><td>✓ Full Calm-Whisper story</td></tr>
+        <tr><td>All 4 arms shallow</td><td>None of them rigorous</td><td>✗ Worse than Arm 1 alone</td></tr>
+        <tr><td>Only Arm 4 (skip diagnosis)</td><td>Fine-tune without knowing which heads to target</td><td>✗ Impossible — Arm 4 needs Arm 1's output as input</td></tr>
+      </tbody>
+    </table>
+
+    <p>This is why every decision in section 5 is framed around <strong>protecting Arm 1</strong>.</p>
+
+    <!-- ================================================================== -->
+    <h2 id="decisions">5. Decisions You Need to Make</h2>
+
+    <p>Four scoping decisions drive the REQUIREMENTS document. Each card explains the plain-language
+    question, the options, and why one option is recommended.</p>
+
+    <!-- Decision 1 -->
+    <div class="decision-card">
+      <h3>Decision 1 — Is fine-tuning (Arm 4) required or stretch?</h3>
+      <p class="plain">Do we <em>commit</em> to delivering a fine-tuned model, or do we <em>try</em> to deliver one
+      if Arm 1 finishes early?</p>
+
+      <div class="options">
+        <div class="option-row rec">
+          <div><strong>Stretch</strong><span class="rec-tag">REC</span></div>
+          <div>Arm 4 is optional. MVP = Arms 1 + 2 + 3. If Arm 1 finishes early, add Arm 4. If Arm 1 is late, cut Arm 4 entirely. <strong>Why:</strong> Arm 4 can't start until Arm 1 publishes the head ranking — it's always on the critical path. Committing to it forces Arm 1 to ship fast, which undermines rigor.</div>
+        </div>
+        <div class="option-row">
+          <div><strong>Required (MVP)</strong></div>
+          <div>Arm 4 must ship. MVP = Arms 1 + 4. <strong>Trade-off:</strong> If Arm 1 slips by a week, Arm 4 has no time to train/evaluate and you deliver a broken result. Pick this only if you're confident Arm 1 will finish with runway to spare.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Decision 2 -->
+    <div class="decision-card">
+      <h3>Decision 2 — Which non-Indian groups are the regression guard?</h3>
+      <p class="plain">When you mask a head or fine-tune a model, you need to check that you didn't
+      just <em>trade</em> Indian-accent improvement for regression on other accents. The "regression
+      guard" is the accent(s) / dataset(s) you watch. If WER on the guard degrades by more than a
+      fixed budget (e.g. 0.5 absolute points), the intervention fails.</p>
+
+      <div class="options">
+        <div class="option-row rec">
+          <div><strong>LibriSpeech test-clean</strong><span class="rec-tag">REC</span></div>
+          <div>2,620 utterances, no demographic labels. Standard ASR reference; what Calm-Whisper used. Makes your result comparable to published work. <strong>Why:</strong> Every Whisper paper reports LibriSpeech — it's the lingua franca of ASR. Safest baseline guard.</div>
+        </div>
+        <div class="option-row">
+          <div><strong>CV24 American accent</strong></div>
+          <div>Largest non-Indian CV group (~600 utterances). Stable across perturbations in the midterm. Natural complement to LibriSpeech for CV-specific regression.</div>
+        </div>
+        <div class="option-row">
+          <div><strong>CV24 Canadian accent</strong></div>
+          <div>Stable in midterm; smaller n but clean baseline. Good secondary guard.</div>
+        </div>
+        <div class="option-row">
+          <div><strong>Fair-Speech "White" ethnicity</strong></div>
+          <div>Best Whisper performance in midterm — acts as a ceiling check. If this degrades, something is badly broken.</div>
+        </div>
+      </div>
+      <p><em>This question is multi-select.</em> Recommended combination: <strong>LibriSpeech + American + Canadian</strong> as three guards with 0.5 pt WER budget each.</p>
+    </div>
+
+    <!-- Decision 3 -->
+    <div class="decision-card">
+      <h3>Decision 3 — How many positions do we sweep in Arm 1?</h3>
+      <p class="plain">The diagnosis sweep runs inference once per masked position. 640 positions means
+      640 inference runs on 511 utterances. Smaller sweep = faster but less informative.</p>
+
+      <div class="options">
+        <div class="option-row rec">
+          <div><strong>Full 640 (all 32 layers × 20 heads)</strong><span class="rec-tag">REC</span></div>
+          <div>Mask every possible (layer, head) position. Produces the 32×20 heatmap for the writeup. Roughly a few hours on a 49 GB GPU with encoder output caching. <strong>Why:</strong> Gives the most complete picture and cleanly tests whether Calm-Whisper's "heads 1, 6, 11" finding transfers to accent hallucination — which is the whole point.</div>
+        </div>
+        <div class="option-row">
+          <div><strong>Calm-Whisper heads only (3 × 32 = 96 positions)</strong></div>
+          <div>Only mask heads 1, 6, 11 across all 32 layers. 6.6× faster. <strong>Trade-off:</strong> Assumes Calm-Whisper's finding transfers. If it doesn't, you won't know which heads ARE driving the accent hallucination — you can't independently rediscover them.</div>
+        </div>
+        <div class="option-row">
+          <div><strong>One representative layer (20 positions)</strong></div>
+          <div>Pick one layer, sweep all 20 heads. 32× faster. <strong>Trade-off:</strong> Weak contribution — no cross-layer picture, no heatmap, not citable as a replication study.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Decision 4 -->
+    <div class="decision-card">
+      <h3>Decision 4 — How do we decide a head is "hallucination-driving"?</h3>
+      <p class="plain">After masking each head and measuring the change in insertion rate, you need a
+      rule to classify heads as "driving" vs "not driving." This is the "driving-ness metric."
+      Three styles:</p>
+
+      <div class="options">
+        <div class="option-row rec">
+          <div><strong>Bootstrap 95% CI &lt; 0</strong><span class="rec-tag">REC</span></div>
+          <div>Run 1,000 bootstrap resamples of the insertion-rate delta. A head is "driving" only if the entire 95% confidence interval is below zero. <strong>Why:</strong> Statistically principled. Handles small-sample noise honestly. You can publish the CI alongside the ranking and defend the claim to reviewers. <em>Key term: bootstrap CI — see glossary.</em></div>
+        </div>
+        <div class="option-row">
+          <div><strong>Absolute delta ≥ 1 percentage point</strong></div>
+          <div>A head is "driving" if masking it drops insertion rate by ≥1 pp on the diagnose split. <strong>Trade-off:</strong> Easier to explain but reports effects that may just be noise at n=306. Could produce false positives.</div>
+        </div>
+        <div class="option-row">
+          <div><strong>Top-k ranking (k=3 or k=5)</strong></div>
+          <div>Rank all 640 heads by insertion-rate delta, take the top k. Matches Calm-Whisper's style exactly ("3 of 20 heads"). <strong>Trade-off:</strong> Ignores statistical significance. The 4th-ranked head might be almost identical to the 3rd, or it might be pure noise — you can't tell from the ranking alone.</div>
+        </div>
+      </div>
+
+      <p><em>Hybrid option:</em> use Bootstrap CI as the primary classifier AND report top-k as a
+      secondary table for comparison with Calm-Whisper. This is the approach most papers take. Tell
+      me if you want the hybrid and I'll write the requirement accordingly.</p>
+    </div>
+
+    <!-- ================================================================== -->
+    <h2 id="pitfalls">6. Watch Out For</h2>
+
+    <p>Four traps are specific to this workflow. The first three are silent-failure landmines — the
+    code looks like it worked, but the numbers are fake. The fourth is a class-project scope risk.</p>
+
+    <div class="callout danger">
+      <strong>Pitfall 1 — SDPA silently ignores head_mask.</strong>
+      HuggingFace defaults to a fast attention kernel called SDPA. SDPA does NOT support masking
+      individual heads — it silently drops any mask you pass. The sweep runs, produces numbers,
+      looks fine, but <em>every masked run is identical to the baseline</em>. The fix: explicitly
+      set <code>attn_implementation="eager"</code> when loading Whisper, and assert it after load.
+      Must be a hard gate in Phase A.
+    </div>
+
+    <div class="callout danger">
+      <strong>Pitfall 2 — KV cache may drop head_mask after token 1.</strong>
+      Whisper generates tokens one at a time using a cache of previous attention. Passing
+      <code>decoder_head_mask</code> as a <code>.generate()</code> kwarg may only apply the mask to
+      the FIRST token; tokens 2..T come from the unmasked model. The fix: use PyTorch forward
+      hooks that zero the head at EVERY forward call, and verify with <code>output_attentions=True</code>
+      that the head is zero at decoded position &gt; 1.
+    </div>
+
+    <div class="callout danger">
+      <strong>Pitfall 3 — Whisper's temperature fallback confounds decoding ablation.</strong>
+      Whisper has a built-in safety net: if a transcription looks repetitive, it automatically
+      re-runs the segment at a higher temperature. This means your "beam=5, rep_penalty=1.0" run
+      may actually be executing at temperature 0.8 on the hardest utterances — exactly the ones you
+      care about. The fix: explicitly set <code>temperature=0.0</code>,
+      <code>compression_ratio_threshold=None</code>, <code>logprob_threshold=None</code> in Phase C.
+    </div>
+
+    <div class="callout warning">
+      <strong>Pitfall 4 — Scope creep. Four arms is too many for a class project.</strong>
+      The plan lists 4 interventions. In a time-limited class project, four shallow arms is worse
+      than one rigorous arm. Commit to Arm 1 as the required deliverable and declare 2, 3, 4 as
+      stretch in PROJECT.md and REQUIREMENTS.md explicitly. The cut order under time pressure is
+      Arm 2 → Arm 3 → Arm 4. Arm 1 is never cut.
+    </div>
+
+    <!-- ================================================================== -->
+    <h2 id="glossary">7. Glossary</h2>
+
+    <dl class="glossary">
+      <dt>Attention head</dt>
+      <dd>A specialist sub-module of a transformer layer that attends to a slice of the context.
+      Whisper-large-v3's decoder has 20 per layer × 32 layers = 640 total.</dd>
+
+      <dt>Bootstrap CI (confidence interval)</dt>
+      <dd>A statistical technique. Resample your data with replacement 1,000 times, compute the
+      metric each time, take the 2.5th and 97.5th percentiles as the 95% confidence interval. If
+      "0" is outside the interval, the effect is statistically significant.</dd>
+
+      <dt>Diagnose / rank / test split</dt>
+      <dd>Dividing the 511 Indian-accent utterances into three non-overlapping groups. "Diagnose"
+      for the big 640-cell sweep, "rank" for tie-breaking the top-k heads, "test" touched exactly
+      once at the end to report the final number. Prevents cherry-picking.</dd>
+
+      <dt>Driving-ness metric</dt>
+      <dd>The rule you use to decide "this head drives hallucination" vs "this head doesn't matter."
+      See Decision 4 in section 5.</dd>
+
+      <dt>Eager attention</dt>
+      <dd>The oldest, slowest, most-flexible PyTorch attention implementation. The ONLY one that
+      supports masking individual heads. Alternatives: SDPA (fast, no head mask), FlashAttention-2
+      (fastest, no head mask).</dd>
+
+      <dt>Hallucination (in ASR)</dt>
+      <dd>The model transcribes words that weren't spoken. Three subtypes: repetition ("the the
+      the"), syntactic (filler function words), content (invented nouns/verbs). Not the same as
+      substitution or deletion errors.</dd>
+
+      <dt>Insertion rate</dt>
+      <dd>Inserted words ÷ total reference words. Whisper-large-v3's insertion rate on Indian-accent
+      CV is 9.62%. Lower is better.</dd>
+
+      <dt>KV cache</dt>
+      <dd>During autoregressive generation, the model caches its previous attention computations
+      (key-value pairs) to avoid recomputing them for every new token. This cache is the source of
+      Pitfall 2 — a head mask may be applied when the cache is built but not when it's read.</dd>
+
+      <dt>MMR (Max/Min Ratio)</dt>
+      <dd>Fairness metric: (highest WER across demographic groups) ÷ (lowest WER across groups).
+      MMR = 1.0 means perfect parity. Whisper-large-v3's ethnicity MMR was 2.28 in the midterm.</dd>
+
+      <dt>Per-head masking</dt>
+      <dd>Setting a specific attention head's output to zero during inference to see if the model
+      still works correctly without it. The core primitive of Arm 1.</dd>
+
+      <dt>Regression guard</dt>
+      <dd>An accent/dataset you watch to ensure the intervention doesn't break general performance.
+      If the guard's WER regresses by more than a fixed budget (e.g. 0.5 absolute points), the
+      intervention is rejected even if it helped the Indian-accent target.</dd>
+
+      <dt>SDPA (Scaled Dot-Product Attention)</dt>
+      <dd>PyTorch's default fast attention kernel. Does NOT support per-head masking — this is
+      Pitfall 1. For this milestone you MUST override to eager attention.</dd>
+
+      <dt>Top-k ranking</dt>
+      <dd>A way to classify heads: rank all 640 by some score (e.g., insertion-rate delta) and take
+      the top k (3 or 5). Matches Calm-Whisper's "3 of 20 heads" framing but ignores significance.</dd>
+
+      <dt>VAD (Voice Activity Detection)</dt>
+      <dd>A small model that classifies audio frames as speech vs silence/noise. In Arm 3, run VAD
+      first to trim silence, then feed the trimmed audio to Whisper. Library recommended:
+      silero-vad (not WebRTC — WebRTC deletes half the soft-spoken speech).</dd>
+
+      <dt>WER (Word Error Rate)</dt>
+      <dd>The primary ASR accuracy metric: (substitutions + deletions + insertions) ÷ reference
+      word count. Lower is better. Whisper-large-v3 is the best on LibriSpeech but has the worst
+      Indian-accent insertion behavior.</dd>
+    </dl>
+
+    <!-- ================================================================== -->
+    <h2 id="next">Next step</h2>
+
+    <p>When you're ready, tell me "proceed with decisions" or name your choices for Decisions 1–4
+    and I'll write REQUIREMENTS.md and spawn the roadmapper. If anything in this doc is still
+    unclear, tell me what and I'll expand it.</p>
+
+    <footer>
+      <p><small>Last updated: 2026-04-11 · Milestone v2.0 workflow explainer · Sources:
+      <a href="https://arxiv.org/abs/2505.12969">Calm-Whisper (Wang et al., Interspeech 2025)</a>,
+      midterm report §3.2 / §4.2, <code>.planning/research/SUMMARY.md</code></small></p>
+    </footer>
+
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrapper -->
+
+<script>
+(function() {
+  var sidebarLinks = document.querySelectorAll('#sidebar-toc a');
+  var sections = [];
+  sidebarLinks.forEach(function(link) {
+    var id = link.getAttribute('href').slice(1);
+    var el = document.getElementById(id);
+    if (el) sections.push({ id: id, el: el, link: link });
+  });
+
+  function onScroll() {
+    var scrollY = window.scrollY + 80;
+    var current = null;
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].el.offsetTop <= scrollY) {
+        current = sections[i];
+      }
+    }
+    sidebarLinks.forEach(function(l) { l.classList.remove('active'); });
+    if (current) current.link.classList.add('active');
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+</script>
+</body>
+</html>

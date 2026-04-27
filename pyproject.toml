@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "fairspeech-lora-grpo"
 version = "0.1.0"
 description = "Fairness analysis and LoRA/GRPO fine-tuning for ASR models (wav2vec2, Whisper, Qwen3-ASR) across demographic subgroups."
-readme = "project-overview.html"
+readme = { file = "docs/project-overview.html", content-type = "text/html" }
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
@@ -62,17 +62,6 @@ dependencies = [
     "pyyaml>=6.0",
 ]
 
-# ---------------------------------------------------------------------------
-# v2.0 head-surgery diagnosis — reproducibility anchor.
-# The midterm's 9.62% Indian-accent insertion rate was computed with the
-# versions below. Do NOT upgrade these libraries without re-running Gate G1
-# (see tasks/prd-head-surgery-diagnosis.md §6).
-#   transformers == 5.5.4
-#   torch        == 2.10.0  (cu128 wheel)
-#   jiwer        == 4.0.0
-#   openai-whisper == 20250625
-# ---------------------------------------------------------------------------
-
 [project.optional-dependencies]
 # GRPO / RL fine-tuning stack
 grpo = [
@@ -107,7 +96,7 @@ Repository = "https://github.com/Albatross679"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["scripts*"]
-exclude = ["autoresearch*", "outputs*", "datasets*", "docs*", "tests*"]
+exclude = ["autoresearch*", "archive*", "outputs*", "datasets*", "docs*", "tests*"]
 namespaces = true
 
 # ---------------------------------------------------------------------------
@@ -118,6 +107,8 @@ line-length = 100
 target-version = "py310"
 extend-exclude = [
     "autoresearch",
+    "archive",
+    "archive-local",
     "outputs",
     "datasets",
     "docs",
