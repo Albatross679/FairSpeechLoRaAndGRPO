@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Build duration-bucketed batch plans for FairSpeech inference.
 
-The plan uses padded-audio seconds as the first-order cost:
+The default plan uses total audio seconds as the first-order cost:
+    batch_cost = sum(duration_seconds)
+
+Padded-audio seconds are still recorded as diagnostics:
     batch_cost = num_samples * max_duration_in_batch
 
 This creates variable-size batches: short clips get more samples per batch,
-long clips get fewer. It does not profile a GPU; pilot-gate profiling should run
-these plans on the target VM and then lock per-model budgets.
+long clips get fewer. It does not profile a GPU; pilot-gate profiling should learn
+per-model total-duration budgets on the target VM and then pre-split full manifests.
 """
 
 from __future__ import annotations
@@ -73,18 +76,30 @@ def padded_seconds(durations: list[float]) -> float:
     return len(durations) * max(durations)
 
 
+def batch_cost(durations: list[float], budget_mode: str) -> float:
+    """Return the budget cost for a candidate batch."""
+    if budget_mode == "total":
+        return sum(durations)
+    if budget_mode == "padded":
+        return padded_seconds(durations)
+    raise ValueError(f"Unknown budget_mode: {budget_mode!r}")
+
+
 def build_batches(
     rows: list[dict[str, str]],
-    max_padded_seconds: float,
+    max_audio_seconds: float,
     max_samples: int,
     bucket_edges: list[float] | None = None,
     duration_col: str | None = None,
+    budget_mode: str = "total",
 ) -> list[dict[str, object]]:
     """Return JSON-serializable variable-size batch records."""
-    if max_padded_seconds <= 0:
-        raise ValueError("max_padded_seconds must be > 0")
+    if max_audio_seconds <= 0:
+        raise ValueError("max_audio_seconds must be > 0")
     if max_samples <= 0:
         raise ValueError("max_samples must be > 0")
+    if budget_mode not in {"total", "padded"}:
+        raise ValueError("budget_mode must be 'total' or 'padded'")
     edges = bucket_edges or DEFAULT_BUCKET_EDGES
 
     grouped: dict[str, list[tuple[dict[str, str], float]]] = defaultdict(list)
@@ -98,32 +113,41 @@ def build_batches(
         current: list[tuple[dict[str, str], float]] = []
         for row, dur in items:
             candidate_durations = [x[1] for x in current] + [dur]
-            candidate_cost = padded_seconds(candidate_durations)
-            over_budget = candidate_cost > max_padded_seconds and current
+            candidate_cost = batch_cost(candidate_durations, budget_mode)
+            over_budget = candidate_cost > max_audio_seconds and current
             over_count = len(current) >= max_samples
             if over_budget or over_count:
-                batches.append(make_batch_record(current, label, len(batches)))
+                batches.append(make_batch_record(current, label, len(batches), budget_mode))
                 current = []
             current.append((row, dur))
         if current:
-            batches.append(make_batch_record(current, label, len(batches)))
+            batches.append(make_batch_record(current, label, len(batches), budget_mode))
 
     return batches
 
 
-def make_batch_record(items: list[tuple[dict[str, str], float]], label: str, batch_idx: int) -> dict[str, object]:
+def make_batch_record(
+    items: list[tuple[dict[str, str], float]],
+    label: str,
+    batch_idx: int,
+    budget_mode: str,
+) -> dict[str, object]:
     row_indices = [int(row["_row_index"]) for row, _ in items]
     utterance_ids = [row.get("utterance_id", row.get("hash_name", "")) for row, _ in items]
     durations = [dur for _, dur in items]
+    total = sum(durations)
+    padded = padded_seconds(durations)
     return {
         "batch_id": f"b{batch_idx:06d}",
         "duration_bucket": label,
+        "budget_mode": budget_mode,
         "row_indices": row_indices,
         "utterance_ids": utterance_ids,
         "n_samples": len(items),
         "max_duration_seconds": round(max(durations), 6),
-        "sum_duration_seconds": round(sum(durations), 6),
-        "padded_audio_seconds": round(padded_seconds(durations), 6),
+        "sum_duration_seconds": round(total, 6),
+        "padded_audio_seconds": round(padded, 6),
+        "budget_cost_seconds": round(total if budget_mode == "total" else padded, 6),
     }
 
 
@@ -165,15 +189,19 @@ def profile_schema() -> dict[str, object]:
             "model": "run_inference.py model key",
             "manifest": "manifest used for profiling",
             "batch_plan": "JSONL batch plan used for profiling",
-            "max_padded_seconds": "candidate padded-audio-seconds budget",
-            "max_samples": "candidate max sample cap",
+            "budget_mode": "total (primary) or padded (legacy diagnostic mode)",
+            "max_audio_seconds": "candidate total-duration or padded-audio-seconds budget",
+            "selected_total_duration_seconds": "locked per-model total-duration budget when budget_mode=total",
+            "max_samples": "secondary per-example overhead guard",
             "num_batches_profiled": "number of calibration batches actually run",
             "peak_vram_mib": "maximum GPU memory observed during run",
+            "peak_vram_fraction": "peak_vram_mib / total_vram_mib",
             "throughput_audio_seconds_per_second": "processed audio seconds / wall time",
             "throughput_utterances_per_second": "utterances / wall time",
             "oom": "true if candidate failed due OOM",
             "failure": "error string for any non-OOM failure",
             "selected": "true only for locked safe policy",
+            "selected_batch_plan": "persistent copy of the selected JSONL batch plan",
         }
     }
 
@@ -185,7 +213,19 @@ def main() -> None:
     parser.add_argument("--summary-json", type=Path, default=None)
     parser.add_argument("--calibration-csv", type=Path, default=None)
     parser.add_argument("--profile-schema-json", type=Path, default=None)
-    parser.add_argument("--max-padded-seconds", type=float, default=160.0)
+    parser.add_argument(
+        "--budget-mode",
+        choices=["total", "padded"],
+        default="total",
+        help="Use summed audio duration as the primary budget, or legacy padded seconds.",
+    )
+    parser.add_argument("--max-audio-seconds", type=float, default=160.0)
+    parser.add_argument(
+        "--max-padded-seconds",
+        type=float,
+        default=None,
+        help="Deprecated alias for --max-audio-seconds with --budget-mode padded.",
+    )
     parser.add_argument("--max-samples", type=int, default=16)
     parser.add_argument("--duration-col", default=None)
     parser.add_argument("--bucket-edges", default=",".join(str(x) for x in DEFAULT_BUCKET_EDGES))
@@ -194,12 +234,18 @@ def main() -> None:
 
     rows = read_manifest(args.manifest)
     edges = parse_edges(args.bucket_edges)
+    max_audio_seconds = args.max_audio_seconds
+    budget_mode = args.budget_mode
+    if args.max_padded_seconds is not None:
+        max_audio_seconds = args.max_padded_seconds
+        budget_mode = "padded"
     batches = build_batches(
         rows,
-        max_padded_seconds=args.max_padded_seconds,
+        max_audio_seconds=max_audio_seconds,
         max_samples=args.max_samples,
         bucket_edges=edges,
         duration_col=args.duration_col,
+        budget_mode=budget_mode,
     )
     write_jsonl(args.output_jsonl, batches)
 
@@ -218,9 +264,14 @@ def main() -> None:
         "output_jsonl": str(args.output_jsonl),
         "num_rows": len(rows),
         "num_batches": len(batches),
-        "max_padded_seconds_budget": args.max_padded_seconds,
+        "budget_mode": budget_mode,
+        "max_audio_seconds_budget": max_audio_seconds,
+        "max_padded_seconds_budget": max_audio_seconds if budget_mode == "padded" else None,
+        "selected_total_duration_seconds": max_audio_seconds if budget_mode == "total" else None,
         "max_samples_cap": args.max_samples,
+        "max_observed_sum_duration_seconds": max((b["sum_duration_seconds"] for b in batches), default=0),
         "max_observed_padded_seconds": max((b["padded_audio_seconds"] for b in batches), default=0),
+        "max_observed_budget_cost_seconds": max((b["budget_cost_seconds"] for b in batches), default=0),
         "max_observed_samples": max((b["n_samples"] for b in batches), default=0),
         "median_batch_samples": statistics.median([int(b["n_samples"]) for b in batches]) if batches else 0,
         "duration_buckets": dict(sorted({b["duration_bucket"]: 0 for b in batches}.items())),

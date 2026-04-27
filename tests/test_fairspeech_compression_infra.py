@@ -80,7 +80,28 @@ def test_build_source_and_variant_manifests(tmp_path):
     assert mp3_rows[0]["source_audio_path"] == rows[0]["source_audio_path"]
 
 
-def test_duration_batch_plan_uses_padded_seconds():
+def test_duration_batch_plan_uses_total_duration_by_default():
+    from scripts.inference.build_duration_batch_plan import build_batches
+
+    rows = []
+    for idx, dur in enumerate([5, 5, 5, 20, 20, 40, 40]):
+        rows.append({
+            "_row_index": str(idx),
+            "utterance_id": f"utt{idx}",
+            "duration_seconds": str(dur),
+            "ethnicity": "group",
+        })
+
+    batches = build_batches(rows, max_audio_seconds=80, max_samples=8, bucket_edges=[10, 30, 60])
+    assert batches[0]["n_samples"] == 3  # 3 × 5s = 15 padded seconds
+    assert any(batch["n_samples"] == 2 and batch["max_duration_seconds"] == 20 for batch in batches)
+    assert any(batch["n_samples"] == 2 and batch["max_duration_seconds"] == 40 for batch in batches)
+    assert max(batch["sum_duration_seconds"] for batch in batches) <= 80
+    assert all(batch["budget_mode"] == "total" for batch in batches)
+    assert all("padded_audio_seconds" in batch for batch in batches)
+
+
+def test_duration_batch_plan_can_use_padded_seconds():
     from scripts.inference.build_duration_batch_plan import build_batches
 
     rows = []
@@ -92,11 +113,15 @@ def test_duration_batch_plan_uses_padded_seconds():
             "ethnicity": "group",
         })
 
-    batches = build_batches(rows, max_padded_seconds=40, max_samples=8, bucket_edges=[10, 30, 60])
-    assert batches[0]["n_samples"] == 3  # 3 × 5s = 15 padded seconds
-    assert any(batch["n_samples"] == 2 and batch["max_duration_seconds"] == 20 for batch in batches)
-    assert any(batch["n_samples"] == 1 and batch["max_duration_seconds"] == 40 for batch in batches)
+    batches = build_batches(
+        rows,
+        max_audio_seconds=40,
+        max_samples=8,
+        bucket_edges=[10, 30, 60],
+        budget_mode="padded",
+    )
     assert max(batch["padded_audio_seconds"] for batch in batches) <= 40
+    assert all(batch["budget_mode"] == "padded" for batch in batches)
 
 
 def test_iter_manifest_batches_maps_by_utterance_id(tmp_path):
