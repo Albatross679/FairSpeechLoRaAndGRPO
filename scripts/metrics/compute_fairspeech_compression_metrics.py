@@ -134,11 +134,15 @@ def group_rows(rows: list[dict[str, str]], keys: tuple[str, ...]) -> dict[tuple[
     return grouped
 
 
-def compute_group_table(rows: list[dict[str, str]], group_col: str) -> list[dict[str, object]]:
+def compute_group_table(
+    rows: list[dict[str, str]],
+    group_col: str,
+    min_group_size: int = MIN_GROUP_SIZE,
+) -> list[dict[str, object]]:
     out: list[dict[str, object]] = []
     grouped = group_rows(rows, ("model", "audio_variant", group_col))
     for (model, variant, group), group_data in sorted(grouped.items()):
-        if not group or len(group_data) < MIN_GROUP_SIZE:
+        if not group or len(group_data) < min_group_size:
             continue
         refs = [r.get("reference", "") for r in group_data]
         hyps = [r.get("hypothesis", "") for r in group_data]
@@ -184,7 +188,12 @@ def compute_fairness_table(group_table: list[dict[str, object]]) -> list[dict[st
     return out
 
 
-def compute_paired_delta(rows: list[dict[str, str]], baseline_variant: str, group_col: str) -> list[dict[str, object]]:
+def compute_paired_delta(
+    rows: list[dict[str, str]],
+    baseline_variant: str,
+    group_col: str,
+    min_group_size: int = MIN_GROUP_SIZE,
+) -> list[dict[str, object]]:
     by_key = group_rows(rows, ("model", "utterance_id"))
     deltas: list[dict[str, object]] = []
     for (model, _), items in by_key.items():
@@ -212,7 +221,7 @@ def compute_paired_delta(rows: list[dict[str, str]], baseline_variant: str, grou
     out: list[dict[str, object]] = []
     for (model, variant, group), group_data in sorted(grouped.items()):
         values = [float(row["delta_wer"]) for row in group_data]
-        if not group or len(values) < MIN_GROUP_SIZE:
+        if not group or len(values) < min_group_size:
             continue
         out.append({
             "model": model,
@@ -249,15 +258,26 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--group-col", default="ethnicity")
     parser.add_argument("--baseline-variant", default="baseline")
+    parser.add_argument(
+        "--min-group-size",
+        type=int,
+        default=MIN_GROUP_SIZE,
+        help="Minimum rows per demographic group; use 1 for tiny pilot gates.",
+    )
     args = parser.parse_args()
 
     rows = load_all_predictions(args.predictions_dir)
     if not rows:
         raise SystemExit(f"No predictions_*.csv files found in {args.predictions_dir}")
 
-    group_table = compute_group_table(rows, args.group_col)
+    group_table = compute_group_table(rows, args.group_col, min_group_size=args.min_group_size)
     fairness_table = compute_fairness_table(group_table)
-    paired_delta = compute_paired_delta(rows, args.baseline_variant, args.group_col)
+    paired_delta = compute_paired_delta(
+        rows,
+        args.baseline_variant,
+        args.group_col,
+        min_group_size=args.min_group_size,
+    )
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     write_csv(args.output_dir / "fairspeech_compression_group_metrics.csv", group_table)
@@ -270,6 +290,7 @@ def main() -> None:
         "paired_delta_rows": len(paired_delta),
         "group_col": args.group_col,
         "baseline_variant": args.baseline_variant,
+        "min_group_size": args.min_group_size,
     }
     (args.output_dir / "fairspeech_compression_metrics_summary.json").write_text(
         json.dumps(summary, indent=2), encoding="utf-8"

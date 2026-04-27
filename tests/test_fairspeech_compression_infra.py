@@ -148,3 +148,56 @@ def test_iter_manifest_batches_maps_by_utterance_id(tmp_path):
     assert len(batches) == 2
     assert batches[0][1] == [0]
     assert batches[1][1] == [1]
+
+
+def test_pilot_metrics_can_lower_min_group_size():
+    from scripts.metrics.compute_fairspeech_compression_metrics import (
+        compute_fairness_table,
+        compute_group_table,
+        compute_paired_delta,
+    )
+
+    rows = [
+        {
+            "model": "wav2vec2-large",
+            "audio_variant": "baseline",
+            "utterance_id": "a1",
+            "ethnicity": "A",
+            "reference": "hello world",
+            "hypothesis": "hello world",
+            "wer": "0.0",
+        },
+        {
+            "model": "wav2vec2-large",
+            "audio_variant": "baseline",
+            "utterance_id": "b1",
+            "ethnicity": "B",
+            "reference": "hello world",
+            "hypothesis": "hello",
+            "wer": "0.5",
+        },
+        {
+            "model": "wav2vec2-large",
+            "audio_variant": "mp3_16k",
+            "utterance_id": "a1",
+            "ethnicity": "A",
+            "reference": "hello world",
+            "hypothesis": "hello",
+            "wer": "0.5",
+        },
+        {
+            "model": "wav2vec2-large",
+            "audio_variant": "mp3_16k",
+            "utterance_id": "b1",
+            "ethnicity": "B",
+            "reference": "hello world",
+            "hypothesis": "hello",
+            "wer": "0.5",
+        },
+    ]
+
+    assert compute_group_table(rows, "ethnicity") == []
+    pilot_groups = compute_group_table(rows, "ethnicity", min_group_size=1)
+    assert len(pilot_groups) == 4
+    assert compute_fairness_table(pilot_groups)
+    assert len(compute_paired_delta(rows, "baseline", "ethnicity", min_group_size=1)) == 2

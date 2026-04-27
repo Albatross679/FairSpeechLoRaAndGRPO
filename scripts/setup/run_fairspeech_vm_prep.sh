@@ -45,6 +45,7 @@ GPU_PROFILE_THRESHOLD="${GPU_PROFILE_THRESHOLD:-0.75}"
 CANDIDATE_SECONDS="${CANDIDATE_SECONDS:-40,80,120,160}"
 CANDIDATE_MAX_SAMPLES="${CANDIDATE_MAX_SAMPLES:-4,8,16}"
 PILOT_MODEL="${PILOT_MODEL:-wav2vec2-large}"
+START_STEP="${START_STEP:-preflight}"
 
 MODEL_ORDER=(
   wav2vec2-large
@@ -147,6 +148,30 @@ check_root_free_or_stop_downloads() {
     return 1
   fi
   return 0
+}
+
+cleanup_failed_model_cache() {
+  local model="$1"
+  MODEL="$model" HF_HUB_CACHE="$HF_HUB_CACHE" "$PYTHON_BIN" - <<'PY'
+import os
+import shutil
+import sys
+from pathlib import Path
+
+sys.path.insert(0, os.getcwd())
+from scripts.inference.run_inference import MODEL_REGISTRY  # noqa: E402
+
+model = os.environ["MODEL"]
+hf_id = MODEL_REGISTRY[model]["hf_id"]
+cache_root = Path(os.environ["HF_HUB_CACHE"])
+repo_dir = cache_root / f"models--{hf_id.replace('/', '--')}"
+lock_dir = cache_root / ".locks" / f"models--{hf_id.replace('/', '--')}"
+
+for path in (repo_dir, lock_dir):
+    if path.exists():
+        shutil.rmtree(path)
+        print(f"Removed failed partial cache: {path}")
+PY
 }
 
 check_gpu_memory() {
@@ -467,6 +492,13 @@ download_and_smoke_models() {
     fi
 
     append_model_status "$model" "$download_status" "$smoke_status" "$cache_manifest" "$download_log" "$smoke_log" "$error_text"
+
+    if [ "$download_status" = "failed" ]; then
+      cleanup_failed_model_cache "$model" || true
+    fi
+    if ! check_root_free_or_stop_downloads; then
+      stop_downloads=1
+    fi
   done
 }
 
@@ -480,6 +512,7 @@ profile_smoke_passing_models() {
     local profile_jsonl="$PROFILE_DIR/${model}_duration_budget_profile.jsonl"
     local profile_log="$LOG_DIR/profile_${model}.log"
     log "Duration-budget profiling: $model"
+    check_root_free_or_stop_downloads || fail "duration-profile" "root free space below ${ROOT_MIN_FREE_GIB}GiB before profiling $model"
     check_gpu_memory "$GPU_PREFLIGHT_THRESHOLD" || fail "duration-profile" "GPU busy before profiling $model"
     "$PYTHON_BIN" scripts/inference/profile_batch_policy.py \
       --model "$model" \
@@ -526,6 +559,7 @@ run_pilot_inference() {
   fi
 
   local selected_plan
+  check_root_free_or_stop_downloads || fail "pilot-inference" "root free space below ${ROOT_MIN_FREE_GIB}GiB before pilot inference"
   selected_plan="$(selected_plan_for_model "$PILOT_MODEL")"
   local output_dir="$RESULT_ROOT/pilot/$PILOT_MODEL"
   mkdir -p "$output_dir"
@@ -557,6 +591,7 @@ run_pilot_inference() {
   "$PYTHON_BIN" scripts/metrics/compute_fairspeech_compression_metrics.py \
     --predictions-dir "$output_dir" \
     --output-dir "$metrics_dir" \
+    --min-group-size 1 \
     > "$LOG_DIR/pilot_${PILOT_MODEL}_metrics.log" 2>&1 || \
     fail "pilot-metrics" "metric computation failed; see $LOG_DIR/pilot_${PILOT_MODEL}_metrics.log"
   "$PYTHON_BIN" scripts/plots/generate_fairspeech_compression_plots.py \
@@ -613,17 +648,30 @@ PY
 }
 
 main() {
-  run_step "preflight" preflight
-  run_step "full-manifests" generate_full_manifests
-  run_step "full-baseline-validation" validate_full_baseline_manifest
-  run_step "duration-calibration" build_calibration_subset
-  run_step "pilot-metadata" write_pilot_metadata
-  run_step "pilot-audio-generation" generate_pilot_audio
-  run_step "pilot-audio-validation" validate_pilot_audio
-  run_step "model-smoke-manifest" write_smoke_manifest
-  run_step "model-download-and-smoke" download_and_smoke_models
-  run_step "duration-budget-profiling" profile_smoke_passing_models
-  run_step "wav2vec2-large-pilot" run_pilot_inference
+  local started=0
+  maybe_run_step() {
+    local step="$1"
+    shift
+    if [ "$started" -eq 0 ] && [ "$step" != "$START_STEP" ]; then
+      log "SKIP before START_STEP=$START_STEP: $step"
+      return 0
+    fi
+    started=1
+    run_step "$step" "$@"
+  }
+
+  maybe_run_step "preflight" preflight
+  maybe_run_step "full-manifests" generate_full_manifests
+  maybe_run_step "full-baseline-validation" validate_full_baseline_manifest
+  maybe_run_step "duration-calibration" build_calibration_subset
+  maybe_run_step "pilot-metadata" write_pilot_metadata
+  maybe_run_step "pilot-audio-generation" generate_pilot_audio
+  maybe_run_step "pilot-audio-validation" validate_pilot_audio
+  maybe_run_step "model-smoke-manifest" write_smoke_manifest
+  maybe_run_step "model-download-and-smoke" download_and_smoke_models
+  maybe_run_step "duration-budget-profiling" profile_smoke_passing_models
+  maybe_run_step "wav2vec2-large-pilot" run_pilot_inference
+  [ "$started" -eq 1 ] || fail "startup" "START_STEP=$START_STEP did not match any known step"
   finalize_status
   log "COMPLETE: supervised FairSpeech VM prep stopped at pilot gate."
 }

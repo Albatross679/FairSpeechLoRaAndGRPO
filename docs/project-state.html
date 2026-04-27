@@ -1710,6 +1710,7 @@ ol.refs .ref-note {
       <div class="metric"><div class="label">LibriSpeech clean rows</div><div class="value">2,620 <span class="unit">per complete model CSV</span></div></div>
       <div class="metric"><div class="label">Perturbation tables</div><div class="value">9 <span class="unit">accent / gender / age</span></div></div>
       <div class="metric"><div class="label">FairSpeech audio</div><div class="value">26,471 <span class="unit">local WAVs · 6.013 GiB</span></div></div>
+      <div class="metric"><div class="label">FairSpeech pilot gate</div><div class="value">Complete <span class="unit">6 wav2vec2 CSVs · 168 rows</span></div></div>
     </div>
 
     <div class="callout success">
@@ -2010,7 +2011,7 @@ ol.refs .ref-note {
           <tr><td>Join key</td><td><code>hash_name</code> ↔ <code>asr_fairness_audio/{hash_name}.wav</code>.</td></tr>
           <tr><td>Source audio</td><td>16,000 Hz · mono · 16-bit PCM WAV · 256 kbps effective PCM bitrate.</td></tr>
           <tr><td>Primary fairness axis</td><td>Ethnicity; all 26,471 rows have ethnicity labels.</td></tr>
-          <tr><td>Current gap</td><td>Raw audio is local; FairSpeech ASR prediction/analysis tables need rerun or teammate sharing.</td></tr>
+          <tr><td>Current gap</td><td>Raw audio, manifests, pilot artifacts, and one-model pilot predictions are local; the complete 54-run FairSpeech evaluation still remains.</td></tr>
         </tbody>
       </table>
     </div>
@@ -2065,18 +2066,27 @@ ol.refs .ref-note {
     <h3>2.5 Batch-size policy</h3>
     <div class="state-row">
       <strong>Do not fix one number of samples per batch.</strong>
-      <p class="note">Current inference code exposes a fixed <code>--batch_size</code> knob, but the better implementation is a pre-split duration-bucketed batch plan. FairSpeech clips range from 1.36 s to 65.62 s, and padded batches scale roughly with <code>num_samples × longest_clip_in_batch</code>, so each batch should contain a variable number of similar-duration samples under a per-model audio-seconds budget.</p>
+      <p class="note">Inference now supports pre-split duration-bucketed batch plans. FairSpeech clips range from 1.36 s to 65.62 s, so each batch should contain a variable number of similar-duration samples under a learned total-duration budget, with padded seconds retained as diagnostic metadata.</p>
       <table>
         <thead><tr><th>Policy</th><th>Implementation decision</th></tr></thead>
         <tbody>
-          <tr><td>Batch unit</td><td>Use <strong>max audio seconds per batch</strong> plus a per-model max-samples cap, not a fixed sample count.</td></tr>
-          <tr><td>Pre-splitting</td><td>Sort or bucket files by duration, then form batches whose clips have similar duration and whose total seconds fit the budget.</td></tr>
-          <tr><td>Calibration</td><td>Run real batch-size/seconds profiling in the <strong>pilot gate</strong>, because VRAM depends on the VM, model implementation, and decoding path.</td></tr>
-          <tr><td>Safety margin</td><td>Choose the largest budget that avoids OOM and keeps peak GPU memory below the VM target, e.g. ~80–85%.</td></tr>
+          <tr><td>Batch unit</td><td>Use <strong><code>sum_duration_seconds</code></strong> as the primary budget plus a per-model max-samples cap, not a fixed sample count.</td></tr>
+          <tr><td>Pre-splitting</td><td>A full baseline plan exists at 160 s with 1,310 batches. Before full evaluation, regenerate full six-variant plans with the selected 160 s / 16-sample guard.</td></tr>
+          <tr><td>Calibration</td><td>Completed on the A40 VM pilot gate using real model inference and the 28-row ethnicity/duration calibration subset.</td></tr>
+          <tr><td>Safety margin</td><td>Use 75% VRAM as the hard profiling threshold; selected policies stayed far below this ceiling.</td></tr>
           <tr><td>Fallback</td><td>If dynamic batching is not ready, use conservative fixed batch sizes per model only as a fallback.</td></tr>
         </tbody>
       </table>
-      <p class="note">Example: a 40-second budget might batch 8×5 s clips, 4×10 s clips, 2×20 s clips, or 1×40–60 s long clip. The batch has variable sample count but roughly bounded compute/memory.</p>
+      <p class="note">Existing full baseline split: <code>datasets/fairspeech_compression/batch_plans/fairspeech_baseline_total160s_plan.jsonl</code> has 26,471 rows, 1,310 batches, median 20 samples per batch, max observed summed duration 160.0 s, max padded seconds 162.603 s, and max observed 64 samples.</p>
+      <table>
+        <caption>Pilot-gate selected policies on the A40 VM</caption>
+        <thead><tr><th>Model</th><th>Selected policy</th><th class="num">Pilot batches</th><th class="num">Peak VRAM</th><th class="num">Occupancy</th></tr></thead>
+        <tbody>
+          <tr><td><code>wav2vec2-large</code></td><td>160 s total duration · max 16 samples</td><td class="num">8</td><td class="num">10,619 / 46,068 MiB</td><td class="num">23.05%</td></tr>
+          <tr><td><code>whisper-small</code></td><td>160 s total duration · max 16 samples</td><td class="num">8</td><td class="num">1,263 / 46,068 MiB</td><td class="num">2.74%</td></tr>
+          <tr><td><code>whisper-medium</code></td><td>160 s total duration · max 16 samples</td><td class="num">8</td><td class="num">2,943 / 46,068 MiB</td><td class="num">6.39%</td></tr>
+        </tbody>
+      </table>
     </div>
 
     <h3>2.6 Planned outputs</h3>
@@ -2096,18 +2106,18 @@ ol.refs .ref-note {
 
     <h3>2.7 Hierarchical implementation to-do</h3>
     <div class="callout success">
-      <strong>Infrastructure started on 2026-04-27.</strong> The CPU-side scaffolding now exists; the VM pilot gate still needs to download/load models, generate full derived audio, and profile real GPU batch policies.
+      <strong>Pilot gate completed on 2026-04-27.</strong> Full manifests and pilot audio validated, three models downloaded and smoke-tested, duration policies selected, and <code>wav2vec2-large</code> produced six pilot prediction CSVs. Full 54-run evaluation is intentionally still out of scope.
     </div>
     <table>
       <thead><tr><th>Infrastructure artifact</th><th>Repo path / local output</th><th>Status</th></tr></thead>
       <tbody>
-        <tr><td>Variant manifest + audio generator</td><td><code>scripts/data/prepare_fairspeech_compression.py</code></td><td>Built; full manifests generated locally.</td></tr>
+        <tr><td>Variant manifest + audio generator</td><td><code>scripts/data/prepare_fairspeech_compression.py</code></td><td>Built; six full manifests generated with 26,471 rows each; pilot audio generated under <code>/opt/fairspeech-variants/pilot</code>.</td></tr>
         <tr><td>Audio/manifest validator</td><td><code>scripts/validation/validate_fairspeech_compression.py</code></td><td>Built; baseline manifest passed 26,471-row validation.</td></tr>
-        <tr><td>Duration-bucket batch planner</td><td><code>scripts/inference/build_duration_batch_plan.py</code></td><td>Built; baseline plan has 1,866 variable-size batches.</td></tr>
-        <tr><td>Batch profiling harness</td><td><code>scripts/inference/profile_batch_policy.py</code></td><td>Built; run on VM during pilot gate.</td></tr>
+        <tr><td>Duration-bucket batch planner</td><td><code>scripts/inference/build_duration_batch_plan.py</code></td><td>Built; full baseline 160 s total-duration plan has 1,310 variable-size batches.</td></tr>
+        <tr><td>Batch profiling harness</td><td><code>scripts/inference/profile_batch_policy.py</code></td><td>Built and run on VM; selected 160 s / 16-sample policies for smoke-passing models.</td></tr>
         <tr><td>Inference integration</td><td><code>scripts/inference/run_inference.py</code></td><td>Supports <code>--audio_variant</code> and <code>--batch_plan</code>.</td></tr>
-        <tr><td>Model cache manifest</td><td><code>scripts/inference/prepare_model_cache.py</code></td><td>Built; dry-run manifest lists all nine models.</td></tr>
-        <tr><td>Metric/plot scaffolding</td><td><code>scripts/metrics/compute_fairspeech_compression_metrics.py</code>; <code>scripts/plots/generate_fairspeech_compression_plots.py</code></td><td>Built; waits for prediction CSVs.</td></tr>
+        <tr><td>Model cache manifest</td><td><code>scripts/inference/prepare_model_cache.py</code></td><td>Built; all nine statuses recorded. <code>wav2vec2-large</code>, <code>whisper-small</code>, and <code>whisper-medium</code> downloaded and smoked; <code>whisper-large-v3</code> failed after filling root; remaining models skipped by disk guard.</td></tr>
+        <tr><td>Metric/plot scaffolding</td><td><code>scripts/metrics/compute_fairspeech_compression_metrics.py</code>; <code>scripts/plots/generate_fairspeech_compression_plots.py</code></td><td>Built; pilot metrics and four pilot plot PNGs emitted for <code>wav2vec2-large</code>.</td></tr>
       </tbody>
     </table>
     <div class="state-summary">
@@ -2132,23 +2142,24 @@ ol.refs .ref-note {
               <li class="checked" data-key="fs-infra-validation-failfast">Fail fast if files are missing, silent, wrong-rate, or mismatched.</li>
             </ul>
           </li>
-          <li data-key="fs-infra-model-cache">Prepare inference model cache — download/load only, no full inference yet.
+          <li data-key="fs-infra-model-cache">Prepare inference model cache — status recorded for all nine; full cache still blocked by disk capacity.
             <ul class="checklist">
               <li class="checked" data-key="fs-infra-model-script">Create model-cache manifest/download script.</li>
               <li class="checked" data-key="fs-infra-model-list">Use the full nine-model benchmark set listed in Section 2.4.</li>
-              <li data-key="fs-infra-model-download">Download/cache model weights, processors, tokenizers, and any required package assets.</li>
-              <li data-key="fs-infra-model-record">Record local cache path, model revision/commit if available, disk footprint, and required runtime package versions.</li>
-              <li data-key="fs-infra-model-smoke">Run a one-file smoke load/transcribe for each of the nine models before pilot inference.</li>
+              <li data-key="fs-infra-model-download">Download/cache model weights, processors, tokenizers, and any required package assets for all nine models.</li>
+              <li class="checked" data-key="fs-infra-model-record">Record local cache path, model revision/commit if available, disk footprint, required runtime package versions, and failure/skipped status.</li>
+              <li data-key="fs-infra-model-smoke">Run a one-file smoke load/transcribe for each of the nine models before full inference.</li>
+              <li class="checked" data-key="fs-infra-model-smoke-pilot">Smoke-passed <code>wav2vec2-large</code>, <code>whisper-small</code>, and <code>whisper-medium</code>; stopped later downloads after <code>whisper-large-v3</code> filled the 50 GiB root volume.</li>
             </ul>
           </li>
           <li class="checked" data-key="fs-infra-batch-profiler">Create duration-bucketed inference batch planner and profiling harness.
             <ul class="checklist">
               <li class="checked" data-key="fs-infra-batch-duration">Implement code/config to build a duration-stratified calibration subset: short, median, long, and max-duration clips.</li>
               <li class="checked" data-key="fs-infra-batch-plan">Implement a batch-plan writer that pre-splits manifests into duration buckets with variable sample counts.</li>
-              <li class="checked" data-key="fs-infra-batch-cost-rule">Use padded-seconds cost as the first-order estimate: <code>num_samples × max_duration_in_batch</code>, plus a max-samples cap for per-example overhead.</li>
-              <li class="checked" data-key="fs-infra-batch-example">Treat <code>2 × 20s</code> and <code>1 × 40s</code> as similar padded-audio budgets, but profile them because decoder/per-example overhead can differ.</li>
+              <li class="checked" data-key="fs-infra-batch-cost-rule">Use summed duration as the primary budget: <code>sum_duration_seconds <= selected_total_duration_seconds</code>; keep padded seconds as diagnostics.</li>
+              <li class="checked" data-key="fs-infra-batch-example">Treat max samples as a secondary overhead guard after the total-duration budget.</li>
               <li class="checked" data-key="fs-infra-batch-schema">Define the profiling log schema: candidate budget, max-samples cap, peak VRAM, throughput, OOM/failure, and selected policy.</li>
-              <li class="checked" data-key="fs-infra-batch-no-lock">Do not lock batch-size policies in infrastructure; only provide the tools to test them.</li>
+              <li class="checked" data-key="fs-infra-batch-no-lock">Lock pilot policies only after VM profiling; selected policies are 160 s total duration with a 16-sample guard for smoke-passing models.</li>
             </ul>
           </li>
           <li class="checked" data-key="fs-infra-metrics">Create metric/plot scaffolding.
@@ -2162,18 +2173,19 @@ ol.refs .ref-note {
       <div class="state-row">
         <strong>B. Pilot gate — small subset only.</strong>
         <ul class="checklist">
-          <li data-key="fs-pilot-generate">Generate all variants for an ethnicity-stratified pilot subset.</li>
-          <li data-key="fs-pilot-batch-subset">Build the duration-stratified calibration subset on the target VM.</li>
-          <li data-key="fs-pilot-batch-profile">Profile candidate max-seconds budgets and max-samples caps per model; record peak VRAM, throughput, and OOM/failure behavior.</li>
-          <li data-key="fs-pilot-batch-lock">Lock the safe per-model batch policy before any full inference run.</li>
-          <li data-key="fs-pilot-run">Run one ASR model on the pilot only.</li>
-          <li data-key="fs-pilot-validate">Confirm non-empty transcripts, sane WER ranges, and metric tables.</li>
-          <li data-key="fs-pilot-fix">Fix infrastructure problems before any full run.</li>
+          <li class="checked" data-key="fs-pilot-generate">Generate all variants for an ethnicity-stratified pilot subset.</li>
+          <li class="checked" data-key="fs-pilot-batch-subset">Build the duration-stratified calibration subset on the target VM: 28 rows, four per ethnicity.</li>
+          <li class="checked" data-key="fs-pilot-batch-profile">Profile candidate max-seconds budgets and max-samples caps per smoke-passing model; record peak VRAM, throughput, and OOM/failure behavior.</li>
+          <li class="checked" data-key="fs-pilot-batch-lock">Lock safe pilot policies before any full inference run: 160 s total duration with max 16 samples.</li>
+          <li class="checked" data-key="fs-pilot-run">Run one ASR model on the pilot only: <code>wav2vec2-large</code> across all six variants.</li>
+          <li class="checked" data-key="fs-pilot-validate">Confirm non-empty transcripts, sane WER ranges, metric tables, and plot outputs.</li>
+          <li class="checked" data-key="fs-pilot-fix">Fix pilot infrastructure problems before full run: disk-full recovery, resumable VM script, and pilot metric group-size override.</li>
         </ul>
       </div>
       <div class="state-row">
         <strong>C. Full evaluation run — after pilot passes.</strong>
         <ul class="checklist">
+          <li data-key="fs-full-selected-plans">Regenerate full six-variant batch plans using the selected 160 s / 16-sample guard.</li>
           <li data-key="fs-full-all-models">Run all nine teammate-benchmark models across every FairSpeech variant with fixed decoding settings.</li>
           <li data-key="fs-full-metrics">Compute all planned metrics and figures.</li>
           <li data-key="fs-full-completeness">Verify the complete 9 × 6 run matrix before writing final claims.</li>
@@ -2196,7 +2208,7 @@ ol.refs .ref-note {
       <li class="checked">Keep final model input compatible: 16 kHz mono after each bottleneck.</li>
       <li class="checked">Keep utterance IDs, transcripts, ethnicity labels, model, and decoding settings fixed.</li>
       <li class="checked">Log source and derived sample rate, codec, bitrate, duration, and channel count.</li>
-      <li>Do not hard-code one universal sample-count batch size; record a per-model duration-bucketed batch policy from pilot-gate VM profiling.</li>
+      <li class="checked">Do not hard-code one universal sample-count batch size; record a per-model duration-bucketed batch policy from pilot-gate VM profiling.</li>
       <li>Interpret sample-rate bottlenecks and codec-bitrate artifacts separately.</li>
     </ul>
   </section>
@@ -2205,8 +2217,9 @@ ol.refs .ref-note {
     <h2 id="caveats">Caveats</h2>
     <ul class="checklist">
       <li class="checked"><strong>FairSpeech audio is local.</strong> Raw WAVs and metadata are present and 1:1 matched.</li>
-      <li><strong>FairSpeech predictions still need work.</strong> Rerun ASR or obtain teammate prediction/analysis tables before making final ethnicity-result claims.</li>
+      <li><strong>FairSpeech predictions still need work.</strong> Only the 28-row <code>wav2vec2-large</code> pilot is complete; run or obtain the full 54-run matrix before making final ethnicity-result claims.</li>
       <li><strong>Compression types must stay separate.</strong> Sample-rate bottlenecks and MP3 bitrate artifacts answer different questions.</li>
+      <li><strong>Model cache needs a larger root volume or external cache.</strong> <code>whisper-large-v3</code> failed after filling the 50 GiB root volume; larger Gen 3 models should not be attempted until cache placement/capacity is fixed.</li>
     </ul>
   </section>
 
