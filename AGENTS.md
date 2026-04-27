@@ -8,13 +8,11 @@ NLP class project investigating fairness in Automatic Speech Recognition (ASR) s
 
 ```
 FairSpeechLoRaAndGRPO/
-├── .claude/           # Per-VM Claude Code install/settings (gitignored)
 ├── .pkm/              # PKM/Obsidian workspace metadata
 ├── .codex/            # Local Codex hooks/settings (gitignored)
 ├── .pkm/              # PKM/Obsidian workspace metadata; DB gitignored
 ├── .planning/         # GSD planning artifacts (roadmaps, phases, research)
 ├── AGENTS.md          # This file
-├── CLAUDE.md          # Claude Code counterpart to this file
 ├── pyproject.toml     # Project config
 ├── autoresearch/      # Automated research/scaffolding artifacts
 ├── archive/           # Tracked archived/stale project lines
@@ -60,21 +58,6 @@ Archived head-surgery/hallucination work lives under `archive/head-surgery-2026-
 
 - GitHub: `Albatross679`, email `qifan_wen@outlook.com`
 
-## Documentation (IMPORTANT)
-
-Codex MUST document **as it goes** — immediately after each change, not batched at the end of the session. Each entry is a **separate file** in its subdirectory.
-
-Every Markdown documentation file MUST include `fileClass` as the **first** frontmatter property:
-
-| What | Where | Naming | When | fileClass |
-|---|---|---|---|---|
-| Logs | `logs/` | `<topic>.md` | After any code change that adds, fixes, or modifies functionality | `Log` |
-| Experiments | `experiments/` | `<topic>.md` | After running a simulation, test, or investigation | `Experiment` |
-| Issues | `issues/` | `<topic>.md` | When encountering a bug or error (before or alongside the fix) | `Issue` |
-| Knowledge | `knowledge/` | `<topic>.md` | When capturing domain knowledge or reference material | `Knowledge` |
-| References | `references/` | `<topic>.md` | When capturing external references or citations | `Reference` |
-| Tasks | `tasks/` | `prd-<feature>.md` | When planning a feature or task (PRDs) | `Task` |
-
 ### Required properties by fileClass
 
 All fileClasses share these **common properties**: `fileClass`, `name`, `description`, `created`, `updated`, `tags`, `aliases`.
@@ -100,28 +83,6 @@ Before launching any GPU-intensive task:
 1. Run `nvidia-smi` to check current GPU utilization and memory
 2. Do NOT launch if GPU memory usage > 80% (another job may be running)
 3. Use `CUDA_VISIBLE_DEVICES` to target specific GPUs when multiple are available
-
-## ML Training Phase Plan Structure (GSD)
-
-When `/gsd-plan-phase` (or any GSD planner) creates `PLAN.md` files for a phase
-whose goal involves **long machine learning training** — SFT, RL, full-scale
-fine-tuning, or any training run expected to take more than ~1 hour of GPU
-time — the plan set MUST be structured in this order:
-
-1. **Infrastructure building** — data manifests, dataset download/verification,
-   environment setup, training script wiring, checkpointing, logging (W&B),
-   smoke tests, and dry-run validation gates.
-2. **VRAM maximization** — find a configuration (batch size, gradient
-   accumulation, sequence length, precision, LoRA rank, gradient checkpointing,
-   etc.) that maximizes GPU memory utilization without OOM. Use
-   `docs/maximize-vram-playbook.html` when a dedicated `maximize-vram` skill is
-   not available.
-3. **Launch training** — kick off the full-scale run with monitoring
-   (W&B dashboards, `babysit-training` skill) and checkpoint recovery.
-
-Each step should be its own plan file (or its own wave) so that infrastructure
-and VRAM tuning complete and are verified *before* the expensive training run
-launches. Do not collapse these three steps into a single plan.
 
 ## HTML Style
 

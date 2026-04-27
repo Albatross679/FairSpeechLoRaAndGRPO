@@ -121,7 +121,57 @@ def parse_args():
                              "(model loaded once). Overrides --perturbation.")
     parser.add_argument("--dataset", type=str, default="cv", choices=["cv", "fs"],
                         help="Dataset name for resolving perturbed audio paths")
+    parser.add_argument("--audio_variant", type=str, default=None,
+                        help="Free-form audio variant label for compression/resampling manifests "
+                             "(does not override audio paths).")
+    parser.add_argument("--batch_plan", type=str, default=None,
+                        help="Optional JSONL duration-bucketed batch plan produced by "
+                             "scripts/inference/build_duration_batch_plan.py")
     return parser.parse_args()
+
+
+def safe_label(label: str) -> str:
+    """Convert a free-form condition label to a filename-safe suffix."""
+    import re
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", label).strip("_")
+
+
+def iter_manifest_batches(manifest_df, args):
+    """Yield (batch_df, row_positions, batch_id) using fixed or planned batches.
+
+    Batch-plan JSONL records should include ``utterance_ids``. When resuming,
+    the manifest dataframe has already been filtered, so utterance IDs are used
+    to map each planned batch onto the remaining rows. ``row_indices`` are only
+    a fallback for older plans.
+    """
+    if not getattr(args, "batch_plan", None):
+        n = len(manifest_df)
+        for i in range(0, n, args.batch_size):
+            positions = list(range(i, min(i + args.batch_size, n)))
+            yield manifest_df.iloc[positions], positions, f"fixed_{i // args.batch_size:06d}"
+        return
+
+    id_to_pos = {}
+    if "utterance_id" in manifest_df.columns:
+        id_to_pos = {
+            str(uid): pos for pos, uid in enumerate(manifest_df["utterance_id"].astype(str).tolist())
+        }
+
+    with open(args.batch_plan, "r", encoding="utf-8") as f:
+        for line_no, line in enumerate(f, start=1):
+            if not line.strip():
+                continue
+            record = json.loads(line)
+            batch_id = record.get("batch_id", f"planned_{line_no:06d}")
+            positions = []
+            utterance_ids = record.get("utterance_ids") or []
+            if utterance_ids and id_to_pos:
+                positions = [id_to_pos[str(uid)] for uid in utterance_ids if str(uid) in id_to_pos]
+            elif record.get("row_indices"):
+                positions = [int(idx) for idx in record["row_indices"] if int(idx) < len(manifest_df)]
+            if not positions:
+                continue
+            yield manifest_df.iloc[positions], positions, batch_id
 
 
 # ── Text normalization ──────────────────────────────────────────────────────
@@ -135,7 +185,17 @@ def parse_args():
 try:
     from whisper.normalizers import EnglishTextNormalizer
 except ImportError:
-    from whisper_normalizer.english import EnglishTextNormalizer
+    try:
+        from whisper_normalizer.english import EnglishTextNormalizer
+    except ImportError:
+        class EnglishTextNormalizer:  # type: ignore[no-redef]
+            """Lightweight fallback so registry/tools import without Whisper installed."""
+
+            def __call__(self, text: str) -> str:
+                import re
+                text = (text or "").lower()
+                text = re.sub(r"[^a-z0-9' ]+", " ", text)
+                return re.sub(r"\s+", " ", text).strip()
 _normalizer = EnglishTextNormalizer()
 
 def normalize_text(text: str) -> str:
@@ -187,6 +247,7 @@ class IncrementalCSVWriter:
             "num_hyp_words": len(hyp.split()) if hyp else 0,
             "num_ref_words": len(ref.split()) if ref else 0,
             "perturbation": self.perturbation,
+            "audio_variant": row.get("variant", self.perturbation),
             "gender": row.get("gender", ""),
             "accent": row.get("accent", ""),
             "age": row.get("age", ""),
@@ -253,19 +314,19 @@ def infer_wav2vec2(manifest_df, args, loaded, writer=None):
 
     predictions = []
     n = len(manifest_df)
+    processed = 0
 
-    for i in range(0, n, args.batch_size):
-        batch = manifest_df.iloc[i:i + args.batch_size]
+    for batch_num, (batch, batch_positions, batch_id) in enumerate(iter_manifest_batches(manifest_df, args)):
         audio_list, valid_idx = [], []
         batch_preds = []
 
-        for j, (_, row) in enumerate(batch.iterrows()):
+        for row_pos, (_, row) in zip(batch_positions, batch.iterrows()):
             audio = load_audio(row["audio_path"])
             if audio is not None:
                 audio_list.append(audio)
-                valid_idx.append(i + j)
+                valid_idx.append(row_pos)
             else:
-                batch_preds.append({"idx": i + j, "hypothesis_raw": ""})
+                batch_preds.append({"idx": row_pos, "hypothesis_raw": ""})
 
         if not audio_list:
             if writer:
@@ -283,7 +344,7 @@ def infer_wav2vec2(manifest_df, args, loaded, writer=None):
             for idx, text in zip(valid_idx, texts):
                 batch_preds.append({"idx": idx, "hypothesis_raw": text.strip()})
         except Exception as e:
-            print(f"  WARNING: Batch {i} failed: {e}")
+            print(f"  WARNING: Batch {batch_id} failed: {e}")
             for idx in valid_idx:
                 batch_preds.append({"idx": idx, "hypothesis_raw": ""})
 
@@ -291,8 +352,9 @@ def infer_wav2vec2(manifest_df, args, loaded, writer=None):
             writer.flush(batch_preds)
         predictions.extend(batch_preds)
 
-        if (i // args.batch_size) % 20 == 0:
-            print(f"  [{i:,}/{n:,}] ({100*i/n:.0f}%)")
+        processed += len(batch_positions)
+        if batch_num % 20 == 0:
+            print(f"  [{processed:,}/{n:,}] ({100*processed/n:.0f}%)")
 
     return predictions
 
@@ -329,19 +391,19 @@ def infer_whisper(manifest_df, args, loaded, writer=None):
 
     predictions = []
     n = len(manifest_df)
+    processed = 0
 
-    for i in range(0, n, args.batch_size):
-        batch = manifest_df.iloc[i:i + args.batch_size]
+    for batch_num, (batch, batch_positions, batch_id) in enumerate(iter_manifest_batches(manifest_df, args)):
         audio_list, valid_idx = [], []
         batch_preds = []
 
-        for j, (_, row) in enumerate(batch.iterrows()):
+        for row_pos, (_, row) in zip(batch_positions, batch.iterrows()):
             audio = load_audio(row["audio_path"])
             if audio is not None:
                 audio_list.append(audio)
-                valid_idx.append(i + j)
+                valid_idx.append(row_pos)
             else:
-                batch_preds.append({"idx": i + j, "hypothesis_raw": ""})
+                batch_preds.append({"idx": row_pos, "hypothesis_raw": ""})
 
         if not audio_list:
             if writer:
@@ -358,7 +420,7 @@ def infer_whisper(manifest_df, args, loaded, writer=None):
             for idx, text in zip(valid_idx, texts):
                 batch_preds.append({"idx": idx, "hypothesis_raw": text.strip()})
         except Exception as e:
-            print(f"  WARNING: Batch {i} failed: {e}")
+            print(f"  WARNING: Batch {batch_id} failed: {e}")
             for idx in valid_idx:
                 batch_preds.append({"idx": idx, "hypothesis_raw": ""})
 
@@ -366,8 +428,9 @@ def infer_whisper(manifest_df, args, loaded, writer=None):
             writer.flush(batch_preds)
         predictions.extend(batch_preds)
 
-        if (i // args.batch_size) % 20 == 0:
-            print(f"  [{i:,}/{n:,}] ({100*i/n:.0f}%)")
+        processed += len(batch_positions)
+        if batch_num % 20 == 0:
+            print(f"  [{processed:,}/{n:,}] ({100*processed/n:.0f}%)")
 
     return predictions
 
@@ -403,12 +466,12 @@ def infer_qwen3_asr(manifest_df, args, loaded, writer=None):
 
     predictions = []
     n = len(manifest_df)
+    processed = 0
 
     # Qwen3-ASR accepts file paths directly — batch them
-    for i in range(0, n, args.batch_size):
-        batch = manifest_df.iloc[i:i + args.batch_size]
+    for batch_num, (batch, batch_positions, batch_id) in enumerate(iter_manifest_batches(manifest_df, args)):
         audio_paths = batch["audio_path"].tolist()
-        indices = list(range(i, i + len(audio_paths)))
+        indices = batch_positions
         batch_preds = []
 
         try:
@@ -419,7 +482,7 @@ def infer_qwen3_asr(manifest_df, args, loaded, writer=None):
             for idx, result in zip(indices, results):
                 batch_preds.append({"idx": idx, "hypothesis_raw": result.text.strip()})
         except Exception as e:
-            print(f"  WARNING: Batch {i} failed: {e}")
+            print(f"  WARNING: Batch {batch_id} failed: {e}")
             for idx in indices:
                 batch_preds.append({"idx": idx, "hypothesis_raw": ""})
 
@@ -427,8 +490,9 @@ def infer_qwen3_asr(manifest_df, args, loaded, writer=None):
             writer.flush(batch_preds)
         predictions.extend(batch_preds)
 
-        if (i // args.batch_size) % 20 == 0:
-            print(f"  [{i:,}/{n:,}] ({100*i/n:.0f}%)")
+        processed += len(batch_positions)
+        if batch_num % 20 == 0:
+            print(f"  [{processed:,}/{n:,}] ({100*processed/n:.0f}%)")
 
     return predictions
 
@@ -503,13 +567,13 @@ def infer_granite(manifest_df, args, loaded, writer=None):
 
     predictions = []
     n = len(manifest_df)
+    processed = 0
 
-    for i in range(0, n, args.batch_size):
-        batch = manifest_df.iloc[i:i + args.batch_size]
+    for batch_num, (batch, batch_positions, batch_id) in enumerate(iter_manifest_batches(manifest_df, args)):
         audio_list, valid_idx = [], []
         batch_preds = []
 
-        for j, (_, row) in enumerate(batch.iterrows()):
+        for row_pos, (_, row) in zip(batch_positions, batch.iterrows()):
             try:
                 wav, sr = torchaudio.load(row["audio_path"])
                 if wav.shape[0] > 1:
@@ -517,10 +581,10 @@ def infer_granite(manifest_df, args, loaded, writer=None):
                 if sr != 16000:
                     wav = torchaudio.functional.resample(wav, orig_freq=sr, new_freq=16000)
                 audio_list.append(wav[0].numpy())
-                valid_idx.append(i + j)
+                valid_idx.append(row_pos)
             except Exception as e:
                 print(f"  WARNING: Failed to load {row['audio_path']}: {e}")
-                batch_preds.append({"idx": i + j, "hypothesis_raw": ""})
+                batch_preds.append({"idx": row_pos, "hypothesis_raw": ""})
 
         if not audio_list:
             if writer:
@@ -552,7 +616,7 @@ def infer_granite(manifest_df, args, loaded, writer=None):
             for idx, text in zip(valid_idx, texts):
                 batch_preds.append({"idx": idx, "hypothesis_raw": _extract_granite_transcription(text.strip())})
         except Exception as e:
-            print(f"  WARNING: Batch {i} failed: {e}")
+            print(f"  WARNING: Batch {batch_id} failed: {e}")
             for idx in valid_idx:
                 batch_preds.append({"idx": idx, "hypothesis_raw": ""})
 
@@ -560,8 +624,9 @@ def infer_granite(manifest_df, args, loaded, writer=None):
             writer.flush(batch_preds)
         predictions.extend(batch_preds)
 
-        if (i // args.batch_size) % 20 == 0:
-            print(f"  [{i:,}/{n:,}] ({100*i/n:.0f}%)")
+        processed += len(batch_positions)
+        if batch_num % 20 == 0:
+            print(f"  [{processed:,}/{n:,}] ({100*processed/n:.0f}%)")
 
     return predictions
 
@@ -597,10 +662,9 @@ def run_canary(manifest_df, args, writer=None):
 
     predictions = []
     n = len(manifest_df)
-    batch_size = args.batch_size
+    processed = 0
 
-    for i in range(0, n, batch_size):
-        batch_df = manifest_df.iloc[i:i + batch_size]
+    for batch_num, (batch_df, batch_positions, batch_id) in enumerate(iter_manifest_batches(manifest_df, args)):
         audio_paths = batch_df["audio_path"].tolist()
         batch_preds = []
 
@@ -618,23 +682,21 @@ def run_canary(manifest_df, args, writer=None):
                 answer_ids = model.generate(
                     prompts=prompts,
                     max_new_tokens=256,
-                )
+            )
             # Decode token IDs to text
-            for j, ids in enumerate(answer_ids):
+            for row_pos, ids in zip(batch_positions, answer_ids):
                 text = model.tokenizer.ids_to_text(ids.cpu().tolist())
-                idx = batch_df.iloc[j].name
                 batch_preds.append({
-                    "idx": idx,
-                    "utterance_id": batch_df.iloc[j]["utterance_id"],
+                    "idx": row_pos,
+                    "utterance_id": manifest_df.iloc[row_pos]["utterance_id"],
                     "hypothesis_raw": text.strip(),
                 })
         except Exception as e:
-            print(f"  WARNING: Batch {i} failed: {e}")
-            for j in range(len(batch_df)):
-                idx = batch_df.iloc[j].name
+            print(f"  WARNING: Batch {batch_id} failed: {e}")
+            for row_pos in batch_positions:
                 batch_preds.append({
-                    "idx": idx,
-                    "utterance_id": batch_df.iloc[j]["utterance_id"],
+                    "idx": row_pos,
+                    "utterance_id": manifest_df.iloc[row_pos]["utterance_id"],
                     "hypothesis_raw": "",
                 })
 
@@ -642,8 +704,9 @@ def run_canary(manifest_df, args, writer=None):
             writer.flush(batch_preds)
         predictions.extend(batch_preds)
 
-        if (i // batch_size) % 20 == 0:
-            print(f"  [{min(i + batch_size, n):,}/{n:,}] ({100 * (min(i + batch_size, n)) / n:.0f}%)")
+        processed += len(batch_positions)
+        if batch_num % 20 == 0:
+            print(f"  [{processed:,}/{n:,}] ({100 * processed / n:.0f}%)")
 
     return predictions
 
@@ -659,6 +722,7 @@ def main():
 
     perturbation = args.perturbation
     is_perturbed = perturbation != "clean"
+    condition_label = args.audio_variant or perturbation
 
     print(f"\n{'='*60}")
     print(f"ASR Fairness Audit — Inference")
@@ -666,8 +730,9 @@ def main():
     print(f"  Model:  {args.model} (Gen {model_info['generation']}, {model_info['architecture']}, {model_info['params']})")
     print(f"  Manifest: {args.manifest}")
     print(f"  Perturbation: {perturbation}")
+    print(f"  Audio variant: {condition_label}")
     print(f"  Device:   {args.device}")
-    print(f"  Batch:    {args.batch_size}")
+    print(f"  Batch:    {args.batch_plan or args.batch_size}")
     print(f"{'='*60}\n")
 
     # ── Load manifest ───────────────────────────────────────────────
@@ -698,7 +763,9 @@ def main():
     # ── Output path & resume logic ──────────────────────────────────
     os.makedirs(args.output_dir, exist_ok=True)
     # Suffix output filename with perturbation for non-clean conditions
-    if is_perturbed:
+    if args.audio_variant:
+        output_path = os.path.join(args.output_dir, f"predictions_{model_key}_{safe_label(args.audio_variant)}.csv")
+    elif is_perturbed:
         pert_suffix = perturbation.replace(".", "_")  # reverb_0.3s -> reverb_0_3s
         output_path = os.path.join(args.output_dir, f"predictions_{model_key}_{pert_suffix}.csv")
     else:
@@ -717,7 +784,7 @@ def main():
 
     # ── Run inference with incremental CSV writing ─────────────────
     writer = IncrementalCSVWriter(
-        output_path, df, args.model, model_info, perturbation,
+        output_path, df, args.model, model_info, condition_label,
         append=(n_existing > 0),
     )
     start = time.time()
@@ -775,9 +842,13 @@ def main():
         "elapsed_seconds": elapsed,
         "device": args.device,
         "batch_size": args.batch_size,
+        "batch_plan": args.batch_plan,
+        "audio_variant": condition_label,
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
-    if is_perturbed:
+    if args.audio_variant:
+        meta_path = os.path.join(args.output_dir, f"meta_{model_key}_{safe_label(args.audio_variant)}.json")
+    elif is_perturbed:
         pert_suffix = perturbation.replace(".", "_")
         meta_path = os.path.join(args.output_dir, f"meta_{model_key}_{pert_suffix}.json")
     else:

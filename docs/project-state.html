@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Project State — Data Inventory</title>
+<title>Project State — Data Inventory and Plan</title>
 <style>
 /* =========================================================================
    Palatino Burgundy — Colors & Type
@@ -460,6 +460,30 @@ ul.checklist li.checked { color: var(--fg-muted); text-decoration: line-through;
 ul.checklist li.checked::before {
   background: var(--accent);
   box-shadow: inset 0 0 0 2px var(--bg-raised);
+}
+ul.checklist ul.checklist {
+  margin: 0.35em 0 0.2em 0.3em;
+  padding-left: 0.9em;
+  border-left: 1px solid var(--border-soft);
+}
+ul.checklist ul.checklist li {
+  font-size: 0.94em;
+  padding-top: 0.25em;
+  padding-bottom: 0.25em;
+}
+.checklist-reset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  padding: 0.35em 0.7em;
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+  cursor: pointer;
+}
+.checklist-reset:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 /* =========================================================================
@@ -1625,6 +1649,11 @@ ol.refs .ref-note {
   padding: 0.75em 1em;
 }
 .state-row strong { display: block; margin-bottom: 0.15em; }
+.state-row .note {
+  color: var(--fg-muted);
+  font-size: var(--text-small);
+  margin: 0.6em 0 0;
+}
 .path-list code { word-break: break-word; }
 .compact-list li { margin-bottom: 0.15em; }
 .chapter-rule {
@@ -1651,14 +1680,15 @@ ol.refs .ref-note {
   <ul>
     <li><a href="#snapshot">Snapshot</a></li>
     <li><a href="#chapter-data">1. Data already available</a></li>
+    <li><a href="#chapter-plan">2. FairSpeech compression plan</a></li>
     <li><a href="#caveats">Caveats</a></li>
   </ul>
 </aside>
 
 <main class="main-content">
   <div class="state-kicker">FairSpeechLoRaAndGRPO · personal state file</div>
-  <h1>Project State — Data Inventory</h1>
-  <p class="subtitle">Concise map of what data/results are already processed locally. Updated 2026-04-27.</p>
+  <h1>Project State — Data Inventory and Plan</h1>
+  <p class="subtitle">Concise map of what data/results are already processed locally, plus the next compression/fairness experiment plan. Updated 2026-04-27.</p>
   <hr>
 
   <nav id="toc" aria-label="Contents (mobile)">
@@ -1666,6 +1696,7 @@ ol.refs .ref-note {
     <ul>
       <li><a href="#snapshot">Snapshot</a></li>
       <li><a href="#chapter-data">1. Data already available</a></li>
+      <li><a href="#chapter-plan">2. FairSpeech compression plan</a></li>
       <li><a href="#caveats">Caveats</a></li>
     </ul>
   </nav>
@@ -1678,7 +1709,7 @@ ol.refs .ref-note {
       <div class="metric"><div class="label">CV metadata files</div><div class="value">117</div></div>
       <div class="metric"><div class="label">LibriSpeech clean rows</div><div class="value">2,620 <span class="unit">per complete model CSV</span></div></div>
       <div class="metric"><div class="label">Perturbation tables</div><div class="value">9 <span class="unit">accent / gender / age</span></div></div>
-      <div class="metric"><div class="label">FairSpeech local state</div><div class="value">partial <span class="unit">figures only, not raw result tables</span></div></div>
+      <div class="metric"><div class="label">FairSpeech audio</div><div class="value">26,471 <span class="unit">local WAVs · 6.013 GiB</span></div></div>
     </div>
 
     <div class="callout success">
@@ -1689,6 +1720,26 @@ ol.refs .ref-note {
   <section data-section="chapter-data">
     <h2 id="chapter-data">1. Data already available</h2>
     <p class="chapter-rule">Chapter 1 · current local processed data</p>
+
+    <h3>1.0 Dataset directory structure</h3>
+    <pre class="code-block"><code>datasets/
+├── common_voice_24_clips/                 # 16,398 local Common Voice MP3 clips
+├── common_voice_24_clips.zip              # archive copy of the local CV clips
+├── meta_speech_fairness/
+│   ├── downloaded_file.tsv                # 26,471 FairSpeech metadata rows
+│   └── asr_fairness_audio/                # 26,471 local FairSpeech WAV clips
+├── data/
+│   ├── cv_test_manifest.csv               # local CV paths + text + demographics
+│   ├── cv_test_manifest_external_paths.csv # original OSC CV paths
+│   └── ls_manifest.csv                    # LibriSpeech test-clean manifest
+└── results/
+    ├── commonvoice/
+    │   ├── predictions_*.csv              # 117 CV inference outputs
+    │   ├── meta_*.json                    # 117 run metadata files
+    │   └── analysis/                      # clean fairness summaries/plots/tables
+    ├── librispeech/                       # clean LibriSpeech prediction CSVs
+    ├── tables/                            # CV perturbation summary CSV tables
+    └── figures/                           # CV/FairSpeech figure artifacts + source CSVs</code></pre>
 
     <h3>1.1 Common Voice — complete local working set</h3>
     <div class="state-summary">
@@ -1721,7 +1772,148 @@ ol.refs .ref-note {
       </div>
     </div>
 
-    <h3>1.2 Common Voice results already computed</h3>
+    <h3>1.2 Audio encoding audit — compression variables</h3>
+    <div class="state-row">
+      <strong>Common Voice and FairSpeech audio are local and probed here; LibriSpeech audio is still external.</strong>
+      <p>
+        These are <em>input-file</em> properties: codec, bitrate, sample rate, channels, and duration.
+        They are different from the paper's model-level <strong>audio compression</strong> claim, which means
+        the ASR architecture's internal acoustic bottleneck after the audio file has been decoded.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Dataset / bundle</th>
+            <th>Local status</th>
+            <th>Container / codec</th>
+            <th>Channels</th>
+            <th>Original sample rate</th>
+            <th>Bitrate</th>
+            <th>Duration notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="highlight">
+            <td><strong>Common Voice 24 shared test bundle</strong></td>
+            <td>16,398 local clips; exact 1:1 match to <code>datasets/data/cv_test_manifest.csv</code></td>
+            <td>MPEG Layer III (MP3)</td>
+            <td>Mono for all clips</td>
+            <td>48,000&nbsp;Hz: 8,940 (54.5%); 32,000&nbsp;Hz: 7,403 (45.1%); 44,100&nbsp;Hz: 55 (0.3%)</td>
+            <td>64&nbsp;kbps: 8,995 (54.9%); 48&nbsp;kbps: 7,403 (45.1%)</td>
+            <td>Mean 5.97&nbsp;s; median 5.78&nbsp;s; range 0.58&ndash;105.67&nbsp;s</td>
+          </tr>
+          <tr>
+            <td><strong>FairSpeech</strong></td>
+            <td>Downloaded from B2 and extracted; local archive deleted. Current local data: 6.013&nbsp;GiB WAV + 3.79&nbsp;MiB TSV</td>
+            <td>WAV / PCM</td>
+            <td>Mono for all clips</td>
+            <td>16,000&nbsp;Hz for all clips</td>
+            <td>Uncompressed 16-bit PCM: effective 256&nbsp;kbps; no lossy target bitrate</td>
+            <td>26,471 clips; 55.55&nbsp;hrs total; mean 7.55&nbsp;s, median 6.20&nbsp;s, range 1.36&ndash;65.62&nbsp;s</td>
+          </tr>
+          <tr>
+            <td><strong>LibriSpeech test-clean</strong></td>
+            <td>Manifest and clean predictions are local; raw audio paths are external OSC paths</td>
+            <td>FLAC (lossless source format)</td>
+            <td>Mono in source corpus</td>
+            <td>16,000&nbsp;Hz in source corpus</td>
+            <td>Lossless variable compression; no lossy target bitrate</td>
+            <td>2,620 utterances; ~5.4&nbsp;hrs</td>
+          </tr>
+        </tbody>
+      </table>
+      <table>
+        <thead><tr><th>Term</th><th>Meaning</th><th>How to use it in our analysis</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Codec</strong></td><td>Storage algorithm/container, e.g. WAV/PCM, FLAC, MP3, Opus.</td><td>Controlled input-compression tests change this while holding utterance and ASR model fixed.</td></tr>
+          <tr><td><strong>Bitrate</strong></td><td>Bits per second in the encoded audio stream, usually kbps.</td><td>For lossy codecs, lower bitrate usually removes more acoustic detail.</td></tr>
+          <tr><td><strong>Sample rate</strong></td><td>Waveform samples per second, e.g. 16&nbsp;kHz, 32&nbsp;kHz, 48&nbsp;kHz.</td><td>Not the same as bitrate; only uncompressed PCM bitrate is sample rate &times; bit depth &times; channels.</td></tr>
+          <tr><td><strong>Resampling</strong></td><td>Converting decoded audio to another sample rate, usually 16&nbsp;kHz mono for ASR.</td><td>Treat separately from codec/bitrate because downsampling can remove frequency cues.</td></tr>
+          <tr><td><strong>Model-internal compression</strong></td><td>Architectural acoustic bottleneck before decoding: low/direct Qwen3-ASR, medium FastConformer, high Q-former.</td><td>This is the paper's compression result; it is not swappable per inference run like an input codec.</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Implication for the next experiment: Common Voice can support robustness stress tests, but it is
+        already MP3, so re-encoding creates second-generation lossy artifacts. FairSpeech WAV is the cleaner
+        starting point for a controlled codec/bitrate study now that the raw audio is available.
+      </p>
+    </div>
+
+    <h3>1.3 FairSpeech local data structure</h3>
+    <div class="state-row">
+      <strong>FairSpeech is now complete at the raw-audio + metadata level.</strong>
+      <table>
+        <thead><tr><th>Item</th><th>Local path</th><th>Shape / size</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Metadata TSV</td>
+            <td><code>datasets/meta_speech_fairness/downloaded_file.tsv</code></td>
+            <td>26,471 rows × 7 columns; 3.79&nbsp;MiB</td>
+            <td><span class="badge pass">present</span></td>
+          </tr>
+          <tr>
+            <td>Audio directory</td>
+            <td><code>datasets/meta_speech_fairness/asr_fairness_audio/</code></td>
+            <td>26,471 <code>.wav</code> files; 6.013&nbsp;GiB apparent WAV bytes</td>
+            <td><span class="badge pass">present</span></td>
+          </tr>
+          <tr>
+            <td>ID join key</td>
+            <td><code>hash_name</code> ↔ <code>asr_fairness_audio/{hash_name}.wav</code></td>
+            <td>26,471 / 26,471 metadata rows have a matching WAV; 0 orphan WAVs</td>
+            <td><span class="badge pass">1:1 match</span></td>
+          </tr>
+          <tr>
+            <td>Zip archive</td>
+            <td><code>datasets/meta_speech_fairness/*.zip</code></td>
+            <td>Deleted locally after extraction; remote B2 copy remains</td>
+            <td><span class="badge warn">not local</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h4>Duration histogram</h4>
+      <p class="note">FairSpeech duration range is 1.36–65.62 s; mean 7.55 s, median 6.20 s, p95 15.32 s, and p99 32.36 s. This long tail is why inference needs batch-size profiling instead of one hard-coded global batch size.</p>
+      <div aria-label="FairSpeech duration histogram">
+        <div class="bar-row"><span class="bar-label">0–3s</span><div class="bar-track"><div class="bar" style="width:8.5%"></div></div><span class="bar-value">753 · 2.8%</span></div>
+        <div class="bar-row"><span class="bar-label">3–5s</span><div class="bar-track"><div class="bar" style="width:76.1%"></div></div><span class="bar-value">6,762 · 25.5%</span></div>
+        <div class="bar-row"><span class="bar-label">5–7s</span><div class="bar-track"><div class="bar" style="width:100%"></div></div><span class="bar-value">8,882 · 33.6%</span></div>
+        <div class="bar-row"><span class="bar-label">7–10s</span><div class="bar-track"><div class="bar" style="width:68.1%"></div></div><span class="bar-value">6,050 · 22.9%</span></div>
+        <div class="bar-row"><span class="bar-label">10–15s</span><div class="bar-track"><div class="bar" style="width:29.6%"></div></div><span class="bar-value">2,629 · 9.9%</span></div>
+        <div class="bar-row"><span class="bar-label">15–20s</span><div class="bar-track"><div class="bar" style="width:7.5%"></div></div><span class="bar-value">667 · 2.5%</span></div>
+        <div class="bar-row"><span class="bar-label">20–30s</span><div class="bar-track"><div class="bar" style="width:4.7%"></div></div><span class="bar-value">415 · 1.6%</span></div>
+        <div class="bar-row"><span class="bar-label">30–45s</span><div class="bar-track"><div class="bar" style="width:1.8%"></div></div><span class="bar-value">159 · 0.6%</span></div>
+        <div class="bar-row"><span class="bar-label">45–66s</span><div class="bar-track"><div class="bar alt" style="width:1.7%"></div></div><span class="bar-value">154 · 0.6%</span></div>
+      </div>
+
+      <h4>Metadata schema</h4>
+      <table>
+        <thead><tr><th>Column</th><th>Meaning</th><th>Notes for pipeline use</th></tr></thead>
+        <tbody>
+          <tr><td><code>hash_name</code></td><td>Unique utterance/audio ID</td><td>Use as <code>utterance_id</code>; append <code>.wav</code> for audio filename.</td></tr>
+          <tr><td><code>transcription</code></td><td>Reference transcript</td><td>23,046 unique prompted sentences across 26,471 utterances.</td></tr>
+          <tr><td><code>age</code></td><td>Self-reported age bracket</td><td>4 complete groups; no blanks.</td></tr>
+          <tr><td><code>gender</code></td><td>Self-reported binary gender label</td><td>2 complete groups; no blanks.</td></tr>
+          <tr><td><code>first_language</code></td><td>Self-reported L1</td><td>30 complete groups; long tail after English and Spanish.</td></tr>
+          <tr><td><code>socioeconomic_bkgd</code></td><td>Self-reported socioeconomic background</td><td>3 complete groups; no blanks.</td></tr>
+          <tr><td><code>ethnicity</code></td><td>Self-reported ethnicity</td><td>7 complete groups; primary FairSpeech fairness axis.</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Demographic coverage</h4>
+      <table>
+        <thead><tr><th>Axis</th><th>Groups and counts</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Ethnicity</strong></td><td>Black or African American 7,807; White 5,646; Native American / American Indian / Alaska Native 4,632; Asian / South Asian / Asian American 3,854; Hispanic / Latino / Spanish 2,814; Native Hawaiian / Other Pacific Islander 969; Middle Eastern / North African 749.</td></tr>
+          <tr><td><strong>Gender</strong></td><td>female 14,422; male 12,049.</td></tr>
+          <tr><td><strong>Age</strong></td><td>31–45: 12,770; 46–65: 5,687; 23–30: 4,168; 18–22: 3,846.</td></tr>
+          <tr><td><strong>First language</strong></td><td>30 groups. Largest: English 21,528; Spanish 1,862; Mandarin 422; Hindi 233; Cantonese 191; Tagalog 190; French 174; Portuguese 172.</td></tr>
+          <tr><td><strong>Socioeconomic background</strong></td><td>Low 14,780; Medium 9,824; Affluent 1,867.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>1.4 Common Voice results already computed</h3>
     <div class="state-row">
       <strong>Artifact means a pipeline output we can inspect or reuse directly.</strong>
       <ul class="compact-list">
@@ -1729,6 +1921,26 @@ ol.refs .ref-note {
         <li><strong>Metadata JSONs</strong> — run-level information: model ID, total utterances, overall WER, device, batch size, elapsed time, and timestamp.</li>
         <li><strong>Analysis outputs</strong> — computed summaries from predictions: group WERs, max/min fairness ratios, relative gaps, error decomposition, and plot/table files.</li>
       </ul>
+      <h4>CSV row previews</h4>
+      <strong>Prediction CSV: <code>datasets/results/commonvoice/predictions_qwen3_asr_1.7b.csv</code></strong>
+      <table class="dense">
+        <thead><tr><th>utterance_id</th><th>reference</th><th>hypothesis</th><th class="num">wer</th><th>accent</th><th>age</th></tr></thead>
+        <tbody>
+          <tr><td>common_voice_en_39588614</td><td>the cadets attack the office and the rebellion is ended</td><td>the cadets attack the office and the rebellion is ended</td><td class="num">0.0000</td><td>us</td><td></td></tr>
+          <tr><td>common_voice_en_18188256</td><td>we are going to the football game tonight</td><td>we are going to the football game tonight</td><td class="num">0.0000</td><td>us</td><td>fifties</td></tr>
+          <tr><td>common_voice_en_39948126</td><td>manager dave ross brought in kris taylor...</td><td>manager dave ross brought in chris taylor...</td><td class="num">0.0833</td><td>us</td><td></td></tr>
+        </tbody>
+      </table>
+
+      <strong>Perturbation summary CSV: <code>datasets/results/tables/table_wer_by_perturbation_and_accent_cv.csv</code></strong>
+      <table class="dense">
+        <thead><tr><th>model</th><th>perturbation</th><th class="num">overall_wer</th><th class="num">mmr</th><th class="num">wer_indian</th><th class="num">wer_us</th></tr></thead>
+        <tbody>
+          <tr><td>wav2vec2-large</td><td>clean</td><td class="num">0.228223</td><td class="num">2.142129</td><td class="num">0.253201</td><td class="num">0.165369</td></tr>
+          <tr><td>wav2vec2-large</td><td>snr_20db</td><td class="num">0.268155</td><td class="num">2.107338</td><td class="num">0.317423</td><td class="num">0.188814</td></tr>
+          <tr><td>wav2vec2-large</td><td>snr_10db</td><td class="num">0.348407</td><td class="num">2.040623</td><td class="num">0.417540</td><td class="num">0.249602</td></tr>
+        </tbody>
+      </table>
     </div>
     <table>
       <thead><tr><th>Artifact</th><th>What it contains</th><th>Status</th></tr></thead>
@@ -1740,7 +1952,7 @@ ol.refs .ref-note {
       </tbody>
     </table>
 
-    <h3>1.3 Models already run on Common Voice</h3>
+    <h3>1.5 Models already run on Common Voice</h3>
     <div class="state-row">
       <strong>The “13 conditions” are the same for every model.</strong>
       <table>
@@ -1763,7 +1975,7 @@ ol.refs .ref-note {
       </tbody>
     </table>
 
-    <h3>1.4 LibriSpeech — clean baseline only</h3>
+    <h3>1.6 LibriSpeech — clean baseline only</h3>
     <div class="state-row">
       <ul class="compact-list path-list">
         <li><code>datasets/data/ls_manifest.csv</code> — 2,620 rows, no demographic columns.</li>
@@ -1772,26 +1984,274 @@ ol.refs .ref-note {
       </ul>
     </div>
 
-    <h3>1.5 FairSpeech — not locally complete</h3>
+    <h3>1.7 FairSpeech — audio local, result tables still incomplete</h3>
     <div class="callout warning">
-      <strong>Current local state:</strong> FairSpeech underlying prediction CSVs and full analysis JSON are not present. Only downstream figure artifacts are visible, such as <code>fig1_ethnicity_heatmap</code>.
+      <strong>Current local state:</strong> FairSpeech raw audio and metadata are now present under
+      <code>datasets/meta_speech_fairness/</code>, but FairSpeech underlying prediction CSVs and the full
+      analysis JSON are still not present. Only downstream figure artifacts are visible, such as
+      <code>fig1_ethnicity_heatmap</code>.
     </div>
+  </section>
+
+  <section data-section="chapter-plan">
+    <h2 id="chapter-plan">2. FairSpeech compression plan</h2>
+    <p class="chapter-rule">Chapter 2 · FairSpeech-only input-audio bottleneck experiment</p>
+
+    <div class="callout success">
+      <strong>Main direction:</strong> run the controlled compression/resampling experiment on FairSpeech because all source files already share one clean format: 16 kHz mono 16-bit PCM WAV.
+    </div>
+
+    <h3>2.1 Dataset scope</h3>
+    <div class="state-row">
+      <table>
+        <thead><tr><th>Item</th><th>FairSpeech state</th></tr></thead>
+        <tbody>
+          <tr><td>Samples</td><td>26,471 metadata rows and 26,471 matching WAV files.</td></tr>
+          <tr><td>Join key</td><td><code>hash_name</code> ↔ <code>asr_fairness_audio/{hash_name}.wav</code>.</td></tr>
+          <tr><td>Source audio</td><td>16,000 Hz · mono · 16-bit PCM WAV · 256 kbps effective PCM bitrate.</td></tr>
+          <tr><td>Primary fairness axis</td><td>Ethnicity; all 26,471 rows have ethnicity labels.</td></tr>
+          <tr><td>Current gap</td><td>Raw audio is local; FairSpeech ASR prediction/analysis tables need rerun or teammate sharing.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>2.2 Ethnicity groups</h3>
+    <table>
+      <thead><tr><th>Ethnicity</th><th class="num">Rows</th></tr></thead>
+      <tbody>
+        <tr><td>Black or African American</td><td class="num">7,807</td></tr>
+        <tr><td>White</td><td class="num">5,646</td></tr>
+        <tr><td>Native American, American Indian, or Alaska Native</td><td class="num">4,632</td></tr>
+        <tr><td>Asian, South Asian or Asian American</td><td class="num">3,854</td></tr>
+        <tr><td>Hispanic, Latino, or Spanish</td><td class="num">2,814</td></tr>
+        <tr><td>Native Hawaiian or Other Pacific Islander</td><td class="num">969</td></tr>
+        <tr><td>Middle Eastern or North African</td><td class="num">749</td></tr>
+      </tbody>
+    </table>
+
+    <h3>2.3 Audio variants</h3>
+    <table>
+      <thead><tr><th>Variant</th><th>Pipeline</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>Baseline</td><td>16 kHz PCM WAV → model</td><td>Current clean source condition.</td></tr>
+        <tr><td>12 kHz bottleneck</td><td>16 kHz → 12 kHz → 16 kHz → model</td><td>Moderate bandwidth loss.</td></tr>
+        <tr><td>8 kHz bottleneck</td><td>16 kHz → 8 kHz → 16 kHz → model</td><td>Telephone-like bandwidth loss.</td></tr>
+        <tr><td>MP3 64 kbps</td><td>16 kHz WAV → MP3 64 kbps → 16 kHz WAV → model</td><td>Mild lossy codec artifact.</td></tr>
+        <tr><td>MP3 32 kbps</td><td>16 kHz WAV → MP3 32 kbps → 16 kHz WAV → model</td><td>Moderate lossy codec artifact.</td></tr>
+        <tr><td>MP3 16 kbps</td><td>16 kHz WAV → MP3 16 kbps → 16 kHz WAV → model</td><td>Strong lossy codec artifact.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>2.4 Model set</h3>
+    <div class="state-row">
+      <strong>Use the same nine-model benchmark set from the teammate paper.</strong>
+      <p class="note">A complete FairSpeech compression run is 9 models × 6 audio variants × 26,471 samples = 54 inference runs and 1,429,434 utterance-level predictions, before any optional pilot or rerun.</p>
+      <table>
+        <thead><tr><th>Generation</th><th>Model key</th><th>Model ID</th><th>Role in comparison</th></tr></thead>
+        <tbody>
+          <tr><td>Gen 1</td><td><code>wav2vec2-large</code></td><td><code>facebook/wav2vec2-large-960h-lv60-self</code></td><td>CTC encoder-only baseline.</td></tr>
+          <tr><td>Gen 2</td><td><code>whisper-small</code></td><td><code>openai/whisper-small</code></td><td>Whisper small baseline.</td></tr>
+          <tr><td>Gen 2</td><td><code>whisper-medium</code></td><td><code>openai/whisper-medium</code></td><td>Whisper medium baseline.</td></tr>
+          <tr><td>Gen 2</td><td><code>whisper-large-v3</code></td><td><code>openai/whisper-large-v3</code></td><td>Large Whisper comparison point.</td></tr>
+          <tr><td>Gen 3</td><td><code>qwen3-asr-0.6b</code></td><td><code>Qwen/Qwen3-ASR-0.6B</code></td><td>Low-compression LLM-ASR model.</td></tr>
+          <tr><td>Gen 3</td><td><code>qwen3-asr-1.7b</code></td><td><code>Qwen/Qwen3-ASR-1.7B</code></td><td>Strong low-compression LLM-ASR baseline.</td></tr>
+          <tr><td>Gen 3</td><td><code>canary-qwen-2.5b</code></td><td><code>nvidia/canary-qwen-2.5b</code></td><td>FastConformer + Qwen comparison point.</td></tr>
+          <tr><td>Gen 3</td><td><code>granite-speech-3.3-2b</code></td><td><code>ibm-granite/granite-speech-3.3-2b</code></td><td>Q-former bottleneck comparison point.</td></tr>
+          <tr><td>Gen 3</td><td><code>granite-speech-3.3-8b</code></td><td><code>ibm-granite/granite-speech-3.3-8b</code></td><td>Larger Q-former bottleneck comparison point.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>2.5 Batch-size policy</h3>
+    <div class="state-row">
+      <strong>Do not fix one number of samples per batch.</strong>
+      <p class="note">Current inference code exposes a fixed <code>--batch_size</code> knob, but the better implementation is a pre-split duration-bucketed batch plan. FairSpeech clips range from 1.36 s to 65.62 s, and padded batches scale roughly with <code>num_samples × longest_clip_in_batch</code>, so each batch should contain a variable number of similar-duration samples under a per-model audio-seconds budget.</p>
+      <table>
+        <thead><tr><th>Policy</th><th>Implementation decision</th></tr></thead>
+        <tbody>
+          <tr><td>Batch unit</td><td>Use <strong>max audio seconds per batch</strong> plus a per-model max-samples cap, not a fixed sample count.</td></tr>
+          <tr><td>Pre-splitting</td><td>Sort or bucket files by duration, then form batches whose clips have similar duration and whose total seconds fit the budget.</td></tr>
+          <tr><td>Calibration</td><td>Run real batch-size/seconds profiling in the <strong>pilot gate</strong>, because VRAM depends on the VM, model implementation, and decoding path.</td></tr>
+          <tr><td>Safety margin</td><td>Choose the largest budget that avoids OOM and keeps peak GPU memory below the VM target, e.g. ~80–85%.</td></tr>
+          <tr><td>Fallback</td><td>If dynamic batching is not ready, use conservative fixed batch sizes per model only as a fallback.</td></tr>
+        </tbody>
+      </table>
+      <p class="note">Example: a 40-second budget might batch 8×5 s clips, 4×10 s clips, 2×20 s clips, or 1×40–60 s long clip. The batch has variable sample count but roughly bounded compute/memory.</p>
+    </div>
+
+    <h3>2.6 Planned outputs</h3>
+    <table>
+      <thead><tr><th>Output</th><th>Content</th></tr></thead>
+      <tbody>
+        <tr><td>Variant audio folders</td><td>One folder per FairSpeech audio variant.</td></tr>
+        <tr><td>Variant manifests</td><td>Original path, derived path, variant, transcript, ethnicity, and audio-format metadata.</td></tr>
+        <tr><td>Model cache manifest</td><td>All nine model IDs, local cache paths, revision/commit if available, disk footprint, and smoke-load status.</td></tr>
+        <tr><td>Batch plan/profile manifest</td><td>Per-model max-seconds budget, max-samples cap, duration-bucket boundaries, candidate profiles, peak VRAM, throughput, OOM/failure notes, and selected safe policy.</td></tr>
+        <tr><td>Prediction CSVs</td><td>Reference, ASR transcript, per-utterance WER, model, and variant; complete run target is 54 CSVs × 26,471 rows = 1,429,434 utterance-level predictions.</td></tr>
+        <tr><td>Metric tables</td><td>WER by ethnicity, MMR, relative gap, ΔWER versus baseline, insertion rate, and insertion subtype rates: repetition, syntactic/function-word, and content/semantic.</td></tr>
+        <tr><td>Figures</td><td>Ethnicity WER bars, degradation curves, fairness-gap heatmaps, and stacked insertion-subtype charts.</td></tr>
+        <tr><td>Result memo</td><td>Whether compression causes uniform degradation or ethnicity-specific disparity amplification.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>2.7 Hierarchical implementation to-do</h3>
+    <div class="callout success">
+      <strong>Infrastructure started on 2026-04-27.</strong> The CPU-side scaffolding now exists; the VM pilot gate still needs to download/load models, generate full derived audio, and profile real GPU batch policies.
+    </div>
+    <table>
+      <thead><tr><th>Infrastructure artifact</th><th>Repo path / local output</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>Variant manifest + audio generator</td><td><code>scripts/data/prepare_fairspeech_compression.py</code></td><td>Built; full manifests generated locally.</td></tr>
+        <tr><td>Audio/manifest validator</td><td><code>scripts/validation/validate_fairspeech_compression.py</code></td><td>Built; baseline manifest passed 26,471-row validation.</td></tr>
+        <tr><td>Duration-bucket batch planner</td><td><code>scripts/inference/build_duration_batch_plan.py</code></td><td>Built; baseline plan has 1,866 variable-size batches.</td></tr>
+        <tr><td>Batch profiling harness</td><td><code>scripts/inference/profile_batch_policy.py</code></td><td>Built; run on VM during pilot gate.</td></tr>
+        <tr><td>Inference integration</td><td><code>scripts/inference/run_inference.py</code></td><td>Supports <code>--audio_variant</code> and <code>--batch_plan</code>.</td></tr>
+        <tr><td>Model cache manifest</td><td><code>scripts/inference/prepare_model_cache.py</code></td><td>Built; dry-run manifest lists all nine models.</td></tr>
+        <tr><td>Metric/plot scaffolding</td><td><code>scripts/metrics/compute_fairspeech_compression_metrics.py</code>; <code>scripts/plots/generate_fairspeech_compression_plots.py</code></td><td>Built; waits for prediction CSVs.</td></tr>
+      </tbody>
+    </table>
+    <div class="state-summary">
+      <div class="state-row">
+        <strong>A. Infrastructure building — no model training or full run yet.</strong>
+        <ul class="checklist">
+          <li class="checked" data-key="fs-infra-generator">Create FairSpeech variant-audio generator.
+            <ul class="checklist">
+              <li class="checked" data-key="fs-infra-generator-input">Input: <code>downloaded_file.tsv</code> + <code>asr_fairness_audio/{hash_name}.wav</code>.</li>
+              <li class="checked" data-key="fs-infra-generator-output">Output: one derived audio folder per variant.</li>
+            </ul>
+          </li>
+          <li class="checked" data-key="fs-infra-manifests">Create variant manifests.
+            <ul class="checklist">
+              <li class="checked" data-key="fs-infra-manifest-columns">Keep <code>hash_name</code>, transcript, ethnicity, original path, derived path, variant, and audio-format metadata.</li>
+              <li class="checked" data-key="fs-infra-manifest-count">Assert 26,471 rows for each full manifest.</li>
+            </ul>
+          </li>
+          <li class="checked" data-key="fs-infra-validation">Create validation checks.
+            <ul class="checklist">
+              <li class="checked" data-key="fs-infra-validation-audio">Verify sample rate, codec, bitrate, channels, duration, and ID alignment.</li>
+              <li class="checked" data-key="fs-infra-validation-failfast">Fail fast if files are missing, silent, wrong-rate, or mismatched.</li>
+            </ul>
+          </li>
+          <li data-key="fs-infra-model-cache">Prepare inference model cache — download/load only, no full inference yet.
+            <ul class="checklist">
+              <li class="checked" data-key="fs-infra-model-script">Create model-cache manifest/download script.</li>
+              <li class="checked" data-key="fs-infra-model-list">Use the full nine-model benchmark set listed in Section 2.4.</li>
+              <li data-key="fs-infra-model-download">Download/cache model weights, processors, tokenizers, and any required package assets.</li>
+              <li data-key="fs-infra-model-record">Record local cache path, model revision/commit if available, disk footprint, and required runtime package versions.</li>
+              <li data-key="fs-infra-model-smoke">Run a one-file smoke load/transcribe for each of the nine models before pilot inference.</li>
+            </ul>
+          </li>
+          <li class="checked" data-key="fs-infra-batch-profiler">Create duration-bucketed inference batch planner and profiling harness.
+            <ul class="checklist">
+              <li class="checked" data-key="fs-infra-batch-duration">Implement code/config to build a duration-stratified calibration subset: short, median, long, and max-duration clips.</li>
+              <li class="checked" data-key="fs-infra-batch-plan">Implement a batch-plan writer that pre-splits manifests into duration buckets with variable sample counts.</li>
+              <li class="checked" data-key="fs-infra-batch-cost-rule">Use padded-seconds cost as the first-order estimate: <code>num_samples × max_duration_in_batch</code>, plus a max-samples cap for per-example overhead.</li>
+              <li class="checked" data-key="fs-infra-batch-example">Treat <code>2 × 20s</code> and <code>1 × 40s</code> as similar padded-audio budgets, but profile them because decoder/per-example overhead can differ.</li>
+              <li class="checked" data-key="fs-infra-batch-schema">Define the profiling log schema: candidate budget, max-samples cap, peak VRAM, throughput, OOM/failure, and selected policy.</li>
+              <li class="checked" data-key="fs-infra-batch-no-lock">Do not lock batch-size policies in infrastructure; only provide the tools to test them.</li>
+            </ul>
+          </li>
+          <li class="checked" data-key="fs-infra-metrics">Create metric/plot scaffolding.
+            <ul class="checklist">
+              <li class="checked" data-key="fs-infra-metrics-tables">WER by ethnicity, MMR, relative gap, ΔWER, insertion rate, and insertion subtypes.</li>
+              <li class="checked" data-key="fs-infra-metrics-figures">Figure templates for WER bars, degradation curves, heatmaps, and insertion-subtype stacks.</li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+      <div class="state-row">
+        <strong>B. Pilot gate — small subset only.</strong>
+        <ul class="checklist">
+          <li data-key="fs-pilot-generate">Generate all variants for an ethnicity-stratified pilot subset.</li>
+          <li data-key="fs-pilot-batch-subset">Build the duration-stratified calibration subset on the target VM.</li>
+          <li data-key="fs-pilot-batch-profile">Profile candidate max-seconds budgets and max-samples caps per model; record peak VRAM, throughput, and OOM/failure behavior.</li>
+          <li data-key="fs-pilot-batch-lock">Lock the safe per-model batch policy before any full inference run.</li>
+          <li data-key="fs-pilot-run">Run one ASR model on the pilot only.</li>
+          <li data-key="fs-pilot-validate">Confirm non-empty transcripts, sane WER ranges, and metric tables.</li>
+          <li data-key="fs-pilot-fix">Fix infrastructure problems before any full run.</li>
+        </ul>
+      </div>
+      <div class="state-row">
+        <strong>C. Full evaluation run — after pilot passes.</strong>
+        <ul class="checklist">
+          <li data-key="fs-full-all-models">Run all nine teammate-benchmark models across every FairSpeech variant with fixed decoding settings.</li>
+          <li data-key="fs-full-metrics">Compute all planned metrics and figures.</li>
+          <li data-key="fs-full-completeness">Verify the complete 9 × 6 run matrix before writing final claims.</li>
+        </ul>
+      </div>
+      <div class="state-row">
+        <strong>D. Training boundary — separate plan if needed.</strong>
+        <ul class="checklist">
+          <li data-key="fs-boundary-eval">This compression experiment is an evaluation pipeline, not a fine-tuning/training job.</li>
+          <li data-key="fs-boundary-plan">If later training is needed, create a separate training plan after infrastructure, validation, and evaluation artifacts are complete.</li>
+          <li data-key="fs-boundary-no-mix">Do not mix dataset/variant generation with expensive training launch steps.</li>
+        </ul>
+      </div>
+    </div>
+    <button class="checklist-reset" type="button" data-reset-prefix="fs-">Reset Chapter 2 checkboxes</button>
+
+    <h3>2.8 Guardrails</h3>
+    <ul class="checklist">
+      <li class="checked">Use real waveform resampling; never fake sample rate by changing only headers.</li>
+      <li class="checked">Keep final model input compatible: 16 kHz mono after each bottleneck.</li>
+      <li class="checked">Keep utterance IDs, transcripts, ethnicity labels, model, and decoding settings fixed.</li>
+      <li class="checked">Log source and derived sample rate, codec, bitrate, duration, and channel count.</li>
+      <li>Do not hard-code one universal sample-count batch size; record a per-model duration-bucketed batch policy from pilot-gate VM profiling.</li>
+      <li>Interpret sample-rate bottlenecks and codec-bitrate artifacts separately.</li>
+    </ul>
   </section>
 
   <section data-section="caveats">
     <h2 id="caveats">Caveats</h2>
     <ul class="checklist">
-      <li class="checked"><strong>CV perturbation results exist.</strong> We have prediction tables and analysis outputs, not necessarily stored perturbed audio files.</li>
-      <li class="checked"><strong>CV demographics are sparse.</strong> Accent/gender/age analyses use labeled subsets, not all 16,398 clips.</li>
-      <li><strong>Resolve source-of-truth mismatch before final claims.</strong> <code>summary.csv</code> and <code>summary_7models.csv</code> disagree for Granite-8B.</li>
-      <li><strong>FairSpeech needs teammate data or rerun access</strong> before making local ethnicity-result claims from raw tables.</li>
+      <li class="checked"><strong>FairSpeech audio is local.</strong> Raw WAVs and metadata are present and 1:1 matched.</li>
+      <li><strong>FairSpeech predictions still need work.</strong> Rerun ASR or obtain teammate prediction/analysis tables before making final ethnicity-result claims.</li>
+      <li><strong>Compression types must stay separate.</strong> Sample-rate bottlenecks and MP3 bitrate artifacts answer different questions.</li>
     </ul>
   </section>
 
-  <footer>
+<footer>
     <p>Next chapters can be appended here as the project state changes.</p>
   </footer>
 </main>
 </div>
+<script>
+(function () {
+  const storageKey = "project-state-chapter-2-checkboxes";
+  let state = {};
+  try {
+    state = JSON.parse(localStorage.getItem(storageKey) || "{}");
+  } catch (_) {
+    state = {};
+  }
+
+  function save() {
+    localStorage.setItem(storageKey, JSON.stringify(state));
+  }
+
+  document.querySelectorAll("li[data-key]").forEach((item) => {
+    const key = item.dataset.key;
+    if (state[key]) item.classList.add("checked");
+    item.addEventListener("click", (event) => {
+      if (event.target.closest("a, button, code")) return;
+      event.stopPropagation();
+      item.classList.toggle("checked");
+      state[key] = item.classList.contains("checked");
+      save();
+    });
+  });
+
+  document.querySelectorAll("[data-reset-prefix]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const prefix = button.dataset.resetPrefix;
+      document.querySelectorAll(`li[data-key^="${prefix}"]`).forEach((item) => {
+        item.classList.remove("checked");
+        state[item.dataset.key] = false;
+      });
+      save();
+    });
+  });
+})();
+</script>
 </body>
 </html>

@@ -32,6 +32,8 @@ Thumbs.db
 
 # Data & results (large files, not tracked)
 data/
+!scripts/data/
+!scripts/data/*.py
 results/
 checkpoints/
 model/
