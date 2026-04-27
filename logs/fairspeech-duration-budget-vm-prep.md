@@ -26,5 +26,7 @@ Key decisions:
 - Use 75% VRAM as the profiling safety threshold.
 - Keep `max_samples` only as a secondary per-example overhead guard.
 - Added `scripts/setup/run_fairspeech_vm_prep.sh` to execute the supervised VM pilot gate in `tmux`, keep model caches/results under `/opt`, record all nine model download/smoke statuses, profile smoke-passing models, and stop after the `wav2vec2-large` six-variant pilot.
+- Corrected Hugging Face cache placement to use `$HF_HOME/hub`/`$HF_HUB_CACHE` for snapshots; passing `$HF_HOME` directly caused duplicate model copies under `/opt/hf-cache`.
+- Capped `transformers` to `<5` because the VM has torch 2.4.1, and transformers 5 blocks legacy `.bin` weight loading unless torch is at least 2.6.
 
 This supports the FairSpeech compression plan in `docs/project-state.html`, where full inference should be pre-split into duration-aware batches after real VM profiling.

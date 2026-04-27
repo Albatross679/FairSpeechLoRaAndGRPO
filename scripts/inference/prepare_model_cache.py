@@ -20,6 +20,15 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT = PROJECT_ROOT / "datasets" / "fairspeech_compression" / "model_cache_manifest.json"
 
+
+def default_hf_hub_cache() -> str | None:
+    """Return the directory that snapshot_download should use for model snapshots."""
+    if os.environ.get("HF_HUB_CACHE"):
+        return os.environ["HF_HUB_CACHE"]
+    if os.environ.get("HF_HOME"):
+        return str(Path(os.environ["HF_HOME"]) / "hub")
+    return None
+
 # Keep this order aligned with the teammate benchmark and docs Chapter 2.
 MODEL_ORDER = [
     "wav2vec2-large",
@@ -118,7 +127,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Prepare ASR model cache manifest")
     parser.add_argument("--models", default="all", help="Comma-separated model keys or 'all'")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
-    parser.add_argument("--cache-dir", default=os.environ.get("HF_HOME"))
+    parser.add_argument("--cache-dir", default=default_hf_hub_cache())
     parser.add_argument("--revision", default=None)
     parser.add_argument("--download", action="store_true", help="Download model snapshots into cache")
     parser.add_argument("--device", default="cuda", help="Device for optional smoke command metadata")

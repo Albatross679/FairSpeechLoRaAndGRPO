@@ -33,7 +33,8 @@ PILOT_DIR="${PILOT_DIR:-$OPT_VARIANT_ROOT/pilot}"
 PROFILE_WORK_DIR="${PROFILE_WORK_DIR:-$OPT_VARIANT_ROOT/profile_work}"
 RESULT_ROOT="${RESULT_ROOT:-/opt/fairspeech-results}"
 HF_HOME="${HF_HOME:-/opt/hf-cache}"
-TRANSFORMERS_CACHE="${TRANSFORMERS_CACHE:-$HF_HOME}"
+HF_HUB_CACHE="${HF_HUB_CACHE:-$HF_HOME/hub}"
+TRANSFORMERS_CACHE="${TRANSFORMERS_CACHE:-$HF_HUB_CACHE}"
 WANDB_DIR="${WANDB_DIR:-/opt/wandb}"
 PIP_CACHE_DIR="${PIP_CACHE_DIR:-/opt/pip-cache}"
 
@@ -69,9 +70,9 @@ VARIANTS=(
 mkdir -p \
   "$LOG_DIR" "$SUMMARY_DIR" "$PLAN_DIR" "$CALIBRATION_DIR" \
   "$MODEL_CACHE_DIR" "$PROFILE_DIR" "$PILOT_DIR" "$PROFILE_WORK_DIR" \
-  "$RESULT_ROOT" "$HF_HOME" "$WANDB_DIR" "$PIP_CACHE_DIR"
+  "$RESULT_ROOT" "$HF_HOME" "$HF_HUB_CACHE" "$WANDB_DIR" "$PIP_CACHE_DIR"
 
-export HF_HOME TRANSFORMERS_CACHE WANDB_DIR PIP_CACHE_DIR
+export HF_HOME HF_HUB_CACHE TRANSFORMERS_CACHE WANDB_DIR PIP_CACHE_DIR
 
 STATUS_JSON="$DATASET_DIR/vm_prep_status.json"
 MODEL_STATUS_JSONL="$MODEL_CACHE_DIR/model_cache_status.jsonl"
@@ -173,6 +174,33 @@ if frac > threshold:
 PY
 }
 
+check_runtime_versions() {
+  "$PYTHON_BIN" - <<'PY'
+import re
+import sys
+
+import torch
+import transformers
+
+
+def version_tuple(raw: str) -> tuple[int, int]:
+    match = re.match(r"(\d+)\.(\d+)", raw)
+    if not match:
+        return (0, 0)
+    return (int(match.group(1)), int(match.group(2)))
+
+
+torch_v = version_tuple(torch.__version__)
+transformers_v = version_tuple(transformers.__version__)
+print(f"Runtime versions: torch={torch.__version__}, transformers={transformers.__version__}")
+if transformers_v[0] >= 5 and torch_v < (2, 6):
+    raise SystemExit(
+        "transformers>=5 with torch<2.6 blocks .bin weight loading; "
+        "install project deps with transformers<5 or upgrade torch first."
+    )
+PY
+}
+
 append_model_status() {
   MODEL="$1" \
   DOWNLOAD_STATUS="$2" \
@@ -222,6 +250,7 @@ PY
 
 preflight() {
   [ -x "$PYTHON_BIN" ] || fail "preflight" "Python not found at $PYTHON_BIN"
+  check_runtime_versions || fail "preflight" "incompatible torch/transformers runtime"
 
   local branch
   branch="$(git branch --show-current)"
@@ -405,7 +434,7 @@ download_and_smoke_models() {
     if "$PYTHON_BIN" scripts/inference/prepare_model_cache.py \
       --models "$model" \
       --output "$cache_manifest" \
-      --cache-dir "$HF_HOME" \
+      --cache-dir "$HF_HUB_CACHE" \
       --download \
       --device cuda \
       --smoke-audio "$(smoke_audio_path)" \
