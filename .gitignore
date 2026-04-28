@@ -62,11 +62,8 @@ temp.md
 # Per-VM Claude Code install (skills, agents, commands cloned by /gsd-update)
 .claude/
 
-# Local Codex/PKM/graph tooling state
+# Local Codex/PKM state
 .codex/
 .pkm/*.db
-graphify-out/
-.graphify_detect.json
-.graphify_python
 docs/_deploy-head-surgery/
 archive-local/

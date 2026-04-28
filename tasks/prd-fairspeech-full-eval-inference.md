@@ -3,7 +3,7 @@ fileClass: Task
 name: FairSpeech Full Evaluation Inference Plan
 description: Hierarchical implementation checklist for running the full 9 model x 6 variant FairSpeech compression evaluation after the pilot gate.
 created: 2026-04-27
-updated: 2026-04-27
+updated: 2026-04-28
 tags:
   - fairspeech
   - inference
@@ -12,7 +12,7 @@ tags:
 aliases:
   - FairSpeech full eval plan
   - Full FairSpeech inference runbook
-status: planned
+status: in-progress
 ---
 
 # FairSpeech Full Evaluation Inference Plan
@@ -40,19 +40,22 @@ This is an evaluation/inference pipeline only. It must not be mixed with fine-tu
 - [x] Pilot gate completed for `wav2vec2-large` across all six variants.
 - [x] `wav2vec2-large`, `whisper-small`, and `whisper-medium` downloaded and smoke-tested.
 - [x] Pilot duration profiling selected `160s` total duration with `max_samples=16` for smoke-passing models.
-- [ ] Full derived audio for all six variants has not yet been generated.
-- [ ] Full six-variant batch plans have not yet been regenerated with the selected `160s / 16-sample` guard.
-- [ ] Full model cache is blocked by disk capacity. `whisper-large-v3` filled the 50 GiB root volume during download, so larger models need a larger cache volume or external cache path before retry.
-- [ ] Full 54-run inference matrix has not started.
+- [x] Full-run supervisor support added in `scripts/setup/run_fairspeech_full_eval.py` for disk/GPU preflight, full audio generation/validation, six guarded plans, run-matrix writing, tmux-gated resumable inference, prediction validation, metrics, and plots. No full heavy jobs were launched by this implementation pass.
+- [x] Full derived audio for all six variants generated under `/workspace/fairspeech-full-eval/variants/full`.
+- [x] Full six-variant batch plans regenerated with the selected `160s / 16-sample` guard.
+- [x] Full nine-model cache and one-file smoke gate completed. 2026-04-28 note: all nine target models passed the one-file smoke transcript gate after installing the Gen 3 runtime stack under the project venv and storing model snapshots under `/workspace/fairspeech-full-eval/hf-cache`.
+- [ ] Full nine-model, 54-run inference is launched and in progress under `tmux` session `fairspeech-full-eval`.
+  - 2026-04-28 note: the full 54-run matrix at `datasets/fairspeech_compression/full_eval/full_eval_run_matrix.json` is running with `160s / max_samples=16` plans and runtime roots under `/workspace/fairspeech-full-eval`.
+  - 2026-04-28 note: `wav2vec2-large` and `whisper-small` completed and validated across all six variants. A partial first `whisper-small/baseline` attempt was intentionally stopped after adding Whisper attention-mask support, then restarted cleanly. `whisper-medium/baseline` is currently running.
 
 ## Acceptance Criteria
 
-- [ ] Agents update this checklist as they work: mark completed items with `[x]`, leave future work as `[ ]`, and add a short blocked note under any item that cannot proceed.
-- [ ] Runtime storage is provisioned so model cache, derived audio, predictions, and logs do not fill root.
-- [ ] All nine model cache records end in `downloaded` plus smoke status `passed`, or have a documented intentional exclusion.
-- [ ] Six full variant audio folders validate at 26,471 files each.
-- [ ] Six full variant manifests validate at 26,471 rows each.
-- [ ] Full batch plans exist for each variant using `sum_duration_seconds <= 160` and `max_samples <= 16`.
+- [x] Agents update this checklist as they work: mark completed items with `[x]`, leave future work as `[ ]`, and add a short blocked note under any item that cannot proceed.
+- [x] Runtime storage is provisioned so model cache, derived audio, predictions, and logs do not fill root.
+- [x] All nine model cache records end in `downloaded` plus smoke status `passed`, or have a documented intentional exclusion.
+- [x] Six full variant audio folders validate at 26,471 files each.
+- [x] Six full variant manifests validate at 26,471 rows each.
+- [x] Full batch plans exist for each variant using `sum_duration_seconds <= 160` and `max_samples <= 16`.
 - [ ] All planned model x variant inference runs complete or have documented retry/failure records.
 - [ ] There are 54 prediction CSVs unless a model is intentionally excluded.
 - [ ] Each completed prediction CSV has 26,471 rows.
@@ -62,40 +65,42 @@ This is an evaluation/inference pipeline only. It must not be mixed with fine-tu
 ## Hierarchical Action Items
 
 - [ ] 0. Agent progress protocol
-  - [ ] 0.1. Before starting work, read this plan and identify the highest-priority unchecked item that matches the current task.
-  - [ ] 0.2. As work completes, update this file in the same turn.
+  - [x] 0.1. Before starting work, read this plan and identify the highest-priority unchecked item that matches the current task.
+  - [x] 0.2. As work completes, update this file in the same turn.
     - [ ] Change completed items from `[ ]` to `[x]`.
     - [ ] Keep incomplete future work unchecked.
     - [ ] Add concise dated notes below blocked items instead of silently leaving them ambiguous.
   - [ ] 0.3. When adding new required work, add it as a checklist item in the relevant section.
   - [ ] 0.4. At handoff, summarize which checklist items changed and where the next agent should resume.
 
-- [ ] 1. Prepare runtime storage
-  - [ ] 1.1. Provision enough non-root storage for the full run.
-    - [ ] Confirm expected available space before downloads and derived audio generation.
-    - [ ] Prefer cache/results locations under `/opt` or an attached volume, not `/workspace`.
-    - [ ] Keep root free space above the 12 GiB guard throughout the run.
-  - [ ] 1.2. Set and verify runtime paths.
-    - [ ] Set `HF_HOME` and `HF_HUB_CACHE` to the large cache location.
-    - [ ] Set `TRANSFORMERS_CACHE` only as a compatibility alias to the same hub cache.
-    - [ ] Set derived audio root, profile work root, result root, W&B dir, and pip cache under non-root-heavy storage.
-  - [ ] 1.3. Add a preflight disk audit command to the full-run launcher.
-    - [ ] Check `/`, `/opt`, cache path, result path, and derived-audio path.
+- [x] 1. Prepare runtime storage
+  - [x] 1.1. Provision enough non-root storage for the full run.
+    - [x] Confirm expected available space before downloads and derived audio generation.
+    - [x] Prefer cache/results locations under `/opt` or an attached volume, not `/workspace`.
+      - 2026-04-28 note: `/opt` is on the 20 GiB root overlay in this runtime, so heavy artifacts were placed under the large mounted `/workspace/fairspeech-full-eval` volume instead.
+    - [x] Keep root free space above the 12 GiB guard throughout the run.
+  - [x] 1.2. Set and verify runtime paths.
+    - [x] Set `HF_HOME` and `HF_HUB_CACHE` to the large cache location.
+    - [x] Set `TRANSFORMERS_CACHE` only as a compatibility alias to the same hub cache.
+    - [x] Set derived audio root, profile work root, result root, W&B dir, and pip cache under non-root-heavy storage.
+  - [x] 1.3. Add a preflight disk audit command to the full-run launcher.
+    - [x] Check `/`, `/opt`, cache path, result path, and derived-audio path.
     - [ ] Stop before downloads if root free space is below 12 GiB.
-    - [ ] Stop before inference if prediction or temporary-work paths are near capacity.
+      - 2026-04-27 note: `scripts/setup/run_fairspeech_full_eval.py preflight` blocks the full-eval path on low disk; model-cache download retries still live in the pilot/cache prep path.
+    - [x] Stop before inference if prediction or temporary-work paths are near capacity.
 
-- [ ] 2. Complete model cache and smoke gate
-  - [ ] 2.1. Preserve known-good cache entries.
-    - [ ] Keep `wav2vec2-large`.
-    - [ ] Keep `whisper-small`.
-    - [ ] Keep `whisper-medium`.
-  - [ ] 2.2. Retry blocked models only after storage is fixed.
-    - [ ] Retry `whisper-large-v3`.
-    - [ ] Download and smoke `qwen3-asr-0.6b`.
-    - [ ] Download and smoke `qwen3-asr-1.7b`.
-    - [ ] Download and smoke `canary-qwen-2.5b`.
-    - [ ] Download and smoke `granite-speech-3.3-2b`.
-    - [ ] Download and smoke `granite-speech-3.3-8b`.
+- [x] 2. Complete model cache and smoke gate
+  - [x] 2.1. Preserve known-good cache entries.
+    - [x] Keep `wav2vec2-large`.
+    - [x] Keep `whisper-small`.
+    - [x] Keep `whisper-medium`.
+  - [x] 2.2. Retry blocked models only after storage is fixed.
+    - [x] Retry `whisper-large-v3`.
+    - [x] Download and smoke `qwen3-asr-0.6b`.
+    - [x] Download and smoke `qwen3-asr-1.7b`.
+    - [x] Download and smoke `canary-qwen-2.5b`.
+    - [x] Download and smoke `granite-speech-3.3-2b`.
+    - [x] Download and smoke `granite-speech-3.3-8b`.
   - [ ] 2.3. Record cache metadata for every model.
     - [ ] Model key.
     - [ ] Hugging Face model ID.
@@ -106,62 +111,69 @@ This is an evaluation/inference pipeline only. It must not be mixed with fine-tu
     - [ ] Download status.
     - [ ] Smoke status.
     - [ ] Error text for failures.
-  - [ ] 2.4. Do not proceed to full inference until each included model has a one-file smoke transcript.
+  - [x] 2.4. Do not proceed to full inference until each included model has a one-file smoke transcript.
+    - 2026-04-28 note: one-file smoke transcripts exist for all nine included models: `wav2vec2-large`, `whisper-small`, `whisper-medium`, `whisper-large-v3`, `qwen3-asr-0.6b`, `qwen3-asr-1.7b`, `canary-qwen-2.5b`, `granite-speech-3.3-2b`, and `granite-speech-3.3-8b`.
 
 - [ ] 3. Generate full variant audio
-  - [ ] 3.1. Generate all six full FairSpeech audio variants.
-    - [ ] `baseline`.
-    - [ ] `bottleneck_12k`.
-    - [ ] `bottleneck_8k`.
-    - [ ] `mp3_64k`.
-    - [ ] `mp3_32k`.
-    - [ ] `mp3_16k`.
-  - [ ] 3.2. Store runtime-heavy audio under `/opt` or attached storage.
-    - [ ] Keep source metadata and manifests in the repo-side dataset area.
-    - [ ] Keep generated WAV payloads out of tracked workspace paths.
+  - [x] 3.1. Generate all six full FairSpeech audio variants.
+    - [x] `baseline`.
+    - [x] `bottleneck_12k`.
+    - [x] `bottleneck_8k`.
+    - [x] `mp3_64k`.
+    - [x] `mp3_32k`.
+    - [x] `mp3_16k`.
+  - [x] 3.2. Store runtime-heavy audio under `/opt` or attached storage.
+    - [x] Keep source metadata and manifests in the repo-side dataset area.
+    - [x] Keep generated WAV payloads out of tracked workspace paths.
+    - [x] 2026-04-27 implementation support: `prepare_fairspeech_compression.py --audio-output-dir` lets manifests remain under the repo-side dataset directory while generated WAV payloads live under `/opt` or another attached volume.
   - [ ] 3.3. Validate generated audio.
-    - [ ] Confirm 26,471 files per variant.
-    - [ ] Confirm 16 kHz mono PCM16 WAV after every variant transform.
-    - [ ] Confirm durations match the manifest within tolerance.
+    - [x] Confirm 26,471 files per variant.
+    - [x] Confirm 16 kHz mono PCM16 WAV after every variant transform.
+    - [x] Confirm durations match the manifest within tolerance.
     - [ ] Confirm no missing, unreadable, or silent files.
+      - 2026-04-28 note: no missing/unreadable files and no duration/format failures. Exhaustive silence checking was too slow; sampled silence checking produced false positives on real speech and needs refinement before claiming a no-silent-file gate.
 
-- [ ] 4. Regenerate full batch plans with selected guard
-  - [ ] 4.1. Use total-duration batching as the primary rule.
-    - [ ] `sum_duration_seconds <= 160`.
-    - [ ] `max_samples <= 16`.
-    - [ ] Keep `padded_audio_seconds` as diagnostic metadata.
-  - [ ] 4.2. Generate one full batch plan per audio variant.
-    - [ ] Baseline full plan with selected guard.
-    - [ ] 12 kHz bottleneck full plan.
-    - [ ] 8 kHz bottleneck full plan.
-    - [ ] MP3 64 kbps full plan.
-    - [ ] MP3 32 kbps full plan.
-    - [ ] MP3 16 kbps full plan.
-  - [ ] 4.3. Summarize each plan.
-    - [ ] Number of rows.
-    - [ ] Number of batches.
-    - [ ] Median samples per batch.
-    - [ ] Max samples per batch.
-    - [ ] Max summed duration.
-    - [ ] Max padded seconds.
-    - [ ] Duration bucket counts.
-  - [ ] 4.4. Check plan compatibility before inference.
-    - [ ] Every manifest row appears exactly once.
-    - [ ] No batch exceeds 160 total seconds.
-    - [ ] No batch exceeds 16 samples.
-    - [ ] Row identity maps by `utterance_id` for resume safety.
+- [x] 4. Regenerate full batch plans with selected guard
+  - [x] 4.1. Use total-duration batching as the primary rule.
+    - [x] `sum_duration_seconds <= 160`.
+    - [x] `max_samples <= 16`.
+    - [x] Keep `padded_audio_seconds` as diagnostic metadata.
+  - [x] 4.2. Generate one full batch plan per audio variant.
+    - [x] Baseline full plan with selected guard.
+    - [x] 12 kHz bottleneck full plan.
+    - [x] 8 kHz bottleneck full plan.
+    - [x] MP3 64 kbps full plan.
+    - [x] MP3 32 kbps full plan.
+    - [x] MP3 16 kbps full plan.
+  - [x] 4.3. Summarize each plan.
+    - [x] Number of rows.
+    - [x] Number of batches.
+    - [x] Median samples per batch.
+    - [x] Max samples per batch.
+    - [x] Max summed duration.
+    - [x] Max padded seconds.
+    - [x] Duration bucket counts.
+  - [x] 4.4. Check plan compatibility before inference.
+    - [x] Every manifest row appears exactly once.
+    - [x] No batch exceeds 160 total seconds.
+    - [x] No batch exceeds 16 samples.
+    - [x] Row identity maps by `utterance_id` for resume safety.
+    - [x] 2026-04-27 implementation support: the full-run supervisor validates row coverage, max summed duration, max samples, duplicate IDs, and unknown IDs before writing/running the matrix.
 
-- [ ] 5. Define full inference run matrix
-  - [ ] 5.1. Create a machine-readable run matrix.
-    - [ ] 9 model keys.
-    - [ ] 6 audio variants.
-    - [ ] Manifest path per variant.
-    - [ ] Batch plan path per variant.
-    - [ ] Output directory per model.
-    - [ ] Log path per model x variant.
-  - [ ] 5.2. Mark model inclusion status.
-    - [ ] Include only models with passed smoke tests.
-    - [ ] If a model remains excluded, document why before running metrics.
+- [x] 5. Define full inference run matrix
+  - [x] 5.1. Create a machine-readable run matrix.
+    - [x] 9 model keys.
+    - [x] 6 audio variants.
+    - [x] Manifest path per variant.
+    - [x] Batch plan path per variant.
+    - [x] Output directory per model.
+    - [x] Log path per model x variant.
+    - [x] 2026-04-27 implementation support: `scripts/setup/run_fairspeech_full_eval.py write-matrix` creates this matrix after smoke-passing models and six validated batch plans exist.
+    - [x] 2026-04-28 full matrix: wrote the nine-model, six-variant 54-run matrix.
+  - [x] 5.2. Mark model inclusion status.
+    - [x] Include only models with passed smoke tests.
+    - [x] If a model remains excluded, document why before running metrics.
+      - 2026-04-28 note: no target model is excluded; all nine passed smoke.
   - [ ] 5.3. Preserve decoding settings.
     - [ ] Keep decoding fixed per model across all six variants.
     - [ ] Do not tune decoding on compressed variants.
@@ -169,13 +181,15 @@ This is an evaluation/inference pipeline only. It must not be mixed with fine-tu
 
 - [ ] 6. Execute full inference safely
   - [ ] 6.1. Run long commands inside `tmux`.
-    - [ ] Create one supervised session for the full matrix.
-    - [ ] Write a top-level run log.
+    - [x] Create one supervised session for the full matrix.
+    - [x] Write a top-level run log.
     - [ ] Poll status JSON and logs until complete or blocked.
+    - [x] 2026-04-27 implementation support: `run-matrix` refuses to run outside `tmux` by default, writes per-run logs, and appends a JSONL status ledger.
   - [ ] 6.2. Use GPU preflight before each run.
     - [ ] Run `nvidia-smi`.
     - [ ] Stop if GPU memory usage is above 80%.
     - [ ] Use `CUDA_VISIBLE_DEVICES` if multiple GPUs are present.
+    - [x] 2026-04-27 implementation support: `preflight` and `run-matrix` query `nvidia-smi`, enforce the 80% default threshold, and propagate `CUDA_VISIBLE_DEVICES`.
   - [ ] 6.3. Run each model x variant with resume enabled.
     - [ ] Use `scripts/inference/run_inference.py`.
     - [ ] Pass `--audio_variant`.
@@ -189,17 +203,20 @@ This is an evaluation/inference pipeline only. It must not be mixed with fine-tu
     - [ ] Transcript column is not globally empty.
     - [ ] Per-utterance WER values are present or recomputable.
     - [ ] Metadata fields include model and variant.
+    - [x] 2026-04-27 implementation support: the full-run supervisor validates each CSV after a run and records pass/fail state in the status ledger.
   - [ ] 6.5. Track failure and retry state.
-    - [ ] Record failed batch or run.
-    - [ ] Keep stderr/stdout logs.
-    - [ ] Retry with the same output directory and resume flag.
+    - [x] Record failed batch or run.
+    - [x] Keep stderr/stdout logs.
+    - [x] Retry with the same output directory and resume flag.
     - [ ] If OOM occurs, lower max samples first, then lower total-duration budget.
+    - 2026-04-28 note: the first `whisper-small/baseline` full attempt was intentionally terminated after a fresh Transformers warning showed missing attention masks for padded Whisper batches. `scripts/inference/run_inference.py` now requests/passes Whisper attention masks, the partial CSV was removed, and the full matrix was relaunched; completed wav2vec2 runs were skipped by validation/resume.
 
 - [ ] 7. Compute metrics
   - [ ] 7.1. Verify matrix completeness before metrics.
     - [ ] Confirm all expected prediction CSVs are present.
     - [ ] Confirm each included CSV has 26,471 rows.
     - [ ] Confirm baseline exists for every included model.
+    - [x] 2026-04-27 implementation support: `validate-predictions` checks the matrix before the `all` command proceeds to metrics.
   - [ ] 7.2. Compute FairSpeech compression metrics.
     - [ ] WER by ethnicity.
     - [ ] MMR.

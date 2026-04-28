@@ -127,6 +127,8 @@ def parse_args():
     parser.add_argument("--batch_plan", type=str, default=None,
                         help="Optional JSONL duration-bucketed batch plan produced by "
                              "scripts/inference/build_duration_batch_plan.py")
+    parser.add_argument("--allow_batch_failures", action="store_true",
+                        help="Write empty transcripts for failed inference batches instead of failing fast.")
     return parser.parse_args()
 
 
@@ -344,6 +346,8 @@ def infer_wav2vec2(manifest_df, args, loaded, writer=None):
             for idx, text in zip(valid_idx, texts):
                 batch_preds.append({"idx": idx, "hypothesis_raw": text.strip()})
         except Exception as e:
+            if not args.allow_batch_failures:
+                raise RuntimeError(f"Wav2Vec2 batch {batch_id} failed") from e
             print(f"  WARNING: Batch {batch_id} failed: {e}")
             for idx in valid_idx:
                 batch_preds.append({"idx": idx, "hypothesis_raw": ""})
@@ -412,14 +416,29 @@ def infer_whisper(manifest_df, args, loaded, writer=None):
             continue
 
         try:
-            inputs = processor(audio_list, sampling_rate=SAMPLE_RATE, return_tensors="pt", padding=True)
+            inputs = processor(
+                audio_list,
+                sampling_rate=SAMPLE_RATE,
+                return_tensors="pt",
+                padding=True,
+                return_attention_mask=True,
+            )
             features = inputs.input_features.to(args.device, dtype=torch.float16 if "cuda" in args.device else torch.float32)
+            generate_kwargs = {
+                "max_new_tokens": 440,
+                "language": "en",
+                "task": "transcribe",
+            }
+            if "attention_mask" in inputs:
+                generate_kwargs["attention_mask"] = inputs.attention_mask.to(args.device)
             with torch.no_grad():
-                pred_ids = model.generate(features, max_new_tokens=440, language="en", task="transcribe")
+                pred_ids = model.generate(features, **generate_kwargs)
             texts = processor.batch_decode(pred_ids, skip_special_tokens=True)
             for idx, text in zip(valid_idx, texts):
                 batch_preds.append({"idx": idx, "hypothesis_raw": text.strip()})
         except Exception as e:
+            if not args.allow_batch_failures:
+                raise RuntimeError(f"Whisper batch {batch_id} failed") from e
             print(f"  WARNING: Batch {batch_id} failed: {e}")
             for idx in valid_idx:
                 batch_preds.append({"idx": idx, "hypothesis_raw": ""})
@@ -482,6 +501,8 @@ def infer_qwen3_asr(manifest_df, args, loaded, writer=None):
             for idx, result in zip(indices, results):
                 batch_preds.append({"idx": idx, "hypothesis_raw": result.text.strip()})
         except Exception as e:
+            if not args.allow_batch_failures:
+                raise RuntimeError(f"Qwen3-ASR batch {batch_id} failed") from e
             print(f"  WARNING: Batch {batch_id} failed: {e}")
             for idx in indices:
                 batch_preds.append({"idx": idx, "hypothesis_raw": ""})
@@ -537,7 +558,7 @@ def load_granite(args):
 
     hf_id = MODEL_REGISTRY[args.model]["hf_id"]
     print(f"Loading {hf_id}...")
-    processor = AutoProcessor.from_pretrained(hf_id)
+    processor = AutoProcessor.from_pretrained(hf_id, trust_remote_code=True)
     tokenizer = processor.tokenizer
     model = AutoModelForSpeechSeq2Seq.from_pretrained(
         hf_id, device_map=args.device, torch_dtype=torch.bfloat16, trust_remote_code=True
@@ -583,6 +604,8 @@ def infer_granite(manifest_df, args, loaded, writer=None):
                 audio_list.append(wav[0].numpy())
                 valid_idx.append(row_pos)
             except Exception as e:
+                if not args.allow_batch_failures:
+                    raise RuntimeError(f"Failed to load audio for Granite batch {batch_id}: {row['audio_path']}") from e
                 print(f"  WARNING: Failed to load {row['audio_path']}: {e}")
                 batch_preds.append({"idx": row_pos, "hypothesis_raw": ""})
 
@@ -616,6 +639,8 @@ def infer_granite(manifest_df, args, loaded, writer=None):
             for idx, text in zip(valid_idx, texts):
                 batch_preds.append({"idx": idx, "hypothesis_raw": _extract_granite_transcription(text.strip())})
         except Exception as e:
+            if not args.allow_batch_failures:
+                raise RuntimeError(f"Granite batch {batch_id} failed") from e
             print(f"  WARNING: Batch {batch_id} failed: {e}")
             for idx in valid_idx:
                 batch_preds.append({"idx": idx, "hypothesis_raw": ""})
@@ -652,8 +677,8 @@ def run_canary(manifest_df, args, writer=None):
     print(f"Loading Canary-Qwen model via SALM: {hf_id}")
     model = SALM.from_pretrained(hf_id)
     model.eval()
-    if args.device == "cuda":
-        model = model.cuda()
+    if args.device.startswith("cuda"):
+        model = model.to(args.device) if hasattr(model, "to") else model.cuda()
     print(f"  Loaded on {args.device}")
 
     # The SALM API uses model.generate(prompts=...) with audio locator tags.
@@ -692,6 +717,8 @@ def run_canary(manifest_df, args, writer=None):
                     "hypothesis_raw": text.strip(),
                 })
         except Exception as e:
+            if not args.allow_batch_failures:
+                raise RuntimeError(f"Canary-Qwen batch {batch_id} failed") from e
             print(f"  WARNING: Batch {batch_id} failed: {e}")
             for row_pos in batch_positions:
                 batch_preds.append({

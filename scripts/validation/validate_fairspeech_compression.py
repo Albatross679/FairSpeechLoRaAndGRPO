@@ -49,11 +49,29 @@ def wav_metadata(path: Path) -> dict[str, int | float | str]:
 
 
 def is_probably_silent(path: Path, max_frames: int | None = None) -> bool:
-    """Return True when all sampled PCM16 frames are zero."""
+    """Return True when all sampled PCM frames are zero.
+
+    When ``max_frames`` is set, sample beginning/middle/end chunks instead of
+    reading the whole file. That keeps full-corpus validation practical while
+    still catching fully silent generated payloads.
+    """
     with wave.open(str(path), "rb") as wf:
         sampwidth = wf.getsampwidth()
-        nframes = wf.getnframes() if max_frames is None else min(max_frames, wf.getnframes())
-        data = wf.readframes(nframes)
+        total_frames = wf.getnframes()
+        if max_frames is None or total_frames <= max_frames:
+            data = wf.readframes(total_frames)
+        else:
+            chunk_frames = max(1, max_frames // 3)
+            starts = [
+                0,
+                max(0, total_frames // 2 - chunk_frames // 2),
+                max(0, total_frames - chunk_frames),
+            ]
+            chunks = []
+            for start in starts:
+                wf.setpos(start)
+                chunks.append(wf.readframes(min(chunk_frames, total_frames - start)))
+            data = b"".join(chunks)
     if not data:
         return True
     if sampwidth == 2:
@@ -69,6 +87,7 @@ def validate_manifest(
     expected_count: int | None,
     allow_missing_audio: bool,
     check_silence: bool,
+    silence_sample_frames: int | None,
     max_audio_checks: int | None,
 ) -> tuple[dict[str, object], list[str]]:
     errors: list[str] = []
@@ -123,7 +142,7 @@ def validate_manifest(
             except ValueError:
                 warnings.append(f"{audio_path}: invalid duration value {expected_dur!r}")
 
-        if check_silence and is_probably_silent(audio_path):
+        if check_silence and is_probably_silent(audio_path, max_frames=silence_sample_frames):
             silent += 1
             warnings.append(f"{audio_path}: appears silent")
 
@@ -160,6 +179,12 @@ def main() -> None:
     parser.add_argument("--expected-count", type=int, default=None)
     parser.add_argument("--allow-missing-audio", action="store_true")
     parser.add_argument("--check-silence", action="store_true")
+    parser.add_argument(
+        "--silence-sample-frames",
+        type=int,
+        default=None,
+        help="When checking silence, sample this many frames across each file instead of reading full audio.",
+    )
     parser.add_argument("--max-audio-checks", type=int, default=None)
     parser.add_argument("--summary-json", type=Path, default=None)
     args = parser.parse_args()
@@ -172,12 +197,13 @@ def main() -> None:
             expected_count=args.expected_count,
             allow_missing_audio=args.allow_missing_audio,
             check_silence=args.check_silence,
+            silence_sample_frames=args.silence_sample_frames,
             max_audio_checks=args.max_audio_checks,
         )
         all_summaries.append(summary)
         for error in errors:
             all_errors.append(f"{manifest}: {error}")
-        print(f"{summary['status'].upper()}: {manifest} ({summary['rows']:,} rows)")
+        print(f"{summary['status'].upper()}: {manifest} ({summary['rows']:,} rows)", flush=True)
 
     combined = {
         "status": "pass" if not all_errors else "fail",

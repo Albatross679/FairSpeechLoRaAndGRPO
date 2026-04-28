@@ -1,0 +1,20 @@
+# Local/generated/heavy directories that should not be indexed as source corpus.
+.git/
+.venv/
+archive-local/
+datasets/
+graphify-out/
+
+# Stale or generated project artifacts that can pollute the active code graph.
+archive/
+autoresearch/
+
+# Large binary/runtime artifacts.
+*.wav
+*.flac
+*.mp3
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.safetensors

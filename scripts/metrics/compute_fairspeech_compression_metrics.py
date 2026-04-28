@@ -41,9 +41,10 @@ def read_predictions(path: Path) -> list[dict[str, str]]:
     return rows
 
 
-def load_all_predictions(predictions_dir: Path) -> list[dict[str, str]]:
+def load_all_predictions(predictions_dir: Path, recursive: bool = False) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
-    for path in sorted(predictions_dir.glob("predictions_*.csv")):
+    pattern = "**/predictions_*.csv" if recursive else "predictions_*.csv"
+    for path in sorted(predictions_dir.glob(pattern)):
         rows.extend(read_predictions(path))
     return rows
 
@@ -259,6 +260,11 @@ def main() -> None:
     parser.add_argument("--group-col", default="ethnicity")
     parser.add_argument("--baseline-variant", default="baseline")
     parser.add_argument(
+        "--recursive",
+        action="store_true",
+        help="Read predictions_*.csv recursively for per-model output directories.",
+    )
+    parser.add_argument(
         "--min-group-size",
         type=int,
         default=MIN_GROUP_SIZE,
@@ -266,7 +272,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    rows = load_all_predictions(args.predictions_dir)
+    rows = load_all_predictions(args.predictions_dir, recursive=args.recursive)
     if not rows:
         raise SystemExit(f"No predictions_*.csv files found in {args.predictions_dir}")
 

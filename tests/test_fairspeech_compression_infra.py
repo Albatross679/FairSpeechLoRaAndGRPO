@@ -80,6 +80,32 @@ def test_build_source_and_variant_manifests(tmp_path):
     assert mp3_rows[0]["source_audio_path"] == rows[0]["source_audio_path"]
 
 
+def test_variant_manifest_can_store_audio_outside_manifest_root(tmp_path):
+    from scripts.data.prepare_fairspeech_compression import (
+        build_source_manifest,
+        variant_manifest_rows,
+    )
+
+    audio_dir = tmp_path / "audio"
+    _write_wav(audio_dir / "a1.wav")
+    metadata = tmp_path / "downloaded_file.tsv"
+    _write_metadata(metadata, ["a1"])
+
+    source_rows = build_source_manifest(metadata, audio_dir)
+    manifest_root = tmp_path / "repo_dataset"
+    audio_root = tmp_path / "opt_payload"
+    rows = variant_manifest_rows(
+        source_rows,
+        manifest_root,
+        "mp3_32k",
+        generated_audio=True,
+        audio_output_dir=audio_root,
+    )
+
+    assert rows[0]["audio_path"] == str(audio_root / "audio" / "mp3_32k" / "a1.wav")
+    assert rows[0]["derived_audio_path"] == rows[0]["audio_path"]
+
+
 def test_duration_batch_plan_uses_total_duration_by_default():
     from scripts.inference.build_duration_batch_plan import build_batches
 
@@ -201,3 +227,175 @@ def test_pilot_metrics_can_lower_min_group_size():
     assert len(pilot_groups) == 4
     assert compute_fairness_table(pilot_groups)
     assert len(compute_paired_delta(rows, "baseline", "ethnicity", min_group_size=1)) == 2
+
+
+def _runtime_paths(tmp_path: Path):
+    from scripts.setup.run_fairspeech_full_eval import RuntimePaths
+
+    dataset_dir = tmp_path / "dataset"
+    return RuntimePaths(
+        dataset_dir=dataset_dir,
+        manifest_dir=dataset_dir / "manifests",
+        plan_dir=dataset_dir / "batch_plans",
+        summary_dir=dataset_dir / "summaries",
+        run_dir=dataset_dir / "full_eval",
+        log_dir=dataset_dir / "logs" / "full_eval",
+        model_status_jsonl=dataset_dir / "model_cache" / "model_cache_status.jsonl",
+        derived_audio_root=tmp_path / "opt" / "fairspeech-variants" / "full",
+        profile_work_root=tmp_path / "opt" / "fairspeech-variants" / "profile_work",
+        result_root=tmp_path / "opt" / "fairspeech-results",
+        hf_home=tmp_path / "opt" / "hf-cache",
+        hf_hub_cache=tmp_path / "opt" / "hf-cache" / "hub",
+        transformers_cache=tmp_path / "opt" / "hf-cache" / "hub",
+        wandb_dir=tmp_path / "opt" / "wandb",
+        pip_cache_dir=tmp_path / "opt" / "pip-cache",
+    )
+
+
+def _write_full_eval_manifest(path: Path, durations: list[float]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=["utterance_id", "audio_path", "sentence", "ethnicity", "duration_seconds"],
+        )
+        writer.writeheader()
+        for idx, duration in enumerate(durations):
+            writer.writerow({
+                "utterance_id": f"utt{idx}",
+                "audio_path": f"/tmp/utt{idx}.wav",
+                "sentence": f"hello {idx}",
+                "ethnicity": "group",
+                "duration_seconds": duration,
+            })
+
+
+def test_full_eval_builds_six_guarded_plans_and_matrix(tmp_path):
+    from scripts.setup.run_fairspeech_full_eval import (
+        VARIANTS,
+        build_full_batch_plans,
+        build_run_matrix,
+        manifest_path,
+        plan_path,
+    )
+
+    paths = _runtime_paths(tmp_path)
+    for variant in VARIANTS:
+        _write_full_eval_manifest(manifest_path(paths, variant), [3.0, 3.0, 3.0])
+
+    summaries = build_full_batch_plans(
+        paths,
+        expected_count=3,
+        max_audio_seconds=6.0,
+        max_samples=2,
+        overwrite=True,
+    )
+
+    assert len(summaries) == 6
+    assert all(summary["status"] == "pass" for summary in summaries)
+    assert all(summary["max_samples"] == 2 for summary in summaries)
+    assert all(plan_path(paths, variant, 6.0, 2).is_file() for variant in VARIANTS)
+
+    matrix = build_run_matrix(
+        paths,
+        models=["wav2vec2-large", "whisper-small"],
+        expected_count=3,
+        max_audio_seconds=6.0,
+        max_samples=2,
+        device="cpu",
+        cuda_visible_devices=None,
+        python_bin="/python",
+    )
+
+    assert len(matrix["runs"]) == 12
+    assert matrix["max_audio_seconds"] == 6.0
+    assert matrix["max_samples"] == 2
+    assert matrix["runs"][0]["command"][-1] == "--resume"
+
+
+def test_full_eval_prediction_validation_checks_rows_coverage_and_empty_transcripts(tmp_path):
+    from scripts.setup.run_fairspeech_full_eval import validate_prediction_csv
+
+    manifest = tmp_path / "manifest.csv"
+    _write_full_eval_manifest(manifest, [1.0, 1.0])
+    prediction = tmp_path / "predictions_wav2vec2_large_baseline.csv"
+    with prediction.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=["utterance_id", "hypothesis", "wer", "model", "audio_variant"],
+        )
+        writer.writeheader()
+        writer.writerow({
+            "utterance_id": "utt0",
+            "hypothesis": "hello zero",
+            "wer": "0.0",
+            "model": "wav2vec2-large",
+            "audio_variant": "baseline",
+        })
+        writer.writerow({
+            "utterance_id": "utt1",
+            "hypothesis": "hello one",
+            "wer": "0.5",
+            "model": "wav2vec2-large",
+            "audio_variant": "baseline",
+        })
+
+    assert validate_prediction_csv(prediction, manifest, expected_count=2)["status"] == "pass"
+
+    blank = tmp_path / "predictions_blank.csv"
+    with blank.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=["utterance_id", "hypothesis", "wer", "model", "audio_variant"],
+        )
+        writer.writeheader()
+        writer.writerow({
+            "utterance_id": "utt0",
+            "hypothesis": "",
+            "wer": "1.0",
+            "model": "wav2vec2-large",
+            "audio_variant": "baseline",
+        })
+        writer.writerow({
+            "utterance_id": "utt0",
+            "hypothesis": "",
+            "wer": "1.0",
+            "model": "wav2vec2-large",
+            "audio_variant": "baseline",
+        })
+
+    failed = validate_prediction_csv(blank, manifest, expected_count=2)
+    assert failed["status"] == "fail"
+    assert any("coverage" in error for error in failed["errors"])
+    assert any("duplicate" in error for error in failed["errors"])
+    assert any("globally empty" in error for error in failed["errors"])
+
+
+def test_compression_metrics_can_load_recursive_prediction_dirs(tmp_path):
+    from scripts.metrics.compute_fairspeech_compression_metrics import load_all_predictions
+
+    nested = tmp_path / "full" / "wav2vec2-large"
+    nested.mkdir(parents=True)
+    with (nested / "predictions_wav2vec2_large_baseline.csv").open(
+        "w",
+        encoding="utf-8",
+        newline="",
+    ) as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=["utterance_id", "reference", "hypothesis", "model", "audio_variant", "wer"],
+        )
+        writer.writeheader()
+        writer.writerow({
+            "utterance_id": "utt0",
+            "reference": "hello",
+            "hypothesis": "hello",
+            "model": "wav2vec2-large",
+            "audio_variant": "baseline",
+            "wer": "0.0",
+        })
+
+    assert load_all_predictions(tmp_path / "full") == []
+    rows = load_all_predictions(tmp_path / "full", recursive=True)
+    assert len(rows) == 1
+    assert rows[0]["audio_variant"] == "baseline"

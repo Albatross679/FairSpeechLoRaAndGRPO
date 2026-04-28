@@ -18,12 +18,14 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import wave
+from concurrent.futures import ThreadPoolExecutor
 from collections import Counter, OrderedDict
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -35,6 +37,8 @@ DEFAULT_AUDIO_DIR = PROJECT_ROOT / "datasets" / "meta_speech_fairness" / "asr_fa
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "datasets" / "fairspeech_compression"
 EXPECTED_FULL_COUNT = 26_471
 TARGET_SAMPLE_RATE = 16_000
+_TEXT_NORMALIZER = None
+_TEXT_NORMALIZER_ATTEMPTED = False
 
 ETHNICITY_MAP = {
     "Black or African American": "Black/AA",
@@ -138,17 +142,24 @@ VARIANTS: "OrderedDict[str, AudioVariant]" = OrderedDict(
 
 def normalize_text(text: str) -> str:
     """Normalize reference text using Whisper if available, otherwise a light fallback."""
+    global _TEXT_NORMALIZER, _TEXT_NORMALIZER_ATTEMPTED
     if not text:
         return ""
-    try:
-        from whisper.normalizers import EnglishTextNormalizer  # type: ignore
+    if not _TEXT_NORMALIZER_ATTEMPTED:
+        _TEXT_NORMALIZER_ATTEMPTED = True
+        try:
+            from whisper.normalizers import EnglishTextNormalizer  # type: ignore
 
-        return EnglishTextNormalizer()(text)
-    except Exception:
-        text = text.lower()
-        text = re.sub(r"[^a-z0-9' ]+", " ", text)
-        text = re.sub(r"\s+", " ", text)
-        return text.strip()
+            _TEXT_NORMALIZER = EnglishTextNormalizer()
+        except Exception:
+            _TEXT_NORMALIZER = None
+    if _TEXT_NORMALIZER is not None:
+        return _TEXT_NORMALIZER(text)
+
+    text = text.lower()
+    text = re.sub(r"[^a-z0-9' ]+", " ", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
 
 
 def wav_metadata(path: Path) -> dict[str, int | float | str]:
@@ -220,20 +231,52 @@ def standardize_row(row: dict[str, str], audio_dir: Path) -> dict[str, str | int
     }
 
 
-def build_source_manifest(metadata_path: Path, audio_dir: Path, max_samples: int | None = None) -> list[dict[str, str | int | float]]:
+def standardize_row_if_present(
+    row: dict[str, str],
+    audio_dir: Path,
+) -> tuple[dict[str, str | int | float] | None, str | None]:
+    hash_name = row["hash_name"].strip()
+    audio_path = audio_dir / f"{hash_name}.wav"
+    if not audio_path.is_file():
+        return None, hash_name
+    return standardize_row(row, audio_dir), None
+
+
+def build_source_manifest(
+    metadata_path: Path,
+    audio_dir: Path,
+    max_samples: int | None = None,
+    jobs: int = 1,
+) -> list[dict[str, str | int | float]]:
     raw_rows = read_metadata(metadata_path)
     if max_samples is not None:
         raw_rows = raw_rows[:max_samples]
 
     rows: list[dict[str, str | int | float]] = []
     missing: list[str] = []
-    for row in raw_rows:
-        hash_name = row["hash_name"].strip()
-        audio_path = audio_dir / f"{hash_name}.wav"
-        if not audio_path.is_file():
-            missing.append(hash_name)
-            continue
-        rows.append(standardize_row(row, audio_dir))
+    if jobs <= 1:
+        iterator = (standardize_row_if_present(row, audio_dir) for row in raw_rows)
+        for idx, (standardized, missing_id) in enumerate(iterator, start=1):
+            if standardized is not None:
+                rows.append(standardized)
+            if missing_id:
+                missing.append(missing_id)
+            if idx % 1000 == 0:
+                print(f"Source manifest: scanned {idx:,}/{len(raw_rows):,} rows", flush=True)
+    else:
+        with ThreadPoolExecutor(max_workers=jobs) as executor:
+            iterator = executor.map(
+                standardize_row_if_present,
+                raw_rows,
+                [audio_dir] * len(raw_rows),
+            )
+            for idx, (standardized, missing_id) in enumerate(iterator, start=1):
+                if standardized is not None:
+                    rows.append(standardized)
+                if missing_id:
+                    missing.append(missing_id)
+                if idx % 1000 == 0:
+                    print(f"Source manifest: scanned {idx:,}/{len(raw_rows):,} rows", flush=True)
     if missing:
         print(f"WARNING: skipped {len(missing):,} metadata rows with missing WAV files", file=sys.stderr)
     return rows
@@ -329,17 +372,24 @@ def generate_variant_audio(src: Path, dst: Path, spec: AudioVariant, overwrite: 
     raise ValueError(f"Unknown variant kind: {spec.kind}")
 
 
+def generate_variant_audio_job(args: tuple[Path, Path, AudioVariant, bool, bool]) -> str:
+    src, dst, spec, overwrite, dry_run = args
+    return generate_variant_audio(src, dst, spec, overwrite=overwrite, dry_run=dry_run)
+
+
 def variant_manifest_rows(
     source_rows: list[dict[str, str | int | float]],
     output_dir: Path,
     variant_key: str,
     generated_audio: bool,
+    audio_output_dir: Path | None = None,
 ) -> list[dict[str, object]]:
     spec = VARIANTS[variant_key]
+    audio_root = audio_output_dir or output_dir
     rows: list[dict[str, object]] = []
     for row in source_rows:
         utterance_id = str(row["utterance_id"])
-        derived = output_audio_path(output_dir, variant_key, utterance_id)
+        derived = output_audio_path(audio_root, variant_key, utterance_id)
         new_row: dict[str, object] = dict(row)
         new_row["variant"] = variant_key
         new_row["variant_label"] = spec.label
@@ -382,16 +432,36 @@ def main() -> None:
     parser.add_argument("--metadata", type=Path, default=DEFAULT_METADATA)
     parser.add_argument("--audio-dir", type=Path, default=DEFAULT_AUDIO_DIR)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument(
+        "--audio-output-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Root for generated audio payloads. Defaults to --output-dir; set this "
+            "to /opt or attached storage while keeping manifests under --output-dir."
+        ),
+    )
     parser.add_argument("--variants", default="all", help="Comma-separated variant keys or 'all'")
     parser.add_argument("--max-samples", type=int, default=None, help="Limit rows for pilot/debug runs")
     parser.add_argument("--generate-audio", action="store_true", help="Actually create derived WAV files")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing derived WAV files")
     parser.add_argument("--dry-run-commands", action="store_true", help="Print ffmpeg commands without running them")
     parser.add_argument("--expected-full-count", type=int, default=EXPECTED_FULL_COUNT)
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=int(os.environ.get("FAIRSPEECH_AUDIO_JOBS", "1")),
+        help="Parallel workers for source WAV scanning and ffmpeg audio generation.",
+    )
     args = parser.parse_args()
 
     variant_keys = parse_variant_keys(args.variants)
-    source_rows = build_source_manifest(args.metadata, args.audio_dir, args.max_samples)
+    source_rows = build_source_manifest(
+        args.metadata,
+        args.audio_dir,
+        args.max_samples,
+        jobs=max(1, args.jobs),
+    )
     if args.max_samples is None and len(source_rows) != args.expected_full_count:
         raise SystemExit(
             f"Expected {args.expected_full_count:,} source rows, found {len(source_rows):,}. "
@@ -400,6 +470,7 @@ def main() -> None:
 
     manifest_dir = args.output_dir / "manifests"
     summary_dir = args.output_dir / "summaries"
+    audio_output_dir = args.audio_output_dir or args.output_dir
     manifest_dir.mkdir(parents=True, exist_ok=True)
     summary_dir.mkdir(parents=True, exist_ok=True)
 
@@ -412,11 +483,32 @@ def main() -> None:
         spec = VARIANTS[variant_key]
         counts: Counter[str] = Counter()
         if args.generate_audio:
-            for row in source_rows:
-                src = Path(str(row["source_audio_path"]))
-                dst = output_audio_path(args.output_dir, variant_key, str(row["utterance_id"]))
-                status = generate_variant_audio(src, dst, spec, overwrite=args.overwrite, dry_run=args.dry_run_commands)
-                counts[status] += 1
+            generation_jobs = [
+                (
+                    Path(str(row["source_audio_path"])),
+                    output_audio_path(audio_output_dir, variant_key, str(row["utterance_id"])),
+                    spec,
+                    args.overwrite,
+                    args.dry_run_commands,
+                )
+                for row in source_rows
+            ]
+            if args.jobs <= 1:
+                iterator = map(generate_variant_audio_job, generation_jobs)
+            else:
+                executor = ThreadPoolExecutor(max_workers=args.jobs)
+                iterator = executor.map(generate_variant_audio_job, generation_jobs)
+            try:
+                for idx, status in enumerate(iterator, start=1):
+                    counts[status] += 1
+                    if idx % 1000 == 0:
+                        print(
+                            f"{variant_key}: processed {idx:,}/{len(source_rows):,} audio files",
+                            flush=True,
+                        )
+            finally:
+                if args.jobs > 1:
+                    executor.shutdown(wait=True)
             generation_counts[variant_key] = counts
             print(f"Generated {variant_key}: {dict(counts)}")
 
@@ -425,6 +517,7 @@ def main() -> None:
             args.output_dir,
             variant_key,
             generated_audio=args.generate_audio and not args.dry_run_commands,
+            audio_output_dir=audio_output_dir,
         )
         variant_manifest = manifest_dir / f"fairspeech_{variant_key}_manifest.csv"
         write_csv(variant_manifest, rows)
@@ -432,6 +525,8 @@ def main() -> None:
 
     summary = build_summary(source_rows, variant_keys)
     summary["generated_audio"] = args.generate_audio and not args.dry_run_commands
+    summary["manifest_output_dir"] = str(args.output_dir)
+    summary["audio_output_dir"] = str(audio_output_dir)
     summary["generation_counts"] = {k: dict(v) for k, v in generation_counts.items()}
     summary["variant_specs"] = {key: asdict(VARIANTS[key]) for key in variant_keys}
     summary_path = summary_dir / "fairspeech_compression_prepare_summary.json"
