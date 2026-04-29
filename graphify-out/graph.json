@@ -7730,198 +7730,198 @@
       "file_type": "rationale",
       "source_file": "scripts/inference/run_inference.py",
       "source_location": "L136",
-      "id": "inference_run_inference_rationale_136",
       "community": 6,
-      "norm_label": "convert a free-form condition label to a filename-safe suffix."
+      "norm_label": "convert a free-form condition label to a filename-safe suffix.",
+      "id": "inference_run_inference_rationale_136"
     },
     {
       "label": "Yield (batch_df, row_positions, batch_id) using fixed or planned batches.      B",
       "file_type": "rationale",
       "source_file": "scripts/inference/run_inference.py",
       "source_location": "L142",
-      "id": "inference_run_inference_rationale_142",
       "community": 6,
-      "norm_label": "yield (batch_df, row_positions, batch_id) using fixed or planned batches.      b"
+      "norm_label": "yield (batch_df, row_positions, batch_id) using fixed or planned batches.      b",
+      "id": "inference_run_inference_rationale_142"
     },
     {
       "label": "Lightweight fallback so registry/tools import without Whisper installed.",
       "file_type": "rationale",
       "source_file": "scripts/inference/run_inference.py",
       "source_location": "L194",
-      "id": "inference_run_inference_rationale_194",
       "community": 15,
-      "norm_label": "lightweight fallback so registry/tools import without whisper installed."
+      "norm_label": "lightweight fallback so registry/tools import without whisper installed.",
+      "id": "inference_run_inference_rationale_194"
     },
     {
       "label": "Normalize text for WER using Whisper's English normalizer.",
       "file_type": "rationale",
       "source_file": "scripts/inference/run_inference.py",
       "source_location": "L204",
-      "id": "inference_run_inference_rationale_204",
       "community": 6,
-      "norm_label": "normalize text for wer using whisper's english normalizer."
+      "norm_label": "normalize text for wer using whisper's english normalizer.",
+      "id": "inference_run_inference_rationale_204"
     },
     {
       "label": "Writes full result rows to the output CSV incrementally during inference.      T",
       "file_type": "rationale",
       "source_file": "scripts/inference/run_inference.py",
       "source_location": "L211",
-      "id": "inference_run_inference_rationale_211",
       "community": 6,
-      "norm_label": "writes full result rows to the output csv incrementally during inference.      t"
+      "norm_label": "writes full result rows to the output csv incrementally during inference.      t",
+      "id": "inference_run_inference_rationale_211"
     },
     {
       "label": "Convert a raw prediction dict to a full result row.",
       "file_type": "rationale",
       "source_file": "scripts/inference/run_inference.py",
       "source_location": "L229",
-      "id": "inference_run_inference_rationale_229",
       "community": 6,
-      "norm_label": "convert a raw prediction dict to a full result row."
+      "norm_label": "convert a raw prediction dict to a full result row.",
+      "id": "inference_run_inference_rationale_229"
     },
     {
       "label": "Write a batch of predictions to CSV. Called after each inference batch.",
       "file_type": "rationale",
       "source_file": "scripts/inference/run_inference.py",
       "source_location": "L266",
-      "id": "inference_run_inference_rationale_266",
       "community": 6,
-      "norm_label": "write a batch of predictions to csv. called after each inference batch."
+      "norm_label": "write a batch of predictions to csv. called after each inference batch.",
+      "id": "inference_run_inference_rationale_266"
     },
     {
       "label": "Load audio file, resample to target sr, return numpy array.",
       "file_type": "rationale",
       "source_file": "scripts/inference/run_inference.py",
       "source_location": "L278",
-      "id": "inference_run_inference_rationale_278",
       "community": 6,
-      "norm_label": "load audio file, resample to target sr, return numpy array."
+      "norm_label": "load audio file, resample to target sr, return numpy array.",
+      "id": "inference_run_inference_rationale_278"
     },
     {
       "label": "Load wav2vec2 model and processor.",
       "file_type": "rationale",
       "source_file": "scripts/inference/run_inference.py",
       "source_location": "L299",
-      "id": "inference_run_inference_rationale_299",
       "community": 6,
-      "norm_label": "load wav2vec2 model and processor."
+      "norm_label": "load wav2vec2 model and processor.",
+      "id": "inference_run_inference_rationale_299"
     },
     {
       "label": "CTC-based inference with wav2vec2.",
       "file_type": "rationale",
       "source_file": "scripts/inference/run_inference.py",
       "source_location": "L312",
-      "id": "inference_run_inference_rationale_312",
       "community": 6,
-      "norm_label": "ctc-based inference with wav2vec2."
+      "norm_label": "ctc-based inference with wav2vec2.",
+      "id": "inference_run_inference_rationale_312"
     },
     {
       "label": "CTC-based inference with wav2vec2 (legacy single-call interface).",
       "file_type": "rationale",
       "source_file": "scripts/inference/run_inference.py",
       "source_location": "L367",
-      "id": "inference_run_inference_rationale_367",
       "community": 6,
-      "norm_label": "ctc-based inference with wav2vec2 (legacy single-call interface)."
+      "norm_label": "ctc-based inference with wav2vec2 (legacy single-call interface).",
+      "id": "inference_run_inference_rationale_367"
     },
     {
       "label": "Load Whisper model and processor.",
       "file_type": "rationale",
       "source_file": "scripts/inference/run_inference.py",
       "source_location": "L374",
-      "id": "inference_run_inference_rationale_374",
       "community": 6,
-      "norm_label": "load whisper model and processor."
+      "norm_label": "load whisper model and processor.",
+      "id": "inference_run_inference_rationale_374"
     },
     {
       "label": "Encoder-decoder inference with Whisper.",
       "file_type": "rationale",
       "source_file": "scripts/inference/run_inference.py",
       "source_location": "L391",
-      "id": "inference_run_inference_rationale_391",
       "community": 6,
-      "norm_label": "encoder-decoder inference with whisper."
+      "norm_label": "encoder-decoder inference with whisper.",
+      "id": "inference_run_inference_rationale_391"
     },
     {
       "label": "Whisper inference (legacy single-call interface).",
       "file_type": "rationale",
       "source_file": "scripts/inference/run_inference.py",
       "source_location": "L458",
-      "id": "inference_run_inference_rationale_458",
       "community": 6,
-      "norm_label": "whisper inference (legacy single-call interface)."
+      "norm_label": "whisper inference (legacy single-call interface).",
+      "id": "inference_run_inference_rationale_458"
     },
     {
       "label": "Load Qwen3-ASR model.",
       "file_type": "rationale",
       "source_file": "scripts/inference/run_inference.py",
       "source_location": "L465",
-      "id": "inference_run_inference_rationale_465",
       "community": 6,
-      "norm_label": "load qwen3-asr model."
+      "norm_label": "load qwen3-asr model.",
+      "id": "inference_run_inference_rationale_465"
     },
     {
       "label": "LLM-based inference with Qwen3-ASR via qwen-asr package.",
       "file_type": "rationale",
       "source_file": "scripts/inference/run_inference.py",
       "source_location": "L483",
-      "id": "inference_run_inference_rationale_483",
       "community": 6,
-      "norm_label": "llm-based inference with qwen3-asr via qwen-asr package."
+      "norm_label": "llm-based inference with qwen3-asr via qwen-asr package.",
+      "id": "inference_run_inference_rationale_483"
     },
     {
       "label": "Qwen3-ASR inference (legacy single-call interface).",
       "file_type": "rationale",
       "source_file": "scripts/inference/run_inference.py",
       "source_location": "L522",
-      "id": "inference_run_inference_rationale_522",
       "community": 6,
-      "norm_label": "qwen3-asr inference (legacy single-call interface)."
+      "norm_label": "qwen3-asr inference (legacy single-call interface).",
+      "id": "inference_run_inference_rationale_522"
     },
     {
       "label": "Extract the actual transcription from Granite's potentially chatty output.",
       "file_type": "rationale",
       "source_file": "scripts/inference/run_inference.py",
       "source_location": "L527",
-      "id": "inference_run_inference_rationale_527",
       "community": 6,
-      "norm_label": "extract the actual transcription from granite's potentially chatty output."
+      "norm_label": "extract the actual transcription from granite's potentially chatty output.",
+      "id": "inference_run_inference_rationale_527"
     },
     {
       "label": "Load Granite-Speech model and processor.",
       "file_type": "rationale",
       "source_file": "scripts/inference/run_inference.py",
       "source_location": "L555",
-      "id": "inference_run_inference_rationale_555",
       "community": 6,
-      "norm_label": "load granite-speech model and processor."
+      "norm_label": "load granite-speech model and processor.",
+      "id": "inference_run_inference_rationale_555"
     },
     {
       "label": "LLM-based inference with Granite-Speech.",
       "file_type": "rationale",
       "source_file": "scripts/inference/run_inference.py",
       "source_location": "L581",
-      "id": "inference_run_inference_rationale_581",
       "community": 6,
-      "norm_label": "llm-based inference with granite-speech."
+      "norm_label": "llm-based inference with granite-speech.",
+      "id": "inference_run_inference_rationale_581"
     },
     {
       "label": "Granite inference (legacy single-call interface).",
       "file_type": "rationale",
       "source_file": "scripts/inference/run_inference.py",
       "source_location": "L660",
-      "id": "inference_run_inference_rationale_660",
       "community": 6,
-      "norm_label": "granite inference (legacy single-call interface)."
+      "norm_label": "granite inference (legacy single-call interface).",
+      "id": "inference_run_inference_rationale_660"
     },
     {
       "label": "SALM-based inference with Canary-Qwen-2.5B (FastConformer + Qwen3 LoRA).",
       "file_type": "rationale",
       "source_file": "scripts/inference/run_inference.py",
       "source_location": "L666",
-      "id": "inference_run_inference_rationale_666",
       "community": 6,
-      "norm_label": "salm-based inference with canary-qwen-2.5b (fastconformer + qwen3 lora)."
+      "norm_label": "salm-based inference with canary-qwen-2.5b (fastconformer + qwen3 lora).",
+      "id": "inference_run_inference_rationale_666"
     },
     {
       "label": "profile_batch_policy.py",

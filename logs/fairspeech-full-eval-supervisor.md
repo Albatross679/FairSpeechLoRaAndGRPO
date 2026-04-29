@@ -48,3 +48,11 @@ Execution follow-up on 2026-04-28 for the full nine-model run:
 - Added Whisper attention-mask passing for padded batched generation after the first full `whisper-small/baseline` attempt emitted a Transformers warning. That partial run was intentionally terminated, its partial CSV removed, and the matrix restarted from the six validated wav2vec2 outputs.
 - Wrote and launched the full nine-model, six-variant 54-run matrix in `tmux` session `fairspeech-full-eval`, with a postprocess watcher in `fairspeech-full-eval-post`.
 - Current full-run state at this note: `wav2vec2-large` and `whisper-small` completed and validated across all six variants; `whisper-medium/baseline` is running with the attention-mask fix. Final matrix validation, metrics, and plots are still pending completion of the remaining inference runs.
+
+Acceleration follow-up on 2026-04-28:
+
+- Generated additional `160s / max_samples=32` batch plans for the six FairSpeech compression variants. These plans keep the same total-duration guard while reducing each variant from 1,866 to 1,353 batches.
+- Backed up the original max-16 matrix to `datasets/fairspeech_compression/full_eval/full_eval_run_matrix.max16-backup-20260428T143232Z.json`.
+- Updated the active matrix so only `whisper-medium` and `whisper-large-v3` use the max-32 plans; `wav2vec2-large`, Qwen3-ASR, Canary-Qwen, and Granite remain on the proven max-16 plans.
+- Let `whisper-medium/bottleneck_12k` finish cleanly, then restarted `fairspeech-full-eval` and `fairspeech-full-eval-post` so the next run picked up the mixed matrix.
+- Verified that the restarted active run, `whisper-medium/bottleneck_8k`, is using `fairspeech_bottleneck_8k_total160s_max32_plan.jsonl`; early rows were writing cleanly with no duplicate utterance IDs, no blank hypotheses, and no missing WERs.

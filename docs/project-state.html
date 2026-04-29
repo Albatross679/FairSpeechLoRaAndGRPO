@@ -1,8 +1,9 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>Project State — Data Inventory and Plan</title>
 <style>
 /* =========================================================================
@@ -135,7 +136,7 @@
    RESET & BASE TYPOGRAPHY
    ========================================================================= */
 
-html { font-size: 62.5%; scroll-behavior: smooth; }
+html { font-size: 62.5%; }
 *, *::before, *::after { box-sizing: border-box; }
 
 body {
@@ -314,7 +315,7 @@ table.dense tbody td   { padding: 0.35em 0.6em; }
     radial-gradient(farthest-side at 100% 50%, rgba(58, 42, 48, 0.12), transparent) right center / 12px 100% no-repeat;
   background-attachment: local, local, scroll, scroll;
 }
-.table-wrap > table { margin-top: 0; margin-bottom: 0; }
+.table-wrap > table { margin: 0; }
 
 /* Chart-linked tables: JS toggles .row-highlight and .row-dim on mouseenter.
    See chart-wrap contract below for the bidirectional hover behavior. */
@@ -694,6 +695,7 @@ details.pb[open] { padding-bottom: 0.8em; }
   text-decoration: none;
   border-radius: var(--radius-sm);
   transition: background 0.15s;
+  overflow-wrap: anywhere;
 }
 .sidebar a:hover  { background: var(--pb-cream-200); color: var(--accent); }
 .sidebar a.active { background: var(--pb-cream-200); color: var(--accent); font-weight: 700; }
@@ -704,6 +706,7 @@ details.pb[open] { padding-bottom: 0.8em; }
   font-size: 0.88em;
   padding: 0.18em 0.6em;
   color: var(--fg-muted);
+  line-height: 1.25;
 }
 
 .main-content { flex: 1; max-width: var(--layout-content); padding: 13px 2em 2em 2.5em; }
@@ -722,6 +725,12 @@ nav#toc a {
   border-radius: var(--radius-sm);
 }
 nav#toc a:hover { background: var(--pb-cream-200); color: var(--accent); }
+nav#toc ul.nested { margin: 0.1em 0 0.5em 0.8em; }
+nav#toc ul.nested a {
+  font-size: 0.92em;
+  color: var(--fg-muted);
+  padding: 0.18em 0.55em;
+}
 
 /* =========================================================================
    FOOTER
@@ -902,7 +911,7 @@ dfn:hover .tip, dfn:focus .tip { visibility: visible; opacity: 1; }
                        looks up a registry, stamps data-pbtip + class.
 
    Both trigger ONE shared <div class="pb-tooltip"> + <div class="pb-tooltip-arrow">
-   that live as direct children of <body>. This is load-bearing: a ::after
+   that live as direct children of the document body. This is load-bearing: a ::after
    tooltip inside a .katex subtree inherits white-space:nowrap and
    letter-spacing tweaks from KaTeX's own rules, and wrapping breaks. Moving
    the tooltip to a body-level singleton escapes that inheritance entirely.
@@ -1670,60 +1679,294 @@ ol.refs .ref-note {
   align-items: center;
 }
 
+
+
+/* Full-evaluation dashboard additions, appended without replacing the original state file. */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1em;
+  margin: 1em 0;
+}
+.dashboard-grid.eval-overview {
+  grid-template-columns: 1fr;
+}
+.dashboard-grid.eval-overview .bar-row {
+  grid-template-columns: minmax(13em, 18em) minmax(12em, 1fr) auto;
+}
+.dashboard-grid table.dense,
+.metric-stack table.dense,
+details.pb table.dense {
+  font-size: calc(var(--text-small) * 0.88);
+}
+table.matrix {
+  width: 100%;
+  min-width: 760px;
+  table-layout: fixed;
+}
+table.matrix th,
+table.matrix td {
+  min-width: 7.2em;
+  text-align: center;
+}
+table.matrix th:first-child,
+table.matrix td:first-child {
+  width: 14em;
+  min-width: 13.5em;
+  text-align: left;
+}
+table.matrix thead th {
+  white-space: normal;
+  line-height: 1.2;
+}
+.status-cell {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.status-cell.done { background: var(--pb-callout-ok-bg); color: #1e6c3b; }
+.status-cell.run { background: var(--pb-callout-warn-bg); color: #8a5a00; }
+.status-cell.pending { background: var(--pb-cream-200); color: var(--fg-muted); }
+.heat-cell {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.heat-cell.light { color: #fff; }
+.delta-cell {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.delta-cell.light { color: #fff; }
+.metric-stack {
+  display: grid;
+  gap: 1em;
+  margin: 1em 0;
+}
+.metric-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45em 0.85em;
+  align-items: center;
+  margin: 0.7em 0 1em;
+  color: var(--fg-muted);
+  font-size: 0.84em;
+}
+.metric-legend span {
+  display: inline-flex;
+  gap: 0.35em;
+  align-items: center;
+}
+.metric-legend i {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  border: 1px solid var(--border-soft);
+  border-radius: 2px;
+}
+.metric-legend .scale-low { background: rgb(250,249,247); }
+.metric-legend .scale-high { background: rgb(124,48,67); }
+.metric-legend .delta-good { background: rgb(90,125,90); }
+.metric-legend .pending-box { background: var(--pb-cream-200); }
+.metric-matrix {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+.metric-matrix th,
+.metric-matrix td {
+  min-width: 0;
+  padding: 0.35em 0.45em;
+  white-space: normal;
+  vertical-align: middle;
+}
+.metric-matrix th:first-child,
+.metric-matrix td:first-child {
+  width: 10.5em;
+  text-align: left;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--bg-surface);
+  box-shadow: 1px 0 0 var(--border-soft);
+}
+.metric-matrix thead th:first-child { z-index: 3; }
+.metric-matrix .heat-cell,
+.metric-matrix .status-cell {
+  text-align: center;
+}
+.metric-matrix code {
+  font-size: 0.82em;
+  word-break: break-word;
+}
+.metric-detail-table td:nth-child(1),
+.metric-detail-table td:nth-child(2) {
+  white-space: nowrap;
+}
+.variant-ethnicity-matrix {
+  min-width: 940px;
+}
+.variant-ethnicity-matrix th,
+.variant-ethnicity-matrix td {
+  text-align: center;
+  white-space: nowrap;
+}
+.variant-ethnicity-matrix td:nth-child(1),
+.variant-ethnicity-matrix th:nth-child(1),
+.variant-ethnicity-matrix td:nth-child(2),
+.variant-ethnicity-matrix th:nth-child(2) {
+  text-align: left;
+}
+.variant-ethnicity-matrix .model-stub {
+  background: var(--bg);
+  border-right: 1px solid var(--border-soft);
+  vertical-align: top;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  box-shadow: 1px 0 0 var(--border-soft);
+}
+.variant-ethnicity-matrix .model-break td,
+.variant-ethnicity-matrix .model-break th {
+  border-top: 2px solid var(--accent-tint);
+}
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.mini-note {
+  color: var(--fg-muted);
+  font-size: 0.82em;
+  margin: -0.15em 0 0.25em 6.2em;
+}
+.runtime-matrix {
+  min-width: 820px;
+}
+.runtime-matrix th:first-child,
+.runtime-matrix td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--bg-surface);
+  box-shadow: 1px 0 0 var(--border-soft);
+}
+.runtime-matrix thead th:first-child { z-index: 3; }
+.runtime-cell {
+  min-width: 8.4em;
+}
+.runtime-bar {
+  position: relative;
+  height: 1.7em;
+  min-width: 6.6em;
+  background: var(--pb-cream-200);
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.runtime-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, var(--accent-tint), rgba(124, 48, 67, 0.42));
+}
+.runtime-value {
+  position: relative;
+  z-index: 1;
+  display: block;
+  padding: 0.1em 0.35em;
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+  line-height: 1.65;
+  text-align: right;
+  color: var(--fg-strong);
+}
+.runtime-missing {
+  display: block;
+  min-width: 6.6em;
+  padding: 0.2em 0.35em;
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  background: var(--pb-cream-200);
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+  text-align: center;
+}
+.source-list td:nth-child(2) { word-break: break-word; }
+.state-row[id],
+h2[id],
+h3[id],
+h4[id] { scroll-margin-top: 1em; }
+nav#toc a { overflow-wrap: anywhere; }
+
+@media (max-width: 684px) {
+  .metric-grid { grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); }
+  .metric { padding: 0.75em 0.85em; }
+  .state-row { padding: 0.7em 0.8em; }
+  .dashboard-grid.eval-overview .bar-row,
+  .bar-row {
+    grid-template-columns: minmax(8.5em, 1fr) 1.2fr auto;
+    gap: 0.5em;
+  }
+  .bar-label { overflow-wrap: anywhere; }
+  pre.code-block { padding: 1em; }
+  td code { overflow-wrap: anywhere; word-break: break-word; }
+  .metric-matrix { min-width: 620px; table-layout: auto; }
+  .metric-matrix th:first-child,
+  .metric-matrix td:first-child { min-width: 9.2em; }
+}
+
 </style>
 </head>
 <body>
 <div class="page-wrapper">
-
 <aside class="sidebar" id="sidebar-toc">
-  <strong>Project State</strong>
-  <ul>
-    <li><a href="#snapshot">Snapshot</a></li>
-    <li><a href="#chapter-data">1. Data already available</a></li>
-    <li><a href="#chapter-plan">2. FairSpeech compression plan</a></li>
-    <li><a href="#caveats">Caveats</a></li>
-  </ul>
+<strong>Project State</strong>
+<ul>
+<li><a href="#snapshot">Snapshot</a></li>
+<li><a href="#chapter-data">1. Data already available</a></li>
+<li><a href="#chapter-plan">2. FairSpeech compression plan</a></li>
+<li><a href="#chapter-full-eval">3. Evaluation Design</a></li>
+<li><a href="#outputs-postprocessing">4. Outputs and Postprocessing</a></li>
+<li><a href="#references">References</a></li>
+</ul>
 </aside>
-
 <main class="main-content">
-  <div class="state-kicker">FairSpeechLoRaAndGRPO · personal state file</div>
-  <h1>Project State — Data Inventory and Plan</h1>
-  <p class="subtitle">Concise map of what data/results are already processed locally, plus the next compression/fairness experiment plan. Updated 2026-04-27.</p>
-  <hr>
-
-  <nav id="toc" aria-label="Contents (mobile)">
-    <strong>Contents</strong>
-    <ul>
-      <li><a href="#snapshot">Snapshot</a></li>
-      <li><a href="#chapter-data">1. Data already available</a></li>
-      <li><a href="#chapter-plan">2. FairSpeech compression plan</a></li>
-      <li><a href="#caveats">Caveats</a></li>
-    </ul>
-  </nav>
-
-  <section data-section="snapshot">
-    <h2 id="snapshot">Snapshot</h2>
-    <div class="metric-grid">
-      <div class="metric"><div class="label">Common Voice clips</div><div class="value">16,398 <span class="unit">local MP3s</span></div></div>
-      <div class="metric"><div class="label">CV inference files</div><div class="value">117 <span class="unit">9 models × 13 conditions</span></div></div>
-      <div class="metric"><div class="label">CV metadata files</div><div class="value">117</div></div>
-      <div class="metric"><div class="label">LibriSpeech clean rows</div><div class="value">2,620 <span class="unit">per complete model CSV</span></div></div>
-      <div class="metric"><div class="label">Perturbation tables</div><div class="value">9 <span class="unit">accent / gender / age</span></div></div>
-      <div class="metric"><div class="label">FairSpeech audio</div><div class="value">26,471 <span class="unit">local WAVs · 6.013 GiB</span></div></div>
-      <div class="metric"><div class="label">FairSpeech pilot gate</div><div class="value">Complete <span class="unit">6 wav2vec2 CSVs · 168 rows</span></div></div>
+<div class="state-kicker">FairSpeechLoRaAndGRPO · personal state file</div>
+<h1>Project State — Data Inventory and Plan</h1>
+<p class="subtitle">Concise map of what data/results are already processed locally, plus the next compression/fairness experiment plan. Updated 2026-04-29 with full-evaluation runtime state.</p>
+<hr/>
+<nav aria-label="Contents (mobile)" id="toc">
+<strong>Contents</strong>
+<ul>
+<li><a href="#snapshot">Snapshot</a></li>
+<li><a href="#chapter-data">1. Data already available</a></li>
+<li><a href="#chapter-plan">2. FairSpeech compression plan</a></li>
+<li><a href="#chapter-full-eval">3. Evaluation Design</a></li>
+<li><a href="#outputs-postprocessing">4. Outputs and Postprocessing</a></li>
+<li><a href="#references">References</a></li>
+</ul>
+</nav>
+<section data-section="snapshot">
+<h2 id="snapshot">Snapshot</h2>
+<div class="metric-grid">
+<div class="metric"><div class="label">Common Voice clips</div><div class="value">16,398 <span class="unit">local MP3s</span></div></div>
+<div class="metric"><div class="label">CV inference files</div><div class="value">117 <span class="unit">9 models × 13 conditions</span></div></div>
+<div class="metric"><div class="label">CV metadata files</div><div class="value">117</div></div>
+<div class="metric"><div class="label">LibriSpeech clean rows</div><div class="value">2,620 <span class="unit">per complete model CSV</span></div></div>
+<div class="metric"><div class="label">Perturbation tables</div><div class="value">9 <span class="unit">accent / gender / age</span></div></div>
+<div class="metric"><div class="label">FairSpeech audio</div><div class="value">26,471 <span class="unit">local WAVs · 6.013 GiB</span></div></div>
+</div>
+<div class="callout success">
+<strong>Usable now:</strong> Common Voice clean + perturbation fairness analysis is already processed enough for accent/gender/age discussion.
     </div>
-
-    <div class="callout success">
-      <strong>Usable now:</strong> Common Voice clean + perturbation fairness analysis is already processed enough for accent/gender/age discussion.
-    </div>
-  </section>
-
-  <section data-section="chapter-data">
-    <h2 id="chapter-data">1. Data already available</h2>
-    <p class="chapter-rule">Chapter 1 · current local processed data</p>
-
-    <h3>1.0 Dataset directory structure</h3>
-    <pre class="code-block"><code>datasets/
+</section>
+<section data-section="chapter-data">
+<h2 id="chapter-data">1. Data already available</h2>
+<p class="chapter-rule">Chapter 1 · current local processed data</p>
+<h3>1.0 Dataset directory structure</h3>
+<pre class="code-block"><code>datasets/
 ├── common_voice_24_clips/                 # 16,398 local Common Voice MP3 clips
 ├── common_voice_24_clips.zip              # archive copy of the local CV clips
 ├── meta_speech_fairness/
@@ -1741,491 +1984,552 @@ ol.refs .ref-note {
     ├── librispeech/                       # clean LibriSpeech prediction CSVs
     ├── tables/                            # CV perturbation summary CSV tables
     └── figures/                           # CV/FairSpeech figure artifacts + source CSVs</code></pre>
-
-    <h3>1.1 Common Voice — complete local working set</h3>
-    <div class="state-summary">
-      <div class="state-row">
-        <strong>Raw audio and manifest are local.</strong>
-        <ul class="compact-list path-list">
-          <li><code>datasets/common_voice_24_clips/</code> — 16,398 MP3 clips.</li>
-          <li><code>datasets/common_voice_24_clips.zip</code> — archive copy.</li>
-          <li><code>datasets/data/cv_test_manifest.csv</code> — 16,398 rows with text, audio path, gender, accent, age, and client ID.</li>
-        </ul>
-      </div>
-      <div class="state-row">
-        <strong>Clean and perturbed inference results are present.</strong>
-        <ul class="compact-list">
-          <li>9 models.</li>
-          <li>13 conditions per model: clean, 3 noise levels, 3 reverb levels, 3 silence levels, 3 masking levels.</li>
-          <li>Every Common Voice prediction CSV has 16,398 rows.</li>
-        </ul>
-      </div>
-      <div class="state-row">
-        <strong>Fairness axes available in CV.</strong>
-        <table>
-          <thead><tr><th>Axis</th><th>Usable groups</th><th class="num">Main counts</th></tr></thead>
-          <tbody>
-            <tr><td>Accent</td><td>US, Indian, England, Canada, Australia, African</td><td class="num">1,193 · 511 · 381 · 99 · 98 · 51</td></tr>
-            <tr><td>Gender</td><td>male, female</td><td class="num">1,753 · 534</td></tr>
-            <tr><td>Age</td><td>twenties, thirties, teens, forties, fifties</td><td class="num">1,305 · 463 · 366 · 244 · 129</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <h3>1.2 Audio encoding audit — compression variables</h3>
-    <div class="state-row">
-      <strong>Common Voice and FairSpeech audio are local and probed here; LibriSpeech audio is still external.</strong>
-      <p>
+<h3>1.1 Common Voice — complete local working set</h3>
+<div class="state-summary">
+<div class="state-row">
+<strong>Raw audio and manifest are local.</strong>
+<ul class="compact-list path-list">
+<li><code>datasets/common_voice_24_clips/</code> — 16,398 MP3 clips.</li>
+<li><code>datasets/common_voice_24_clips.zip</code> — archive copy.</li>
+<li><code>datasets/data/cv_test_manifest.csv</code> — 16,398 rows with text, audio path, gender, accent, age, and client ID.</li>
+</ul>
+</div>
+<div class="state-row">
+<strong>Clean and perturbed inference results are present.</strong>
+<ul class="compact-list">
+<li>9 models.</li>
+<li>13 conditions per model: clean, 3 noise levels, 3 reverb levels, 3 silence levels, 3 masking levels.</li>
+<li>Every Common Voice prediction CSV has 16,398 rows.</li>
+</ul>
+</div>
+<div class="state-row">
+<strong>Fairness axes available in CV.</strong>
+<table>
+<thead><tr><th>Axis</th><th>Usable groups</th><th class="num">Main counts</th></tr></thead>
+<tbody>
+<tr><td>Accent</td><td>US, Indian, England, Canada, Australia, African</td><td class="num">1,193 · 511 · 381 · 99 · 98 · 51</td></tr>
+<tr><td>Gender</td><td>male, female</td><td class="num">1,753 · 534</td></tr>
+<tr><td>Age</td><td>twenties, thirties, teens, forties, fifties</td><td class="num">1,305 · 463 · 366 · 244 · 129</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+<h3>1.2 Audio encoding audit — compression variables</h3>
+<div class="state-row">
+<strong>Common Voice and FairSpeech audio are local and probed here; LibriSpeech audio is still external.</strong>
+<p>
         These are <em>input-file</em> properties: codec, bitrate, sample rate, channels, and duration.
         They are different from the paper's model-level <strong>audio compression</strong> claim, which means
         the ASR architecture's internal acoustic bottleneck after the audio file has been decoded.
       </p>
-      <table>
-        <thead>
-          <tr>
-            <th>Dataset / bundle</th>
-            <th>Local status</th>
-            <th>Container / codec</th>
-            <th>Channels</th>
-            <th>Original sample rate</th>
-            <th>Bitrate</th>
-            <th>Duration notes</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr class="highlight">
-            <td><strong>Common Voice 24 shared test bundle</strong></td>
-            <td>16,398 local clips; exact 1:1 match to <code>datasets/data/cv_test_manifest.csv</code></td>
-            <td>MPEG Layer III (MP3)</td>
-            <td>Mono for all clips</td>
-            <td>48,000&nbsp;Hz: 8,940 (54.5%); 32,000&nbsp;Hz: 7,403 (45.1%); 44,100&nbsp;Hz: 55 (0.3%)</td>
-            <td>64&nbsp;kbps: 8,995 (54.9%); 48&nbsp;kbps: 7,403 (45.1%)</td>
-            <td>Mean 5.97&nbsp;s; median 5.78&nbsp;s; range 0.58&ndash;105.67&nbsp;s</td>
-          </tr>
-          <tr>
-            <td><strong>FairSpeech</strong></td>
-            <td>Downloaded from B2 and extracted; local archive deleted. Current local data: 6.013&nbsp;GiB WAV + 3.79&nbsp;MiB TSV</td>
-            <td>WAV / PCM</td>
-            <td>Mono for all clips</td>
-            <td>16,000&nbsp;Hz for all clips</td>
-            <td>Uncompressed 16-bit PCM: effective 256&nbsp;kbps; no lossy target bitrate</td>
-            <td>26,471 clips; 55.55&nbsp;hrs total; mean 7.55&nbsp;s, median 6.20&nbsp;s, range 1.36&ndash;65.62&nbsp;s</td>
-          </tr>
-          <tr>
-            <td><strong>LibriSpeech test-clean</strong></td>
-            <td>Manifest and clean predictions are local; raw audio paths are external OSC paths</td>
-            <td>FLAC (lossless source format)</td>
-            <td>Mono in source corpus</td>
-            <td>16,000&nbsp;Hz in source corpus</td>
-            <td>Lossless variable compression; no lossy target bitrate</td>
-            <td>2,620 utterances; ~5.4&nbsp;hrs</td>
-          </tr>
-        </tbody>
-      </table>
-      <table>
-        <thead><tr><th>Term</th><th>Meaning</th><th>How to use it in our analysis</th></tr></thead>
-        <tbody>
-          <tr><td><strong>Codec</strong></td><td>Storage algorithm/container, e.g. WAV/PCM, FLAC, MP3, Opus.</td><td>Controlled input-compression tests change this while holding utterance and ASR model fixed.</td></tr>
-          <tr><td><strong>Bitrate</strong></td><td>Bits per second in the encoded audio stream, usually kbps.</td><td>For lossy codecs, lower bitrate usually removes more acoustic detail.</td></tr>
-          <tr><td><strong>Sample rate</strong></td><td>Waveform samples per second, e.g. 16&nbsp;kHz, 32&nbsp;kHz, 48&nbsp;kHz.</td><td>Not the same as bitrate; only uncompressed PCM bitrate is sample rate &times; bit depth &times; channels.</td></tr>
-          <tr><td><strong>Resampling</strong></td><td>Converting decoded audio to another sample rate, usually 16&nbsp;kHz mono for ASR.</td><td>Treat separately from codec/bitrate because downsampling can remove frequency cues.</td></tr>
-          <tr><td><strong>Model-internal compression</strong></td><td>Architectural acoustic bottleneck before decoding: low/direct Qwen3-ASR, medium FastConformer, high Q-former.</td><td>This is the paper's compression result; it is not swappable per inference run like an input codec.</td></tr>
-        </tbody>
-      </table>
-      <p>
+<table>
+<thead>
+<tr>
+<th>Dataset / bundle</th>
+<th>Local status</th>
+<th>Container / codec</th>
+<th>Channels</th>
+<th>Original sample rate</th>
+<th>Bitrate</th>
+<th>Duration notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="highlight">
+<td><strong>Common Voice 24 shared test bundle</strong></td>
+<td>16,398 local clips; exact 1:1 match to <code>datasets/data/cv_test_manifest.csv</code></td>
+<td>MPEG Layer III (MP3)</td>
+<td>Mono for all clips</td>
+<td>48,000 Hz: 8,940 (54.5%); 32,000 Hz: 7,403 (45.1%); 44,100 Hz: 55 (0.3%)</td>
+<td>64 kbps: 8,995 (54.9%); 48 kbps: 7,403 (45.1%)</td>
+<td>Mean 5.97 s; median 5.78 s; range 0.58–105.67 s</td>
+</tr>
+<tr>
+<td><strong>FairSpeech</strong></td>
+<td>Downloaded from B2 and extracted; local archive deleted. Current local data: 6.013 GiB WAV + 3.79 MiB TSV</td>
+<td>WAV / PCM</td>
+<td>Mono for all clips</td>
+<td>16,000 Hz for all clips</td>
+<td>Uncompressed 16-bit PCM: effective 256 kbps; no lossy target bitrate</td>
+<td>26,471 clips; 55.55 hrs total; mean 7.55 s, median 6.20 s, range 1.36–65.62 s</td>
+</tr>
+<tr>
+<td><strong>LibriSpeech test-clean</strong></td>
+<td>Manifest and clean predictions are local; raw audio paths are external OSC paths</td>
+<td>FLAC (lossless source format)</td>
+<td>Mono in source corpus</td>
+<td>16,000 Hz in source corpus</td>
+<td>Lossless variable compression; no lossy target bitrate</td>
+<td>2,620 utterances; ~5.4 hrs</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Term</th><th>Meaning</th><th>How to use it in our analysis</th></tr></thead>
+<tbody>
+<tr><td><strong>Codec</strong></td><td>Storage algorithm/container, e.g. WAV/PCM, FLAC, MP3, Opus.</td><td>Controlled input-compression tests change this while holding utterance and ASR model fixed.</td></tr>
+<tr><td><strong>Bitrate</strong></td><td>Bits per second in the encoded audio stream, usually kbps.</td><td>For lossy codecs, lower bitrate usually removes more acoustic detail.</td></tr>
+<tr><td><strong>Sample rate</strong></td><td>Waveform samples per second, e.g. 16 kHz, 32 kHz, 48 kHz.</td><td>Not the same as bitrate; only uncompressed PCM bitrate is sample rate × bit depth × channels.</td></tr>
+<tr><td><strong>Resampling</strong></td><td>Converting decoded audio to another sample rate, usually 16 kHz mono for ASR.</td><td>Treat separately from codec/bitrate because downsampling can remove frequency cues.</td></tr>
+<tr><td><strong>Model-internal compression</strong></td><td>Architectural acoustic bottleneck before decoding: low/direct Qwen3-ASR, medium FastConformer, high Q-former.</td><td>This is the paper's compression result; it is not swappable per inference run like an input codec.</td></tr>
+</tbody>
+</table>
+<p>
         Implication for the next experiment: Common Voice can support robustness stress tests, but it is
         already MP3, so re-encoding creates second-generation lossy artifacts. FairSpeech WAV is the cleaner
         starting point for a controlled codec/bitrate study now that the raw audio is available.
       </p>
-    </div>
-
-    <h3>1.3 FairSpeech local data structure</h3>
-    <div class="state-row">
-      <strong>FairSpeech is now complete at the raw-audio + metadata level.</strong>
-      <table>
-        <thead><tr><th>Item</th><th>Local path</th><th>Shape / size</th><th>Status</th></tr></thead>
-        <tbody>
-          <tr>
-            <td>Metadata TSV</td>
-            <td><code>datasets/meta_speech_fairness/downloaded_file.tsv</code></td>
-            <td>26,471 rows × 7 columns; 3.79&nbsp;MiB</td>
-            <td><span class="badge pass">present</span></td>
-          </tr>
-          <tr>
-            <td>Audio directory</td>
-            <td><code>datasets/meta_speech_fairness/asr_fairness_audio/</code></td>
-            <td>26,471 <code>.wav</code> files; 6.013&nbsp;GiB apparent WAV bytes</td>
-            <td><span class="badge pass">present</span></td>
-          </tr>
-          <tr>
-            <td>ID join key</td>
-            <td><code>hash_name</code> ↔ <code>asr_fairness_audio/{hash_name}.wav</code></td>
-            <td>26,471 / 26,471 metadata rows have a matching WAV; 0 orphan WAVs</td>
-            <td><span class="badge pass">1:1 match</span></td>
-          </tr>
-          <tr>
-            <td>Zip archive</td>
-            <td><code>datasets/meta_speech_fairness/*.zip</code></td>
-            <td>Deleted locally after extraction; remote B2 copy remains</td>
-            <td><span class="badge warn">not local</span></td>
-          </tr>
-        </tbody>
-      </table>
-
-      <h4>Duration histogram</h4>
-      <p class="note">FairSpeech duration range is 1.36–65.62 s; mean 7.55 s, median 6.20 s, p95 15.32 s, and p99 32.36 s. This long tail is why inference needs batch-size profiling instead of one hard-coded global batch size.</p>
-      <div aria-label="FairSpeech duration histogram">
-        <div class="bar-row"><span class="bar-label">0–3s</span><div class="bar-track"><div class="bar" style="width:8.5%"></div></div><span class="bar-value">753 · 2.8%</span></div>
-        <div class="bar-row"><span class="bar-label">3–5s</span><div class="bar-track"><div class="bar" style="width:76.1%"></div></div><span class="bar-value">6,762 · 25.5%</span></div>
-        <div class="bar-row"><span class="bar-label">5–7s</span><div class="bar-track"><div class="bar" style="width:100%"></div></div><span class="bar-value">8,882 · 33.6%</span></div>
-        <div class="bar-row"><span class="bar-label">7–10s</span><div class="bar-track"><div class="bar" style="width:68.1%"></div></div><span class="bar-value">6,050 · 22.9%</span></div>
-        <div class="bar-row"><span class="bar-label">10–15s</span><div class="bar-track"><div class="bar" style="width:29.6%"></div></div><span class="bar-value">2,629 · 9.9%</span></div>
-        <div class="bar-row"><span class="bar-label">15–20s</span><div class="bar-track"><div class="bar" style="width:7.5%"></div></div><span class="bar-value">667 · 2.5%</span></div>
-        <div class="bar-row"><span class="bar-label">20–30s</span><div class="bar-track"><div class="bar" style="width:4.7%"></div></div><span class="bar-value">415 · 1.6%</span></div>
-        <div class="bar-row"><span class="bar-label">30–45s</span><div class="bar-track"><div class="bar" style="width:1.8%"></div></div><span class="bar-value">159 · 0.6%</span></div>
-        <div class="bar-row"><span class="bar-label">45–66s</span><div class="bar-track"><div class="bar alt" style="width:1.7%"></div></div><span class="bar-value">154 · 0.6%</span></div>
-      </div>
-
-      <h4>Metadata schema</h4>
-      <table>
-        <thead><tr><th>Column</th><th>Meaning</th><th>Notes for pipeline use</th></tr></thead>
-        <tbody>
-          <tr><td><code>hash_name</code></td><td>Unique utterance/audio ID</td><td>Use as <code>utterance_id</code>; append <code>.wav</code> for audio filename.</td></tr>
-          <tr><td><code>transcription</code></td><td>Reference transcript</td><td>23,046 unique prompted sentences across 26,471 utterances.</td></tr>
-          <tr><td><code>age</code></td><td>Self-reported age bracket</td><td>4 complete groups; no blanks.</td></tr>
-          <tr><td><code>gender</code></td><td>Self-reported binary gender label</td><td>2 complete groups; no blanks.</td></tr>
-          <tr><td><code>first_language</code></td><td>Self-reported L1</td><td>30 complete groups; long tail after English and Spanish.</td></tr>
-          <tr><td><code>socioeconomic_bkgd</code></td><td>Self-reported socioeconomic background</td><td>3 complete groups; no blanks.</td></tr>
-          <tr><td><code>ethnicity</code></td><td>Self-reported ethnicity</td><td>7 complete groups; primary FairSpeech fairness axis.</td></tr>
-        </tbody>
-      </table>
-
-      <h4>Demographic coverage</h4>
-      <table>
-        <thead><tr><th>Axis</th><th>Groups and counts</th></tr></thead>
-        <tbody>
-          <tr><td><strong>Ethnicity</strong></td><td>Black or African American 7,807; White 5,646; Native American / American Indian / Alaska Native 4,632; Asian / South Asian / Asian American 3,854; Hispanic / Latino / Spanish 2,814; Native Hawaiian / Other Pacific Islander 969; Middle Eastern / North African 749.</td></tr>
-          <tr><td><strong>Gender</strong></td><td>female 14,422; male 12,049.</td></tr>
-          <tr><td><strong>Age</strong></td><td>31–45: 12,770; 46–65: 5,687; 23–30: 4,168; 18–22: 3,846.</td></tr>
-          <tr><td><strong>First language</strong></td><td>30 groups. Largest: English 21,528; Spanish 1,862; Mandarin 422; Hindi 233; Cantonese 191; Tagalog 190; French 174; Portuguese 172.</td></tr>
-          <tr><td><strong>Socioeconomic background</strong></td><td>Low 14,780; Medium 9,824; Affluent 1,867.</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <h3>1.4 Common Voice results already computed</h3>
-    <div class="state-row">
-      <strong>Artifact means a pipeline output we can inspect or reuse directly.</strong>
-      <ul class="compact-list">
-        <li><strong>Prediction CSVs</strong> — one row per utterance: reference text, model transcript, WER, demographics, model name, and architecture label.</li>
-        <li><strong>Metadata JSONs</strong> — run-level information: model ID, total utterances, overall WER, device, batch size, elapsed time, and timestamp.</li>
-        <li><strong>Analysis outputs</strong> — computed summaries from predictions: group WERs, max/min fairness ratios, relative gaps, error decomposition, and plot/table files.</li>
-      </ul>
-      <h4>CSV row previews</h4>
-      <strong>Prediction CSV: <code>datasets/results/commonvoice/predictions_qwen3_asr_1.7b.csv</code></strong>
-      <table class="dense">
-        <thead><tr><th>utterance_id</th><th>reference</th><th>hypothesis</th><th class="num">wer</th><th>accent</th><th>age</th></tr></thead>
-        <tbody>
-          <tr><td>common_voice_en_39588614</td><td>the cadets attack the office and the rebellion is ended</td><td>the cadets attack the office and the rebellion is ended</td><td class="num">0.0000</td><td>us</td><td></td></tr>
-          <tr><td>common_voice_en_18188256</td><td>we are going to the football game tonight</td><td>we are going to the football game tonight</td><td class="num">0.0000</td><td>us</td><td>fifties</td></tr>
-          <tr><td>common_voice_en_39948126</td><td>manager dave ross brought in kris taylor...</td><td>manager dave ross brought in chris taylor...</td><td class="num">0.0833</td><td>us</td><td></td></tr>
-        </tbody>
-      </table>
-
-      <strong>Perturbation summary CSV: <code>datasets/results/tables/table_wer_by_perturbation_and_accent_cv.csv</code></strong>
-      <table class="dense">
-        <thead><tr><th>model</th><th>perturbation</th><th class="num">overall_wer</th><th class="num">mmr</th><th class="num">wer_indian</th><th class="num">wer_us</th></tr></thead>
-        <tbody>
-          <tr><td>wav2vec2-large</td><td>clean</td><td class="num">0.228223</td><td class="num">2.142129</td><td class="num">0.253201</td><td class="num">0.165369</td></tr>
-          <tr><td>wav2vec2-large</td><td>snr_20db</td><td class="num">0.268155</td><td class="num">2.107338</td><td class="num">0.317423</td><td class="num">0.188814</td></tr>
-          <tr><td>wav2vec2-large</td><td>snr_10db</td><td class="num">0.348407</td><td class="num">2.040623</td><td class="num">0.417540</td><td class="num">0.249602</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <table>
-      <thead><tr><th>Artifact</th><th>What it contains</th><th>Status</th></tr></thead>
-      <tbody>
-        <tr><td><code>datasets/results/commonvoice/</code></td><td>Raw model outputs for CV: prediction CSVs and run metadata JSONs for all clean and perturbed runs.</td><td><span class="badge pass">present</span></td></tr>
-        <tr><td><code>datasets/results/commonvoice/analysis/</code></td><td>Clean-audio fairness analysis: summaries, WER-by-group plots, LaTeX tables, and error decomposition.</td><td><span class="badge pass">present</span></td></tr>
-        <tr><td><code>datasets/results/tables/</code></td><td>Machine-readable perturbation summaries: WER, insertion rate, and fairness-gap amplification by demographic axis.</td><td><span class="badge pass">present</span></td></tr>
-        <tr><td><code>datasets/results/figures/</code></td><td>Human-readable figures plus source CSVs for paper-style CV fairness and perturbation plots.</td><td><span class="badge pass">present</span></td></tr>
-      </tbody>
-    </table>
-
-    <h3>1.5 Models already run on Common Voice</h3>
-    <div class="state-row">
-      <strong>The “13 conditions” are the same for every model.</strong>
-      <table>
-        <thead><tr><th>Condition group</th><th>Specific runs</th><th class="num">Count</th></tr></thead>
-        <tbody>
-          <tr><td>Original audio</td><td>clean</td><td class="num">1</td></tr>
-          <tr><td>Additive noise</td><td>SNR 20 dB, SNR 10 dB, SNR 0 dB</td><td class="num">3</td></tr>
-          <tr><td>Reverberation</td><td>0.3 s, 0.6 s, 1.0 s</td><td class="num">3</td></tr>
-          <tr><td>Silence injection</td><td>25%, 50%, 75%</td><td class="num">3</td></tr>
-          <tr><td>Chunk masking</td><td>10%, 20%, 30%</td><td class="num">3</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <table>
-      <thead><tr><th>Generation</th><th>Models</th><th class="num">Conditions each</th></tr></thead>
-      <tbody>
-        <tr><td>Gen 1</td><td>wav2vec2-large</td><td class="num">13</td></tr>
-        <tr><td>Gen 2</td><td>whisper-small, whisper-medium, whisper-large-v3</td><td class="num">13</td></tr>
-        <tr><td>Gen 3</td><td>qwen3-asr-0.6b, qwen3-asr-1.7b, canary-qwen-2.5b, granite-speech-3.3-2b, granite-speech-3.3-8b</td><td class="num">13</td></tr>
-      </tbody>
-    </table>
-
-    <h3>1.6 LibriSpeech — clean baseline only</h3>
-    <div class="state-row">
-      <ul class="compact-list path-list">
-        <li><code>datasets/data/ls_manifest.csv</code> — 2,620 rows, no demographic columns.</li>
-        <li><code>datasets/results/librispeech/</code> — clean prediction CSVs for 9 models.</li>
-        <li>Local LibriSpeech audio paths are external OSC paths, so raw audio is not available locally.</li>
-      </ul>
-    </div>
-
-    <h3>1.7 FairSpeech — audio local, result tables still incomplete</h3>
-    <div class="callout warning">
-      <strong>Current local state:</strong> FairSpeech raw audio and metadata are now present under
+</div>
+<h3>1.3 FairSpeech local data structure</h3>
+<div class="state-row">
+<strong>FairSpeech is now complete at the raw-audio + metadata level.</strong>
+<table>
+<thead><tr><th>Item</th><th>Local path</th><th>Shape / size</th><th>Status</th></tr></thead>
+<tbody>
+<tr>
+<td>Metadata TSV</td>
+<td><code>datasets/meta_speech_fairness/downloaded_file.tsv</code></td>
+<td>26,471 rows × 7 columns; 3.79 MiB</td>
+<td><span class="badge pass">present</span></td>
+</tr>
+<tr>
+<td>Audio directory</td>
+<td><code>datasets/meta_speech_fairness/asr_fairness_audio/</code></td>
+<td>26,471 <code>.wav</code> files; 6.013 GiB apparent WAV bytes</td>
+<td><span class="badge pass">present</span></td>
+</tr>
+<tr>
+<td>ID join key</td>
+<td><code>hash_name</code> ↔ <code>asr_fairness_audio/{hash_name}.wav</code></td>
+<td>26,471 / 26,471 metadata rows have a matching WAV; 0 orphan WAVs</td>
+<td><span class="badge pass">1:1 match</span></td>
+</tr>
+<tr>
+<td>Zip archive</td>
+<td><code>datasets/meta_speech_fairness/*.zip</code></td>
+<td>Deleted locally after extraction; remote B2 copy remains</td>
+<td><span class="badge warn">not local</span></td>
+</tr>
+</tbody>
+</table>
+<h4>Duration histogram</h4>
+<p class="note">FairSpeech duration range is 1.36–65.62 s; mean 7.55 s, median 6.20 s, p95 15.32 s, and p99 32.36 s. This long tail is why inference needs batch-size profiling instead of one hard-coded global batch size.</p>
+<div aria-label="FairSpeech duration histogram">
+<div class="bar-row"><span class="bar-label">0–3s</span><div class="bar-track"><div class="bar" style="width:8.5%"></div></div><span class="bar-value">753 · 2.8%</span></div>
+<div class="bar-row"><span class="bar-label">3–5s</span><div class="bar-track"><div class="bar" style="width:76.1%"></div></div><span class="bar-value">6,762 · 25.5%</span></div>
+<div class="bar-row"><span class="bar-label">5–7s</span><div class="bar-track"><div class="bar" style="width:100%"></div></div><span class="bar-value">8,882 · 33.6%</span></div>
+<div class="bar-row"><span class="bar-label">7–10s</span><div class="bar-track"><div class="bar" style="width:68.1%"></div></div><span class="bar-value">6,050 · 22.9%</span></div>
+<div class="bar-row"><span class="bar-label">10–15s</span><div class="bar-track"><div class="bar" style="width:29.6%"></div></div><span class="bar-value">2,629 · 9.9%</span></div>
+<div class="bar-row"><span class="bar-label">15–20s</span><div class="bar-track"><div class="bar" style="width:7.5%"></div></div><span class="bar-value">667 · 2.5%</span></div>
+<div class="bar-row"><span class="bar-label">20–30s</span><div class="bar-track"><div class="bar" style="width:4.7%"></div></div><span class="bar-value">415 · 1.6%</span></div>
+<div class="bar-row"><span class="bar-label">30–45s</span><div class="bar-track"><div class="bar" style="width:1.8%"></div></div><span class="bar-value">159 · 0.6%</span></div>
+<div class="bar-row"><span class="bar-label">45–66s</span><div class="bar-track"><div class="bar alt" style="width:1.7%"></div></div><span class="bar-value">154 · 0.6%</span></div>
+</div>
+<h4>Metadata schema</h4>
+<table>
+<thead><tr><th>Column</th><th>Meaning</th><th>Notes for pipeline use</th></tr></thead>
+<tbody>
+<tr><td><code>hash_name</code></td><td>Unique utterance/audio ID</td><td>Use as <code>utterance_id</code>; append <code>.wav</code> for audio filename.</td></tr>
+<tr><td><code>transcription</code></td><td>Reference transcript</td><td>23,046 unique prompted sentences across 26,471 utterances.</td></tr>
+<tr><td><code>age</code></td><td>Self-reported age bracket</td><td>4 complete groups; no blanks.</td></tr>
+<tr><td><code>gender</code></td><td>Self-reported binary gender label</td><td>2 complete groups; no blanks.</td></tr>
+<tr><td><code>first_language</code></td><td>Self-reported L1</td><td>30 complete groups; long tail after English and Spanish.</td></tr>
+<tr><td><code>socioeconomic_bkgd</code></td><td>Self-reported socioeconomic background</td><td>3 complete groups; no blanks.</td></tr>
+<tr><td><code>ethnicity</code></td><td>Self-reported ethnicity</td><td>7 complete groups; primary FairSpeech fairness axis.</td></tr>
+</tbody>
+</table>
+<h4>Demographic coverage</h4>
+<table>
+<thead><tr><th>Axis</th><th>Groups and counts</th></tr></thead>
+<tbody>
+<tr><td><strong>Ethnicity</strong></td><td>Black or African American 7,807; White 5,646; Native American / American Indian / Alaska Native 4,632; Asian / South Asian / Asian American 3,854; Hispanic / Latino / Spanish 2,814; Native Hawaiian / Other Pacific Islander 969; Middle Eastern / North African 749.</td></tr>
+<tr><td><strong>Gender</strong></td><td>female 14,422; male 12,049.</td></tr>
+<tr><td><strong>Age</strong></td><td>31–45: 12,770; 46–65: 5,687; 23–30: 4,168; 18–22: 3,846.</td></tr>
+<tr><td><strong>First language</strong></td><td>30 groups. Largest: English 21,528; Spanish 1,862; Mandarin 422; Hindi 233; Cantonese 191; Tagalog 190; French 174; Portuguese 172.</td></tr>
+<tr><td><strong>Socioeconomic background</strong></td><td>Low 14,780; Medium 9,824; Affluent 1,867.</td></tr>
+</tbody>
+</table>
+</div>
+<h3>1.4 Common Voice results already computed</h3>
+<div class="state-row">
+<strong>Artifact means a pipeline output we can inspect or reuse directly.</strong>
+<ul class="compact-list">
+<li><strong>Prediction CSVs</strong> — one row per utterance: reference text, model transcript, WER, demographics, model name, and architecture label.</li>
+<li><strong>Metadata JSONs</strong> — run-level information: model ID, total utterances, overall WER, device, batch size, elapsed time, and timestamp.</li>
+<li><strong>Analysis outputs</strong> — computed summaries from predictions: group WERs, max/min fairness ratios, relative gaps, error decomposition, and plot/table files.</li>
+</ul>
+<h4>CSV row previews</h4>
+<strong>Prediction CSV: <code>datasets/results/commonvoice/predictions_qwen3_asr_1.7b.csv</code></strong>
+<table class="dense">
+<thead><tr><th>utterance_id</th><th>reference</th><th>hypothesis</th><th class="num">wer</th><th>accent</th><th>age</th></tr></thead>
+<tbody>
+<tr><td>common_voice_en_39588614</td><td>the cadets attack the office and the rebellion is ended</td><td>the cadets attack the office and the rebellion is ended</td><td class="num">0.0000</td><td>us</td><td></td></tr>
+<tr><td>common_voice_en_18188256</td><td>we are going to the football game tonight</td><td>we are going to the football game tonight</td><td class="num">0.0000</td><td>us</td><td>fifties</td></tr>
+<tr><td>common_voice_en_39948126</td><td>manager dave ross brought in kris taylor...</td><td>manager dave ross brought in chris taylor...</td><td class="num">0.0833</td><td>us</td><td></td></tr>
+</tbody>
+</table>
+<strong>Perturbation summary CSV: <code>datasets/results/tables/table_wer_by_perturbation_and_accent_cv.csv</code></strong>
+<table class="dense">
+<thead><tr><th>model</th><th>perturbation</th><th class="num">overall_wer</th><th class="num">mmr</th><th class="num">wer_indian</th><th class="num">wer_us</th></tr></thead>
+<tbody>
+<tr><td>wav2vec2-large</td><td>clean</td><td class="num">0.228223</td><td class="num">2.142129</td><td class="num">0.253201</td><td class="num">0.165369</td></tr>
+<tr><td>wav2vec2-large</td><td>snr_20db</td><td class="num">0.268155</td><td class="num">2.107338</td><td class="num">0.317423</td><td class="num">0.188814</td></tr>
+<tr><td>wav2vec2-large</td><td>snr_10db</td><td class="num">0.348407</td><td class="num">2.040623</td><td class="num">0.417540</td><td class="num">0.249602</td></tr>
+</tbody>
+</table>
+</div>
+<table>
+<thead><tr><th>Artifact</th><th>What it contains</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><code>datasets/results/commonvoice/</code></td><td>Raw model outputs for CV: prediction CSVs and run metadata JSONs for all clean and perturbed runs.</td><td><span class="badge pass">present</span></td></tr>
+<tr><td><code>datasets/results/commonvoice/analysis/</code></td><td>Clean-audio fairness analysis: summaries, WER-by-group plots, LaTeX tables, and error decomposition.</td><td><span class="badge pass">present</span></td></tr>
+<tr><td><code>datasets/results/tables/</code></td><td>Machine-readable perturbation summaries: WER, insertion rate, and fairness-gap amplification by demographic axis.</td><td><span class="badge pass">present</span></td></tr>
+<tr><td><code>datasets/results/figures/</code></td><td>Human-readable figures plus source CSVs for paper-style CV fairness and perturbation plots.</td><td><span class="badge pass">present</span></td></tr>
+</tbody>
+</table>
+<h3>1.5 Models already run on Common Voice</h3>
+<div class="state-row">
+<strong>The “13 conditions” are the same for every model.</strong>
+<table>
+<thead><tr><th>Condition group</th><th>Specific runs</th><th class="num">Count</th></tr></thead>
+<tbody>
+<tr><td>Original audio</td><td>clean</td><td class="num">1</td></tr>
+<tr><td>Additive noise</td><td>SNR 20 dB, SNR 10 dB, SNR 0 dB</td><td class="num">3</td></tr>
+<tr><td>Reverberation</td><td>0.3 s, 0.6 s, 1.0 s</td><td class="num">3</td></tr>
+<tr><td>Silence injection</td><td>25%, 50%, 75%</td><td class="num">3</td></tr>
+<tr><td>Chunk masking</td><td>10%, 20%, 30%</td><td class="num">3</td></tr>
+</tbody>
+</table>
+</div>
+<table>
+<thead><tr><th>Generation</th><th>Models</th><th class="num">Conditions each</th></tr></thead>
+<tbody>
+<tr><td>Gen 1</td><td>wav2vec2-large</td><td class="num">13</td></tr>
+<tr><td>Gen 2</td><td>whisper-small, whisper-medium, whisper-large-v3</td><td class="num">13</td></tr>
+<tr><td>Gen 3</td><td>qwen3-asr-0.6b, qwen3-asr-1.7b, canary-qwen-2.5b, granite-speech-3.3-2b, granite-speech-3.3-8b</td><td class="num">13</td></tr>
+</tbody>
+</table>
+<h3>1.6 LibriSpeech — clean baseline only</h3>
+<div class="state-row">
+<ul class="compact-list path-list">
+<li><code>datasets/data/ls_manifest.csv</code> — 2,620 rows, no demographic columns.</li>
+<li><code>datasets/results/librispeech/</code> — clean prediction CSVs for 9 models.</li>
+<li>Local LibriSpeech audio paths are external OSC paths, so raw audio is not available locally.</li>
+</ul>
+</div>
+<h3>1.7 FairSpeech — audio local, result tables still incomplete</h3>
+<div class="callout warning">
+<strong>Current local state:</strong> FairSpeech raw audio and metadata are now present under
       <code>datasets/meta_speech_fairness/</code>, but FairSpeech underlying prediction CSVs and the full
       analysis JSON are still not present. Only downstream figure artifacts are visible, such as
       <code>fig1_ethnicity_heatmap</code>.
     </div>
-  </section>
-
-  <section data-section="chapter-plan">
-    <h2 id="chapter-plan">2. FairSpeech compression plan</h2>
-    <p class="chapter-rule">Chapter 2 · FairSpeech-only input-audio bottleneck experiment</p>
-
-    <div class="callout success">
-      <strong>Main direction:</strong> run the controlled compression/resampling experiment on FairSpeech because all source files already share one clean format: 16 kHz mono 16-bit PCM WAV.
+</section>
+<section data-section="chapter-plan">
+<h2 id="chapter-plan">2. FairSpeech compression plan</h2>
+<p class="chapter-rule">Chapter 2 · FairSpeech-only input-audio bottleneck experiment</p>
+<div class="callout success">
+<strong>Main direction:</strong> run the controlled compression/resampling experiment on FairSpeech because all source files already share one clean format: 16 kHz mono 16-bit PCM WAV.
     </div>
-
-    <h3>2.1 Dataset scope</h3>
-    <div class="state-row">
-      <table>
-        <thead><tr><th>Item</th><th>FairSpeech state</th></tr></thead>
-        <tbody>
-          <tr><td>Samples</td><td>26,471 metadata rows and 26,471 matching WAV files.</td></tr>
-          <tr><td>Join key</td><td><code>hash_name</code> ↔ <code>asr_fairness_audio/{hash_name}.wav</code>.</td></tr>
-          <tr><td>Source audio</td><td>16,000 Hz · mono · 16-bit PCM WAV · 256 kbps effective PCM bitrate.</td></tr>
-          <tr><td>Primary fairness axis</td><td>Ethnicity; all 26,471 rows have ethnicity labels.</td></tr>
-          <tr><td>Current gap</td><td>Raw audio, manifests, pilot artifacts, and one-model pilot predictions are local; the complete 54-run FairSpeech evaluation still remains.</td></tr>
-        </tbody>
-      </table>
+<h3>2.1 Dataset scope</h3>
+<div class="state-row">
+<table>
+<thead><tr><th>Item</th><th>FairSpeech state</th></tr></thead>
+<tbody>
+<tr><td>Samples</td><td>26,471 metadata rows and 26,471 matching WAV files.</td></tr>
+<tr><td>Join key</td><td><code>hash_name</code> ↔ <code>asr_fairness_audio/{hash_name}.wav</code>.</td></tr>
+<tr><td>Source audio</td><td>16,000 Hz · mono · 16-bit PCM WAV · 256 kbps effective PCM bitrate.</td></tr>
+<tr><td>Primary fairness axis</td><td>Ethnicity; all 26,471 rows have ethnicity labels.</td></tr>
+<tr><td>Current gap</td><td>Raw audio is local; FairSpeech ASR prediction/analysis tables need rerun or teammate sharing.</td></tr>
+</tbody>
+</table>
+</div>
+<h3>2.2 Ethnicity groups</h3>
+<table>
+<thead><tr><th>Ethnicity</th><th class="num">Rows</th></tr></thead>
+<tbody>
+<tr><td>Black or African American</td><td class="num">7,807</td></tr>
+<tr><td>White</td><td class="num">5,646</td></tr>
+<tr><td>Native American, American Indian, or Alaska Native</td><td class="num">4,632</td></tr>
+<tr><td>Asian, South Asian or Asian American</td><td class="num">3,854</td></tr>
+<tr><td>Hispanic, Latino, or Spanish</td><td class="num">2,814</td></tr>
+<tr><td>Native Hawaiian or Other Pacific Islander</td><td class="num">969</td></tr>
+<tr><td>Middle Eastern or North African</td><td class="num">749</td></tr>
+</tbody>
+</table>
+<h3>2.3 Audio variants</h3>
+<table>
+<thead><tr><th>Variant</th><th>Pipeline</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td>Baseline</td><td>16 kHz PCM WAV → model</td><td>Current clean source condition.</td></tr>
+<tr><td>12 kHz bottleneck</td><td>16 kHz → 12 kHz → 16 kHz → model</td><td>Moderate bandwidth loss.</td></tr>
+<tr><td>8 kHz bottleneck</td><td>16 kHz → 8 kHz → 16 kHz → model</td><td>Telephone-like bandwidth loss.</td></tr>
+<tr><td>MP3 64 kbps</td><td>16 kHz WAV → MP3 64 kbps → 16 kHz WAV → model</td><td>Mild lossy codec artifact.</td></tr>
+<tr><td>MP3 32 kbps</td><td>16 kHz WAV → MP3 32 kbps → 16 kHz WAV → model</td><td>Moderate lossy codec artifact.</td></tr>
+<tr><td>MP3 16 kbps</td><td>16 kHz WAV → MP3 16 kbps → 16 kHz WAV → model</td><td>Strong lossy codec artifact.</td></tr>
+</tbody>
+</table>
+<h3>2.4 Model set</h3>
+<div class="state-row">
+<strong>Use the same nine-model benchmark set from the teammate paper.</strong>
+<p class="note">A complete FairSpeech compression run is 9 models × 6 audio variants × 26,471 samples = 54 inference runs and 1,429,434 utterance-level predictions, before any optional pilot or rerun.</p>
+<table>
+<thead><tr><th>Generation</th><th>Model key</th><th>Model ID</th><th>Role in comparison</th></tr></thead>
+<tbody>
+<tr><td>Gen 1</td><td><code>wav2vec2-large</code></td><td><code>facebook/wav2vec2-large-960h-lv60-self</code></td><td>CTC encoder-only baseline.</td></tr>
+<tr><td>Gen 2</td><td><code>whisper-small</code></td><td><code>openai/whisper-small</code></td><td>Whisper small baseline.</td></tr>
+<tr><td>Gen 2</td><td><code>whisper-medium</code></td><td><code>openai/whisper-medium</code></td><td>Whisper medium baseline.</td></tr>
+<tr><td>Gen 2</td><td><code>whisper-large-v3</code></td><td><code>openai/whisper-large-v3</code></td><td>Large Whisper comparison point.</td></tr>
+<tr><td>Gen 3</td><td><code>qwen3-asr-0.6b</code></td><td><code>Qwen/Qwen3-ASR-0.6B</code></td><td>Low-compression LLM-ASR model.</td></tr>
+<tr><td>Gen 3</td><td><code>qwen3-asr-1.7b</code></td><td><code>Qwen/Qwen3-ASR-1.7B</code></td><td>Strong low-compression LLM-ASR baseline.</td></tr>
+<tr><td>Gen 3</td><td><code>canary-qwen-2.5b</code></td><td><code>nvidia/canary-qwen-2.5b</code></td><td>FastConformer + Qwen comparison point.</td></tr>
+<tr><td>Gen 3</td><td><code>granite-speech-3.3-2b</code></td><td><code>ibm-granite/granite-speech-3.3-2b</code></td><td>Q-former bottleneck comparison point.</td></tr>
+<tr><td>Gen 3</td><td><code>granite-speech-3.3-8b</code></td><td><code>ibm-granite/granite-speech-3.3-8b</code></td><td>Larger Q-former bottleneck comparison point.</td></tr>
+</tbody>
+</table>
+</div>
+<h3>2.5 Batch-size policy</h3>
+<div class="state-row">
+<strong>Do not fix one number of samples per batch.</strong>
+<p class="note">Current inference code exposes a fixed <code>--batch_size</code> knob, but the better implementation is a pre-split duration-bucketed batch plan. FairSpeech clips range from 1.36 s to 65.62 s, and padded batches scale roughly with <code>num_samples × longest_clip_in_batch</code>, so each batch should contain a variable number of similar-duration samples under a per-model audio-seconds budget.</p>
+<table>
+<thead><tr><th>Policy</th><th>Implementation decision</th></tr></thead>
+<tbody>
+<tr><td>Batch unit</td><td>Use <strong>max audio seconds per batch</strong> plus a per-model max-samples cap, not a fixed sample count.</td></tr>
+<tr><td>Pre-splitting</td><td>Sort or bucket files by duration, then form batches whose clips have similar duration and whose total seconds fit the budget.</td></tr>
+<tr><td>Calibration</td><td>Run real batch-size/seconds profiling in the <strong>pilot gate</strong>, because VRAM depends on the VM, model implementation, and decoding path.</td></tr>
+<tr><td>Safety margin</td><td>Choose the largest budget that avoids OOM and keeps peak GPU memory below the VM target, e.g. ~80–85%.</td></tr>
+<tr><td>Fallback</td><td>If dynamic batching is not ready, use conservative fixed batch sizes per model only as a fallback.</td></tr>
+</tbody>
+</table>
+<p class="note">Example: a 40-second budget might batch 8×5 s clips, 4×10 s clips, 2×20 s clips, or 1×40–60 s long clip. The batch has variable sample count but roughly bounded compute/memory.</p>
+</div>
+<h3>2.6 Planned outputs</h3>
+<table>
+<thead><tr><th>Output</th><th>Content</th></tr></thead>
+<tbody>
+<tr><td>Variant audio folders</td><td>One folder per FairSpeech audio variant.</td></tr>
+<tr><td>Variant manifests</td><td>Original path, derived path, variant, transcript, ethnicity, and audio-format metadata.</td></tr>
+<tr><td>Model cache manifest</td><td>All nine model IDs, local cache paths, revision/commit if available, disk footprint, and smoke-load status.</td></tr>
+<tr><td>Batch plan/profile manifest</td><td>Per-model max-seconds budget, max-samples cap, duration-bucket boundaries, candidate profiles, peak VRAM, throughput, OOM/failure notes, and selected safe policy.</td></tr>
+<tr><td>Prediction CSVs</td><td>Reference, ASR transcript, per-utterance WER, model, and variant; complete run target is 54 CSVs × 26,471 rows = 1,429,434 utterance-level predictions.</td></tr>
+<tr><td>Metric tables</td><td>WER by ethnicity, MMR, relative gap, ΔWER versus baseline, insertion rate, and insertion subtype rates: repetition, syntactic/function-word, and content/semantic.</td></tr>
+<tr><td>Figures</td><td>Ethnicity WER bars, degradation curves, fairness-gap heatmaps, and stacked insertion-subtype charts.</td></tr>
+<tr><td>Result memo</td><td>Whether compression causes uniform degradation or ethnicity-specific disparity amplification.</td></tr>
+</tbody>
+</table>
+<h3>2.7 Hierarchical implementation to-do</h3>
+<div class="callout success">
+<strong>Full-evaluation gate is active.</strong> Model cache/smoke checks, derived audio, batch plans, and the pilot gate are complete; the full 9 × 6 inference matrix is still in progress.
     </div>
-
-    <h3>2.2 Ethnicity groups</h3>
-    <table>
-      <thead><tr><th>Ethnicity</th><th class="num">Rows</th></tr></thead>
-      <tbody>
-        <tr><td>Black or African American</td><td class="num">7,807</td></tr>
-        <tr><td>White</td><td class="num">5,646</td></tr>
-        <tr><td>Native American, American Indian, or Alaska Native</td><td class="num">4,632</td></tr>
-        <tr><td>Asian, South Asian or Asian American</td><td class="num">3,854</td></tr>
-        <tr><td>Hispanic, Latino, or Spanish</td><td class="num">2,814</td></tr>
-        <tr><td>Native Hawaiian or Other Pacific Islander</td><td class="num">969</td></tr>
-        <tr><td>Middle Eastern or North African</td><td class="num">749</td></tr>
-      </tbody>
-    </table>
-
-    <h3>2.3 Audio variants</h3>
-    <table>
-      <thead><tr><th>Variant</th><th>Pipeline</th><th>Purpose</th></tr></thead>
-      <tbody>
-        <tr><td>Baseline</td><td>16 kHz PCM WAV → model</td><td>Current clean source condition.</td></tr>
-        <tr><td>12 kHz bottleneck</td><td>16 kHz → 12 kHz → 16 kHz → model</td><td>Moderate bandwidth loss.</td></tr>
-        <tr><td>8 kHz bottleneck</td><td>16 kHz → 8 kHz → 16 kHz → model</td><td>Telephone-like bandwidth loss.</td></tr>
-        <tr><td>MP3 64 kbps</td><td>16 kHz WAV → MP3 64 kbps → 16 kHz WAV → model</td><td>Mild lossy codec artifact.</td></tr>
-        <tr><td>MP3 32 kbps</td><td>16 kHz WAV → MP3 32 kbps → 16 kHz WAV → model</td><td>Moderate lossy codec artifact.</td></tr>
-        <tr><td>MP3 16 kbps</td><td>16 kHz WAV → MP3 16 kbps → 16 kHz WAV → model</td><td>Strong lossy codec artifact.</td></tr>
-      </tbody>
-    </table>
-
-    <h3>2.4 Model set</h3>
-    <div class="state-row">
-      <strong>Use the same nine-model benchmark set from the teammate paper.</strong>
-      <p class="note">A complete FairSpeech compression run is 9 models × 6 audio variants × 26,471 samples = 54 inference runs and 1,429,434 utterance-level predictions, before any optional pilot or rerun.</p>
-      <table>
-        <thead><tr><th>Generation</th><th>Model key</th><th>Model ID</th><th>Role in comparison</th></tr></thead>
-        <tbody>
-          <tr><td>Gen 1</td><td><code>wav2vec2-large</code></td><td><code>facebook/wav2vec2-large-960h-lv60-self</code></td><td>CTC encoder-only baseline.</td></tr>
-          <tr><td>Gen 2</td><td><code>whisper-small</code></td><td><code>openai/whisper-small</code></td><td>Whisper small baseline.</td></tr>
-          <tr><td>Gen 2</td><td><code>whisper-medium</code></td><td><code>openai/whisper-medium</code></td><td>Whisper medium baseline.</td></tr>
-          <tr><td>Gen 2</td><td><code>whisper-large-v3</code></td><td><code>openai/whisper-large-v3</code></td><td>Large Whisper comparison point.</td></tr>
-          <tr><td>Gen 3</td><td><code>qwen3-asr-0.6b</code></td><td><code>Qwen/Qwen3-ASR-0.6B</code></td><td>Low-compression LLM-ASR model.</td></tr>
-          <tr><td>Gen 3</td><td><code>qwen3-asr-1.7b</code></td><td><code>Qwen/Qwen3-ASR-1.7B</code></td><td>Strong low-compression LLM-ASR baseline.</td></tr>
-          <tr><td>Gen 3</td><td><code>canary-qwen-2.5b</code></td><td><code>nvidia/canary-qwen-2.5b</code></td><td>FastConformer + Qwen comparison point.</td></tr>
-          <tr><td>Gen 3</td><td><code>granite-speech-3.3-2b</code></td><td><code>ibm-granite/granite-speech-3.3-2b</code></td><td>Q-former bottleneck comparison point.</td></tr>
-          <tr><td>Gen 3</td><td><code>granite-speech-3.3-8b</code></td><td><code>ibm-granite/granite-speech-3.3-8b</code></td><td>Larger Q-former bottleneck comparison point.</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <h3>2.5 Batch-size policy</h3>
-    <div class="state-row">
-      <strong>Do not fix one number of samples per batch.</strong>
-      <p class="note">Inference now supports pre-split duration-bucketed batch plans. FairSpeech clips range from 1.36 s to 65.62 s, so each batch should contain a variable number of similar-duration samples under a learned total-duration budget, with padded seconds retained as diagnostic metadata.</p>
-      <table>
-        <thead><tr><th>Policy</th><th>Implementation decision</th></tr></thead>
-        <tbody>
-          <tr><td>Batch unit</td><td>Use <strong><code>sum_duration_seconds</code></strong> as the primary budget plus a per-model max-samples cap, not a fixed sample count.</td></tr>
-          <tr><td>Pre-splitting</td><td>A full baseline plan exists at 160 s with 1,310 batches. Before full evaluation, regenerate full six-variant plans with the selected 160 s / 16-sample guard.</td></tr>
-          <tr><td>Calibration</td><td>Completed on the A40 VM pilot gate using real model inference and the 28-row ethnicity/duration calibration subset.</td></tr>
-          <tr><td>Safety margin</td><td>Use 75% VRAM as the hard profiling threshold; selected policies stayed far below this ceiling.</td></tr>
-          <tr><td>Fallback</td><td>If dynamic batching is not ready, use conservative fixed batch sizes per model only as a fallback.</td></tr>
-        </tbody>
-      </table>
-      <p class="note">Existing full baseline split: <code>datasets/fairspeech_compression/batch_plans/fairspeech_baseline_total160s_plan.jsonl</code> has 26,471 rows, 1,310 batches, median 20 samples per batch, max observed summed duration 160.0 s, max padded seconds 162.603 s, and max observed 64 samples.</p>
-      <table>
-        <caption>Pilot-gate selected policies on the A40 VM</caption>
-        <thead><tr><th>Model</th><th>Selected policy</th><th class="num">Pilot batches</th><th class="num">Peak VRAM</th><th class="num">Occupancy</th></tr></thead>
-        <tbody>
-          <tr><td><code>wav2vec2-large</code></td><td>160 s total duration · max 16 samples</td><td class="num">8</td><td class="num">10,619 / 46,068 MiB</td><td class="num">23.05%</td></tr>
-          <tr><td><code>whisper-small</code></td><td>160 s total duration · max 16 samples</td><td class="num">8</td><td class="num">1,263 / 46,068 MiB</td><td class="num">2.74%</td></tr>
-          <tr><td><code>whisper-medium</code></td><td>160 s total duration · max 16 samples</td><td class="num">8</td><td class="num">2,943 / 46,068 MiB</td><td class="num">6.39%</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <h3>2.6 Planned outputs</h3>
-    <table>
-      <thead><tr><th>Output</th><th>Content</th></tr></thead>
-      <tbody>
-        <tr><td>Variant audio folders</td><td>One folder per FairSpeech audio variant.</td></tr>
-        <tr><td>Variant manifests</td><td>Original path, derived path, variant, transcript, ethnicity, and audio-format metadata.</td></tr>
-        <tr><td>Model cache manifest</td><td>All nine model IDs, local cache paths, revision/commit if available, disk footprint, and smoke-load status.</td></tr>
-        <tr><td>Batch plan/profile manifest</td><td>Per-model max-seconds budget, max-samples cap, duration-bucket boundaries, candidate profiles, peak VRAM, throughput, OOM/failure notes, and selected safe policy.</td></tr>
-        <tr><td>Prediction CSVs</td><td>Reference, ASR transcript, per-utterance WER, model, and variant; complete run target is 54 CSVs × 26,471 rows = 1,429,434 utterance-level predictions.</td></tr>
-        <tr><td>Metric tables</td><td>WER by ethnicity, MMR, relative gap, ΔWER versus baseline, insertion rate, and insertion subtype rates: repetition, syntactic/function-word, and content/semantic.</td></tr>
-        <tr><td>Figures</td><td>Ethnicity WER bars, degradation curves, fairness-gap heatmaps, and stacked insertion-subtype charts.</td></tr>
-        <tr><td>Result memo</td><td>Whether compression causes uniform degradation or ethnicity-specific disparity amplification.</td></tr>
-      </tbody>
-    </table>
-
-    <h3>2.7 Hierarchical implementation to-do</h3>
-    <div class="callout success">
-      <strong>Pilot gate completed on 2026-04-27.</strong> Full manifests and pilot audio validated, three models downloaded and smoke-tested, duration policies selected, and <code>wav2vec2-large</code> produced six pilot prediction CSVs. Full 54-run evaluation is intentionally still out of scope.
-    </div>
-    <table>
-      <thead><tr><th>Infrastructure artifact</th><th>Repo path / local output</th><th>Status</th></tr></thead>
-      <tbody>
-        <tr><td>Variant manifest + audio generator</td><td><code>scripts/data/prepare_fairspeech_compression.py</code></td><td>Built; six full manifests generated with 26,471 rows each; pilot audio generated under <code>/opt/fairspeech-variants/pilot</code>.</td></tr>
-        <tr><td>Audio/manifest validator</td><td><code>scripts/validation/validate_fairspeech_compression.py</code></td><td>Built; baseline manifest passed 26,471-row validation.</td></tr>
-        <tr><td>Duration-bucket batch planner</td><td><code>scripts/inference/build_duration_batch_plan.py</code></td><td>Built; full baseline 160 s total-duration plan has 1,310 variable-size batches.</td></tr>
-        <tr><td>Batch profiling harness</td><td><code>scripts/inference/profile_batch_policy.py</code></td><td>Built and run on VM; selected 160 s / 16-sample policies for smoke-passing models.</td></tr>
-        <tr><td>Inference integration</td><td><code>scripts/inference/run_inference.py</code></td><td>Supports <code>--audio_variant</code> and <code>--batch_plan</code>.</td></tr>
-        <tr><td>Model cache manifest</td><td><code>scripts/inference/prepare_model_cache.py</code></td><td>Built; all nine statuses recorded. <code>wav2vec2-large</code>, <code>whisper-small</code>, and <code>whisper-medium</code> downloaded and smoked; <code>whisper-large-v3</code> failed after filling root; remaining models skipped by disk guard.</td></tr>
-        <tr><td>Metric/plot scaffolding</td><td><code>scripts/metrics/compute_fairspeech_compression_metrics.py</code>; <code>scripts/plots/generate_fairspeech_compression_plots.py</code></td><td>Built; pilot metrics and four pilot plot PNGs emitted for <code>wav2vec2-large</code>.</td></tr>
-      </tbody>
-    </table>
-    <div class="state-summary">
-      <div class="state-row">
-        <strong>A. Infrastructure building — no model training or full run yet.</strong>
-        <ul class="checklist">
-          <li class="checked" data-key="fs-infra-generator">Create FairSpeech variant-audio generator.
+<table>
+<thead><tr><th>Infrastructure artifact</th><th>Repo path / local output</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Variant manifest + audio generator</td><td><code>scripts/data/prepare_fairspeech_compression.py</code></td><td>Built; full manifests generated locally.</td></tr>
+<tr><td>Audio/manifest validator</td><td><code>scripts/validation/validate_fairspeech_compression.py</code></td><td>Built; baseline manifest passed 26,471-row validation.</td></tr>
+<tr><td>Duration-bucket batch planner</td><td><code>scripts/inference/build_duration_batch_plan.py</code></td><td>Built; baseline plan has 1,866 variable-size batches.</td></tr>
+<tr><td>Batch profiling harness</td><td><code>scripts/inference/profile_batch_policy.py</code></td><td>Built; run on VM during pilot gate.</td></tr>
+<tr><td>Inference integration</td><td><code>scripts/inference/run_inference.py</code></td><td>Supports <code>--audio_variant</code> and <code>--batch_plan</code>.</td></tr>
+<tr><td>Model cache manifest</td><td><code>scripts/inference/prepare_model_cache.py</code></td><td>Built; dry-run manifest lists all nine models.</td></tr>
+<tr><td>Metric/plot scaffolding</td><td><code>scripts/metrics/compute_fairspeech_compression_metrics.py</code>; <code>scripts/plots/generate_fairspeech_compression_plots.py</code></td><td>Built; waits for prediction CSVs.</td></tr>
+</tbody>
+</table>
+<div class="state-summary">
+<div class="state-row">
+<strong>A. Infrastructure building — complete.</strong>
+<ul class="checklist">
+<li class="checked" data-key="fs-infra-generator">Create FairSpeech variant-audio generator.
             <ul class="checklist">
-              <li class="checked" data-key="fs-infra-generator-input">Input: <code>downloaded_file.tsv</code> + <code>asr_fairness_audio/{hash_name}.wav</code>.</li>
-              <li class="checked" data-key="fs-infra-generator-output">Output: one derived audio folder per variant.</li>
-            </ul>
-          </li>
-          <li class="checked" data-key="fs-infra-manifests">Create variant manifests.
+<li class="checked" data-key="fs-infra-generator-input">Input: <code>downloaded_file.tsv</code> + <code>asr_fairness_audio/{hash_name}.wav</code>.</li>
+<li class="checked" data-key="fs-infra-generator-output">Output: one derived audio folder per variant.</li>
+</ul>
+</li>
+<li class="checked" data-key="fs-infra-manifests">Create variant manifests.
             <ul class="checklist">
-              <li class="checked" data-key="fs-infra-manifest-columns">Keep <code>hash_name</code>, transcript, ethnicity, original path, derived path, variant, and audio-format metadata.</li>
-              <li class="checked" data-key="fs-infra-manifest-count">Assert 26,471 rows for each full manifest.</li>
-            </ul>
-          </li>
-          <li class="checked" data-key="fs-infra-validation">Create validation checks.
+<li class="checked" data-key="fs-infra-manifest-columns">Keep <code>hash_name</code>, transcript, ethnicity, original path, derived path, variant, and audio-format metadata.</li>
+<li class="checked" data-key="fs-infra-manifest-count">Assert 26,471 rows for each full manifest.</li>
+</ul>
+</li>
+<li class="checked" data-key="fs-infra-validation">Create validation checks.
             <ul class="checklist">
-              <li class="checked" data-key="fs-infra-validation-audio">Verify sample rate, codec, bitrate, channels, duration, and ID alignment.</li>
-              <li class="checked" data-key="fs-infra-validation-failfast">Fail fast if files are missing, silent, wrong-rate, or mismatched.</li>
-            </ul>
-          </li>
-          <li data-key="fs-infra-model-cache">Prepare inference model cache — status recorded for all nine; full cache still blocked by disk capacity.
+<li class="checked" data-key="fs-infra-validation-audio">Verify sample rate, codec, bitrate, channels, duration, and ID alignment.</li>
+<li class="checked" data-key="fs-infra-validation-failfast">Fail fast if files are missing, silent, wrong-rate, or mismatched.</li>
+</ul>
+</li>
+<li class="checked" data-key="fs-infra-model-cache">Prepare inference model cache.
             <ul class="checklist">
-              <li class="checked" data-key="fs-infra-model-script">Create model-cache manifest/download script.</li>
-              <li class="checked" data-key="fs-infra-model-list">Use the full nine-model benchmark set listed in Section 2.4.</li>
-              <li data-key="fs-infra-model-download">Download/cache model weights, processors, tokenizers, and any required package assets for all nine models.</li>
-              <li class="checked" data-key="fs-infra-model-record">Record local cache path, model revision/commit if available, disk footprint, required runtime package versions, and failure/skipped status.</li>
-              <li data-key="fs-infra-model-smoke">Run a one-file smoke load/transcribe for each of the nine models before full inference.</li>
-              <li class="checked" data-key="fs-infra-model-smoke-pilot">Smoke-passed <code>wav2vec2-large</code>, <code>whisper-small</code>, and <code>whisper-medium</code>; stopped later downloads after <code>whisper-large-v3</code> filled the 50 GiB root volume.</li>
-            </ul>
-          </li>
-          <li class="checked" data-key="fs-infra-batch-profiler">Create duration-bucketed inference batch planner and profiling harness.
+<li class="checked" data-key="fs-infra-model-script">Create model-cache manifest/download script.</li>
+<li class="checked" data-key="fs-infra-model-list">Use the full nine-model benchmark set listed in Section 2.4.</li>
+<li class="checked" data-key="fs-infra-model-download">Download/cache model weights, processors, tokenizers, and any required package assets.</li>
+<li class="checked" data-key="fs-infra-model-record">Record local cache path, model revision/commit if available, disk footprint, and required runtime package versions.</li>
+<li class="checked" data-key="fs-infra-model-smoke">Run a one-file smoke load/transcribe for each of the nine models before pilot inference.</li>
+</ul>
+</li>
+<li class="checked" data-key="fs-infra-batch-profiler">Create duration-bucketed inference batch planner and profiling harness.
             <ul class="checklist">
-              <li class="checked" data-key="fs-infra-batch-duration">Implement code/config to build a duration-stratified calibration subset: short, median, long, and max-duration clips.</li>
-              <li class="checked" data-key="fs-infra-batch-plan">Implement a batch-plan writer that pre-splits manifests into duration buckets with variable sample counts.</li>
-              <li class="checked" data-key="fs-infra-batch-cost-rule">Use summed duration as the primary budget: <code>sum_duration_seconds <= selected_total_duration_seconds</code>; keep padded seconds as diagnostics.</li>
-              <li class="checked" data-key="fs-infra-batch-example">Treat max samples as a secondary overhead guard after the total-duration budget.</li>
-              <li class="checked" data-key="fs-infra-batch-schema">Define the profiling log schema: candidate budget, max-samples cap, peak VRAM, throughput, OOM/failure, and selected policy.</li>
-              <li class="checked" data-key="fs-infra-batch-no-lock">Lock pilot policies only after VM profiling; selected policies are 160 s total duration with a 16-sample guard for smoke-passing models.</li>
-            </ul>
-          </li>
-          <li class="checked" data-key="fs-infra-metrics">Create metric/plot scaffolding.
+<li class="checked" data-key="fs-infra-batch-duration">Implement code/config to build a duration-stratified calibration subset: short, median, long, and max-duration clips.</li>
+<li class="checked" data-key="fs-infra-batch-plan">Implement a batch-plan writer that pre-splits manifests into duration buckets with variable sample counts.</li>
+<li class="checked" data-key="fs-infra-batch-cost-rule">Use padded-seconds cost as the first-order estimate: <code>num_samples × max_duration_in_batch</code>, plus a max-samples cap for per-example overhead.</li>
+<li class="checked" data-key="fs-infra-batch-example">Treat <code>2 × 20s</code> and <code>1 × 40s</code> as similar padded-audio budgets, but profile them because decoder/per-example overhead can differ.</li>
+<li class="checked" data-key="fs-infra-batch-schema">Define the profiling log schema: candidate budget, max-samples cap, peak VRAM, throughput, OOM/failure, and selected policy.</li>
+<li class="checked" data-key="fs-infra-batch-no-lock">Do not lock batch-size policies in infrastructure; only provide the tools to test them.</li>
+</ul>
+</li>
+<li class="checked" data-key="fs-infra-metrics">Create metric/plot scaffolding.
             <ul class="checklist">
-              <li class="checked" data-key="fs-infra-metrics-tables">WER by ethnicity, MMR, relative gap, ΔWER, insertion rate, and insertion subtypes.</li>
-              <li class="checked" data-key="fs-infra-metrics-figures">Figure templates for WER bars, degradation curves, heatmaps, and insertion-subtype stacks.</li>
-            </ul>
-          </li>
-        </ul>
-      </div>
-      <div class="state-row">
-        <strong>B. Pilot gate — small subset only.</strong>
-        <ul class="checklist">
-          <li class="checked" data-key="fs-pilot-generate">Generate all variants for an ethnicity-stratified pilot subset.</li>
-          <li class="checked" data-key="fs-pilot-batch-subset">Build the duration-stratified calibration subset on the target VM: 28 rows, four per ethnicity.</li>
-          <li class="checked" data-key="fs-pilot-batch-profile">Profile candidate max-seconds budgets and max-samples caps per smoke-passing model; record peak VRAM, throughput, and OOM/failure behavior.</li>
-          <li class="checked" data-key="fs-pilot-batch-lock">Lock safe pilot policies before any full inference run: 160 s total duration with max 16 samples.</li>
-          <li class="checked" data-key="fs-pilot-run">Run one ASR model on the pilot only: <code>wav2vec2-large</code> across all six variants.</li>
-          <li class="checked" data-key="fs-pilot-validate">Confirm non-empty transcripts, sane WER ranges, metric tables, and plot outputs.</li>
-          <li class="checked" data-key="fs-pilot-fix">Fix pilot infrastructure problems before full run: disk-full recovery, resumable VM script, and pilot metric group-size override.</li>
-        </ul>
-      </div>
-      <div class="state-row">
-        <strong>C. Full evaluation run — after pilot passes.</strong>
-        <ul class="checklist">
-          <li data-key="fs-full-selected-plans">Regenerate full six-variant batch plans using the selected 160 s / 16-sample guard.</li>
-          <li data-key="fs-full-all-models">Run all nine teammate-benchmark models across every FairSpeech variant with fixed decoding settings.</li>
-          <li data-key="fs-full-metrics">Compute all planned metrics and figures.</li>
-          <li data-key="fs-full-completeness">Verify the complete 9 × 6 run matrix before writing final claims.</li>
-        </ul>
-      </div>
-      <div class="state-row">
-        <strong>D. Training boundary — separate plan if needed.</strong>
-        <ul class="checklist">
-          <li data-key="fs-boundary-eval">This compression experiment is an evaluation pipeline, not a fine-tuning/training job.</li>
-          <li data-key="fs-boundary-plan">If later training is needed, create a separate training plan after infrastructure, validation, and evaluation artifacts are complete.</li>
-          <li data-key="fs-boundary-no-mix">Do not mix dataset/variant generation with expensive training launch steps.</li>
-        </ul>
-      </div>
-    </div>
-    <button class="checklist-reset" type="button" data-reset-prefix="fs-">Reset Chapter 2 checkboxes</button>
+<li class="checked" data-key="fs-infra-metrics-tables">WER by ethnicity, MMR, relative gap, ΔWER, insertion rate, and insertion subtypes.</li>
+<li class="checked" data-key="fs-infra-metrics-figures">Figure templates for WER bars, degradation curves, heatmaps, and insertion-subtype stacks.</li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="state-row">
+<strong>B. Pilot gate — completed before full run.</strong>
+<ul class="checklist">
+<li class="checked" data-key="fs-pilot-generate">Generate all variants for an ethnicity-stratified pilot subset.</li>
+<li class="checked" data-key="fs-pilot-batch-subset">Build the duration-stratified calibration subset on the target VM.</li>
+<li class="checked" data-key="fs-pilot-batch-profile">Profile candidate max-seconds budgets and max-samples caps per model; record peak VRAM, throughput, and OOM/failure behavior.</li>
+<li class="checked" data-key="fs-pilot-batch-lock">Lock the safe per-model batch policy before any full inference run.</li>
+<li class="checked" data-key="fs-pilot-run">Run one ASR model on the pilot only.</li>
+<li class="checked" data-key="fs-pilot-validate">Confirm non-empty transcripts, sane WER ranges, and metric tables.</li>
+<li class="checked" data-key="fs-pilot-fix">Fix infrastructure problems before any full run.</li>
+</ul>
+</div>
+<div class="state-row">
+<strong>C. Full evaluation run — in progress.</strong>
+<ul class="checklist">
+<li data-key="fs-full-all-models">Run all nine teammate-benchmark models across every FairSpeech variant with fixed decoding settings.</li>
+<li data-key="fs-full-metrics">Compute all planned metrics and figures.</li>
+<li data-key="fs-full-completeness">Verify the complete 9 × 6 run matrix before writing final claims.</li>
+</ul>
+</div>
+<div class="state-row">
+<strong>D. Training boundary — separate plan if needed.</strong>
+<ul class="checklist">
+<li class="checked" data-key="fs-boundary-eval">This compression experiment is an evaluation pipeline, not a fine-tuning/training job.</li>
+<li class="checked" data-key="fs-boundary-plan">If later training is needed, create a separate training plan after infrastructure, validation, and evaluation artifacts are complete.</li>
+<li class="checked" data-key="fs-boundary-no-mix">Do not mix dataset/variant generation with expensive training launch steps.</li>
+</ul>
+</div>
+</div>
+<button class="checklist-reset" data-reset-prefix="fs-" type="button">Reset Chapter 2 checkboxes</button>
+</section>
+<section data-section="chapter-full-eval">
+<h2 id="chapter-full-eval">3. Evaluation Design</h2>
+<p class="chapter-rule">Chapter 3 · 9 models × 6 audio variants · current full-eval artifacts</p>
+<div class="metric-grid"><div class="metric"><div class="label">Run matrix</div><div class="value">9 × 6 <span class="unit">54 runs</span></div></div><div class="metric"><div class="label">Samples per run</div><div class="value">26,471</div></div><div class="metric"><div class="label">Target predictions</div><div class="value">1,429,434</div></div><div class="metric"><div class="label">Complete now</div><div class="value">24/54 <span class="unit">44.4%</span></div></div><div class="metric"><div class="label">Rows complete</div><div class="value">635,304</div></div><div class="metric"><div class="label">Active partial</div><div class="value">19,524 <span class="unit">qwen3-asr-0.6b / baseline</span></div></div></div>
+<div class="dashboard-grid eval-overview">
+<div class="state-row"><strong>Run completion</strong><div class="bar-row"><span class="bar-label">wav2vec2-large</span><div class="bar-track"><div class="bar" style="width:100.0%"></div></div><span class="bar-value">6/6</span></div><div class="status-line"><span class="badge pass">complete</span></div><div class="bar-row"><span class="bar-label">whisper-small</span><div class="bar-track"><div class="bar" style="width:100.0%"></div></div><span class="bar-value">6/6</span></div><div class="status-line"><span class="badge pass">complete</span></div><div class="bar-row"><span class="bar-label">whisper-medium</span><div class="bar-track"><div class="bar" style="width:100.0%"></div></div><span class="bar-value">6/6</span></div><div class="status-line"><span class="badge pass">complete</span></div><div class="bar-row"><span class="bar-label">whisper-large-v3</span><div class="bar-track"><div class="bar" style="width:100.0%"></div></div><span class="bar-value">6/6</span></div><div class="status-line"><span class="badge pass">complete</span></div><div class="bar-row"><span class="bar-label">qwen3-asr-0.6b</span><div class="bar-track"><div class="bar" style="width:0.0%"></div></div><span class="bar-value">0/6</span></div><div class="status-line"><span class="badge warn">running</span></div><div class="bar-row"><span class="bar-label">qwen3-asr-1.7b</span><div class="bar-track"><div class="bar" style="width:0.0%"></div></div><span class="bar-value">0/6</span></div><div class="status-line"><span class="badge skip">pending</span></div><div class="bar-row"><span class="bar-label">canary-qwen-2.5b</span><div class="bar-track"><div class="bar" style="width:0.0%"></div></div><span class="bar-value">0/6</span></div><div class="status-line"><span class="badge skip">pending</span></div><div class="bar-row"><span class="bar-label">granite-speech-3.3-2b</span><div class="bar-track"><div class="bar" style="width:0.0%"></div></div><span class="bar-value">0/6</span></div><div class="status-line"><span class="badge skip">pending</span></div><div class="bar-row"><span class="bar-label">granite-speech-3.3-8b</span><div class="bar-track"><div class="bar" style="width:0.0%"></div></div><span class="bar-value">0/6</span></div><div class="status-line"><span class="badge skip">pending</span></div></div>
+<div class="state-row"><strong>Completion matrix</strong><div class="table-wrap"><table class="matrix dense"><thead><tr><th>Model</th><th>Baseline PCM</th><th>12 kHz bottleneck</th><th>8 kHz bottleneck</th><th>MP3 64 kbps</th><th>MP3 32 kbps</th><th>MP3 16 kbps</th></tr></thead><tbody><tr><th><code>wav2vec2-large</code></th><td class="status-cell done">pass</td><td class="status-cell done">pass</td><td class="status-cell done">pass</td><td class="status-cell done">pass</td><td class="status-cell done">pass</td><td class="status-cell done">pass</td></tr><tr><th><code>whisper-small</code></th><td class="status-cell done">pass</td><td class="status-cell done">pass</td><td class="status-cell done">pass</td><td class="status-cell done">pass</td><td class="status-cell done">pass</td><td class="status-cell done">pass</td></tr><tr><th><code>whisper-medium</code></th><td class="status-cell done">pass</td><td class="status-cell done">pass</td><td class="status-cell done">pass</td><td class="status-cell done">pass</td><td class="status-cell done">pass</td><td class="status-cell done">pass</td></tr><tr><th><code>whisper-large-v3</code></th><td class="status-cell done">pass</td><td class="status-cell done">pass</td><td class="status-cell done">pass</td><td class="status-cell done">pass</td><td class="status-cell done">pass</td><td class="status-cell done">pass</td></tr><tr><th><code>qwen3-asr-0.6b</code></th><td class="status-cell run">running</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr><tr><th><code>qwen3-asr-1.7b</code></th><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr><tr><th><code>canary-qwen-2.5b</code></th><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr><tr><th><code>granite-speech-3.3-2b</code></th><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr><tr><th><code>granite-speech-3.3-8b</code></th><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr></tbody></table></div></div>
+</div>
+<h3 id="eval-design">Hardware setting and market context</h3>
+<div class="state-row">
+<strong>Hardware setting</strong>
+<div class="table-wrap"><table class="dense full-width"><thead><tr><th>Layer</th><th>Resource</th><th>Setting</th></tr></thead><tbody><tr><td>OS</td><td>Distribution</td><td>Ubuntu 22.04.5 LTS (Jammy), x86_64</td></tr><tr><td>OS</td><td>Kernel</td><td><code>Linux 6.8.0-40-generic</code></td></tr><tr><td>CPU</td><td>Processor</td><td>AMD EPYC 7352 24-Core Processor</td></tr><tr><td>CPU</td><td>Topology</td><td>1 socket · 24 physical cores · 48 logical CPUs · 2 threads/core</td></tr><tr><td>Memory</td><td>System RAM</td><td>251 GiB total · about 225 GiB available during the hardware snapshot</td></tr><tr><td>Memory</td><td>Swap</td><td>0 B configured</td></tr><tr><td>GPU</td><td>Device</td><td>NVIDIA RTX 4000 Ada Generation · single CUDA target</td></tr><tr><td>GPU</td><td>VRAM</td><td>20,475 MiB total · 2,719 MiB used at snapshot</td></tr><tr><td>GPU</td><td>Driver / CUDA</td><td>Driver <code>550.127.05</code> · CUDA runtime <code>12.4</code></td></tr><tr><td>Python</td><td>Python version</td><td><code>Python 3.11.10</code> for both system Python and the project virtualenv</td></tr><tr><td>Python</td><td>Project venv</td><td><code>/workspace/FairSpeechLoRaAndGRPO/.venv</code></td></tr><tr><td>ML stack</td><td>PyTorch</td><td><code>torch==2.6.0</code> · <code>torchaudio==2.6.0</code> · <code>nvidia-cuda-runtime-cu12==12.4.127</code> · <code>nvidia-cudnn-cu12==9.1.0.70</code></td></tr><tr><td>ML stack</td><td>ASR/runtime packages</td><td><code>transformers==4.57.6</code> · <code>accelerate==1.12.0</code> · <code>datasets==4.8.5</code> · <code>jiwer==3.1.0</code></td></tr><tr><td>Storage</td><td>Workspace filesystem</td><td><code>/workspace</code> on shared RunPod storage · 2.1 PiB total · 643 TiB free at snapshot</td></tr><tr><td>Storage</td><td>Root filesystem</td><td><code>/</code> overlay · 20 GiB total · 18 GiB free at snapshot</td></tr><tr><td>Runtime</td><td>Run root</td><td><code>/workspace/fairspeech-full-eval</code></td></tr><tr><td>Runtime</td><td>Cache/output roots</td><td><code>HF_HOME=/workspace/fairspeech-full-eval/hf-cache</code> · <code>TRANSFORMERS_CACHE=/workspace/fairspeech-full-eval/hf-cache/hub</code> · <code>WANDB_DIR=/workspace/fairspeech-full-eval/wandb</code> · <code>PIP_CACHE_DIR=/workspace/fairspeech-full-eval/pip-cache</code></td></tr></tbody></table></div>
+</div>
+<h4 id="market-compression">Market compression traditions</h4>
+<div class="table-wrap">
+<table class="dense full-width">
+<thead>
+<tr><th>Market path</th><th>Common codec</th><th>Typical rate / format</th><th>Example services / products</th><th>FairSpeech analogue</th></tr>
+</thead>
+<tbody>
+<tr><td>Lossless reference</td><td>PCM WAV / FLAC / ALAC</td><td>16 kHz speech PCM here; consumer lossless up to hi-res</td><td>Apple Music Lossless, Spotify Lossless, YouTube Music delivery uploads</td><td><code>baseline</code></td></tr>
+<tr><td>Streaming music</td><td>AAC / Vorbis / FLAC</td><td>24-320 kbps lossy tiers; lossless tiers higher</td><td>Spotify web/app quality tiers, Apple Music AAC playback</td><td><code>mp3_64k</code> as mild stress</td></tr>
+<tr><td>Podcast hosting</td><td>MP3 / AAC / WAV / FLAC</td><td>Mono speech often 40-80 kbps; stereo higher</td><td>Apple Podcasts RSS feeds, Spotify for Podcasters, podcast hosting pipelines</td><td><code>mp3_64k</code>, <code>mp3_32k</code></td></tr>
+<tr><td>Web audio</td><td>MP3 / AAC / Opus / Vorbis</td><td>MP3 can cover low-to-high web bitrates</td><td>Browser audio/video playback, YouTube delivery pipeline, web apps/CDNs</td><td><code>mp3_16k</code> to <code>mp3_64k</code></td></tr>
+<tr><td>Legacy telephony</td><td>G.711 / AMR-NB</td><td>8 kHz, narrowband voice</td><td>PSTN/VoIP interconnects, Twilio SIP trunks, call-center recordings</td><td><code>bottleneck_8k</code></td></tr>
+<tr><td>Wideband voice</td><td>AMR-WB / EVS / Opus</td><td>16 kHz+ speech, multi-rate codecs</td><td>HD Voice / VoLTE-style calls, WebRTC apps, Twilio Video/Voice Opus paths</td><td><code>bottleneck_12k</code> plus MP3 stress</td></tr>
+<tr><td>Bluetooth/mobile</td><td>LC3 / AAC / LDAC</td><td>8-48 kHz, low-to-high bitrate playback paths</td><td>Bluetooth LE Audio earbuds/headsets, Apple AirPods AAC paths, Sony LDAC devices</td><td>context only</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="audio-variants">3.1 Audio variants</h3>
+<div class="callout warning"><strong>Workload:</strong> 26,471 samples × 9 models × 6 variants = <strong>1,429,434</strong> utterance-level predictions.</div>
+<div class="table-wrap"><table class="dense"><thead><tr><th>Variant key</th><th>Label</th><th>Pipeline</th><th>Dimension</th><th>Rows</th><th>Median duration</th><th>Stress</th></tr></thead><tbody><tr><td><code>baseline</code></td><td>Baseline PCM</td><td>16 kHz mono PCM WAV</td><td>none</td><td>26,471</td><td>6.20s</td><td>reference clean path</td></tr><tr><td><code>bottleneck_12k</code></td><td>12 kHz bottleneck</td><td>16 -&gt; 12 -&gt; 16 kHz PCM</td><td>sample-rate bottleneck</td><td>26,471</td><td>6.20s</td><td>moderate resampling loss</td></tr><tr><td><code>bottleneck_8k</code></td><td>8 kHz bottleneck</td><td>16 -&gt; 8 -&gt; 16 kHz PCM</td><td>sample-rate bottleneck</td><td>26,471</td><td>6.20s</td><td>telephone-like bandwidth</td></tr><tr><td><code>mp3_64k</code></td><td>MP3 64 kbps</td><td>16 kHz WAV -&gt; MP3 64k -&gt; WAV</td><td>codec bitrate</td><td>26,471</td><td>6.20s</td><td>mild lossy codec</td></tr><tr><td><code>mp3_32k</code></td><td>MP3 32 kbps</td><td>16 kHz WAV -&gt; MP3 32k -&gt; WAV</td><td>codec bitrate</td><td>26,471</td><td>6.20s</td><td>moderate lossy codec</td></tr><tr><td><code>mp3_16k</code></td><td>MP3 16 kbps</td><td>16 kHz WAV -&gt; MP3 16k -&gt; WAV</td><td>codec bitrate</td><td>26,471</td><td>6.20s</td><td>strong lossy codec</td></tr></tbody></table></div>
+<div class="table-wrap"><table class="dense"><thead><tr><th>Model</th><th>Gen</th><th>Architecture</th><th>HF ID</th><th>Smoke</th><th>Done</th></tr></thead><tbody><tr><td><code>wav2vec2-large</code></td><td>Gen 1</td><td>CTC encoder</td><td><code>facebook/wav2vec2-large-960h-lv60-self</code></td><td><span class="badge pass">pass</span></td><td>6/6</td></tr><tr><td><code>whisper-small</code></td><td>Gen 2</td><td>Whisper encoder-decoder</td><td><code>openai/whisper-small</code></td><td><span class="badge pass">pass</span></td><td>6/6</td></tr><tr><td><code>whisper-medium</code></td><td>Gen 2</td><td>Whisper encoder-decoder</td><td><code>openai/whisper-medium</code></td><td><span class="badge pass">pass</span></td><td>6/6</td></tr><tr><td><code>whisper-large-v3</code></td><td>Gen 2</td><td>Whisper encoder-decoder</td><td><code>openai/whisper-large-v3</code></td><td><span class="badge pass">pass</span></td><td>6/6</td></tr><tr><td><code>qwen3-asr-0.6b</code></td><td>Gen 3</td><td>LLM-ASR</td><td><code>Qwen/Qwen3-ASR-0.6B</code></td><td><span class="badge pass">pass</span></td><td>0/6</td></tr><tr><td><code>qwen3-asr-1.7b</code></td><td>Gen 3</td><td>LLM-ASR</td><td><code>Qwen/Qwen3-ASR-1.7B</code></td><td><span class="badge pass">pass</span></td><td>0/6</td></tr><tr><td><code>canary-qwen-2.5b</code></td><td>Gen 3</td><td>FastConformer + Qwen</td><td><code>nvidia/canary-qwen-2.5b</code></td><td><span class="badge pass">pass</span></td><td>0/6</td></tr><tr><td><code>granite-speech-3.3-2b</code></td><td>Gen 3</td><td>Granite speech LLM</td><td><code>ibm-granite/granite-speech-3.3-2b</code></td><td><span class="badge pass">pass</span></td><td>0/6</td></tr><tr><td><code>granite-speech-3.3-8b</code></td><td>Gen 3</td><td>Granite speech LLM</td><td><code>ibm-granite/granite-speech-3.3-8b</code></td><td><span class="badge pass">pass</span></td><td>0/6</td></tr></tbody></table></div>
+<div class="table-wrap"><table class="dense"><thead><tr><th>Concept</th><th>Operational definition</th><th>ASR consequence</th></tr></thead><tbody><tr><td>Bitrate</td><td>Encoded bits per second after compression.</td><td>Lower rates can remove consonant detail or add codec artifacts.</td></tr><tr><td>Resampling rate</td><td>Waveform samples per second before the model frontend.</td><td>8 kHz removes high-frequency speech cues before ASR sees audio.</td></tr><tr><td>Whisper input</td><td>Audio is converted to 16 kHz log-Mel features.</td><td>Damage from variants remains in the waveform content.</td></tr><tr><td>Wav2Vec2 input</td><td>16 kHz waveform into CTC encoder.</td><td>All derived files end as compatible 16 kHz mono WAV.</td></tr><tr><td>Gen3 wrappers</td><td>Processor-specific audio frontends around LLM-style decoders.</td><td>Use fixed manifests, decoding settings, and batch plans for comparison.</td></tr></tbody></table></div>
+<h3 id="batch-policy">3.2 Batch-plan policy</h3>
+<div class="dashboard-grid">
+<div class="state-row"><strong>Plan sizes</strong><div class="table-wrap"><table class="dense"><thead><tr><th>Policy</th><th>Batches</th><th>Median samples</th><th>Max samples</th><th>Max summed audio</th><th>Max padded audio</th></tr></thead><tbody><tr><td>max 16</td><td>1,866</td><td>16</td><td>16</td><td>159.9s</td><td>161.5s</td></tr><tr><td>max 32</td><td>1,353</td><td>20</td><td>32</td><td>160.0s</td><td>161.5s</td></tr></tbody></table></div></div>
+<div class="state-row"><strong>Model policy</strong><div class="table-wrap"><table class="dense"><thead><tr><th>Model</th><th>Plan</th><th>Note</th></tr></thead><tbody><tr><td><code>wav2vec2-large</code></td><td>160s / max16</td><td>conservative guard</td></tr><tr><td><code>whisper-small</code></td><td>160s / max16</td><td>completed before switch</td></tr><tr><td><code>whisper-medium</code></td><td>160s / max32</td><td>current mixed matrix</td></tr><tr><td><code>whisper-large-v3</code></td><td>160s / max32</td><td>current mixed matrix</td></tr><tr><td><code>qwen3-asr-0.6b</code></td><td>160s / max16</td><td>conservative guard</td></tr><tr><td><code>qwen3-asr-1.7b</code></td><td>160s / max16</td><td>conservative guard</td></tr><tr><td><code>canary-qwen-2.5b</code></td><td>160s / max16</td><td>conservative guard</td></tr><tr><td><code>granite-speech-3.3-2b</code></td><td>160s / max16</td><td>conservative guard</td></tr><tr><td><code>granite-speech-3.3-8b</code></td><td>160s / max16</td><td>conservative guard</td></tr></tbody></table></div></div>
+</div>
+<figure class="diagram">
+<svg aria-label="Batch plan policy diagram" role="img" viewbox="0 0 760 170" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="arrow-full-eval" markerheight="6" markerwidth="6" orient="auto-start-reverse" refx="9" refy="5" viewbox="0 0 10 10"><path d="M 0 0 L 10 5 L 0 10 z" fill="#7c3043"></path></marker></defs>
+<rect fill="#faf9f7" height="58" rx="4" stroke="#7c3043" stroke-width="2" width="140" x="25" y="45"></rect><text font-size="14" font-weight="700" text-anchor="middle" x="95" y="70">Manifest</text><text font-size="12" text-anchor="middle" x="95" y="90">26,471 rows</text>
+<line marker-end="url(#arrow-full-eval)" stroke="#7c3043" stroke-width="2" x1="165" x2="245" y1="74" y2="74"></line>
+<rect fill="#faf9f7" height="58" rx="4" stroke="#7c3043" stroke-width="2" width="150" x="245" y="45"></rect><text font-size="14" font-weight="700" text-anchor="middle" x="320" y="70">Duration buckets</text><text font-size="12" text-anchor="middle" x="320" y="90">similar clip lengths</text>
+<line marker-end="url(#arrow-full-eval)" stroke="#7c3043" stroke-width="2" x1="395" x2="475" y1="74" y2="74"></line>
+<rect fill="#f5eaed" height="58" rx="4" stroke="#7c3043" stroke-width="2" width="135" x="475" y="45"></rect><text font-size="14" font-weight="700" text-anchor="middle" x="542" y="70">≤160 sec</text><text font-size="12" text-anchor="middle" x="542" y="90">sum cap</text>
+<line marker-end="url(#arrow-full-eval)" stroke="#7c3043" stroke-width="2" x1="610" x2="690" y1="74" y2="74"></line>
+<rect fill="#faf9f7" height="58" rx="4" stroke="#7c3043" stroke-width="2" width="45" x="690" y="45"></rect><text font-size="12" text-anchor="middle" x="712" y="78">16/32</text>
+</svg>
+<figcaption>Pre-split once, then run fixed JSONL batch plans per model/variant.</figcaption>
+</figure>
+<h3 id="fairness-axis">3.3 Primary fairness axis</h3>
+<div class="dashboard-grid">
+<div class="state-row"><strong>Ethnicity counts</strong><div class="table-wrap"><table class="dense"><thead><tr><th>Ethnicity</th><th>Rows</th></tr></thead><tbody><tr><td>Black/AA</td><td>7,807</td></tr><tr><td>White</td><td>5,646</td></tr><tr><td>Native American</td><td>4,632</td></tr><tr><td>Asian</td><td>3,854</td></tr><tr><td>Hispanic</td><td>2,814</td></tr><tr><td>Pacific Islander</td><td>969</td></tr><tr><td>Middle Eastern</td><td>749</td></tr></tbody></table></div></div>
+<div class="state-row"><strong>Group distribution</strong><div class="bar-row"><span class="bar-label">Black/AA</span><div class="bar-track"><div class="bar" style="width:100.0%"></div></div><span class="bar-value">7,807</span></div><div class="bar-row"><span class="bar-label">White</span><div class="bar-track"><div class="bar" style="width:72.3%"></div></div><span class="bar-value">5,646</span></div><div class="bar-row"><span class="bar-label">Native American</span><div class="bar-track"><div class="bar" style="width:59.3%"></div></div><span class="bar-value">4,632</span></div><div class="bar-row"><span class="bar-label">Asian</span><div class="bar-track"><div class="bar" style="width:49.4%"></div></div><span class="bar-value">3,854</span></div><div class="bar-row"><span class="bar-label">Hispanic</span><div class="bar-track"><div class="bar" style="width:36.0%"></div></div><span class="bar-value">2,814</span></div><div class="bar-row"><span class="bar-label">Pacific Islander</span><div class="bar-track"><div class="bar" style="width:12.4%"></div></div><span class="bar-value">969</span></div><div class="bar-row"><span class="bar-label">Middle Eastern</span><div class="bar-track"><div class="bar" style="width:9.6%"></div></div><span class="bar-value">749</span></div></div>
+</div>
+<h3 id="runtime-cache">3.4 Runtime/cache policy</h3>
+<div class="table-wrap"><table class="dense"><thead><tr><th>Artifact</th><th>Path / policy</th></tr></thead><tbody><tr><td>Model cache</td><td><code>/workspace/fairspeech-full-eval/hf-cache/hub</code></td></tr><tr><td>Derived audio</td><td><code>/workspace/fairspeech-full-eval/variants/full/audio</code></td></tr><tr><td>Prediction root</td><td><code>/workspace/fairspeech-full-eval/results/full</code></td></tr><tr><td>Status ledger</td><td><code>datasets/fairspeech_compression/full_eval/full_eval_status.jsonl</code></td></tr><tr><td>Run matrix</td><td><code>datasets/fairspeech_compression/full_eval/full_eval_run_matrix.json</code></td></tr><tr><td>Current policy</td><td>mixed: whisper-medium and whisper-large-v3 use total160s_max32; all other models remain total160s_max16</td></tr></tbody></table></div>
+<h3 id="runtime-histogram">3.5 Wall-clock inference time</h3>
+<div class="state-row"><strong>Runtime matrix: minutes per completed run</strong><p class="note">Bars are scaled to the slowest completed slot (82.8 min). Running slots are shown without estimates.</p><div class="table-wrap"><table class="dense runtime-matrix"><thead><tr><th>Model</th><th>Baseline PCM</th><th>12 kHz bottleneck</th><th>8 kHz bottleneck</th><th>MP3 64 kbps</th><th>MP3 32 kbps</th><th>MP3 16 kbps</th></tr></thead><tbody><tr><th><code>wav2vec2-large</code></th><td class="runtime-cell"><div class="runtime-bar" title="wav2vec2-large / baseline: 38.2 min"><span class="runtime-fill" style="width:46.2%"></span><span class="runtime-value">38.2m</span></div></td><td class="runtime-cell"><div class="runtime-bar" title="wav2vec2-large / bottleneck_12k: 39.4 min"><span class="runtime-fill" style="width:47.6%"></span><span class="runtime-value">39.4m</span></div></td><td class="runtime-cell"><div class="runtime-bar" title="wav2vec2-large / bottleneck_8k: 39.2 min"><span class="runtime-fill" style="width:47.4%"></span><span class="runtime-value">39.2m</span></div></td><td class="runtime-cell"><div class="runtime-bar" title="wav2vec2-large / mp3_64k: 38.8 min"><span class="runtime-fill" style="width:46.9%"></span><span class="runtime-value">38.8m</span></div></td><td class="runtime-cell"><div class="runtime-bar" title="wav2vec2-large / mp3_32k: 40.1 min"><span class="runtime-fill" style="width:48.4%"></span><span class="runtime-value">40.1m</span></div></td><td class="runtime-cell"><div class="runtime-bar" title="wav2vec2-large / mp3_16k: 40.7 min"><span class="runtime-fill" style="width:49.2%"></span><span class="runtime-value">40.7m</span></div></td></tr><tr><th><code>whisper-small</code></th><td class="runtime-cell"><div class="runtime-bar" title="whisper-small / baseline: 41.2 min"><span class="runtime-fill" style="width:49.7%"></span><span class="runtime-value">41.2m</span></div></td><td class="runtime-cell"><div class="runtime-bar" title="whisper-small / bottleneck_12k: 40.8 min"><span class="runtime-fill" style="width:49.3%"></span><span class="runtime-value">40.8m</span></div></td><td class="runtime-cell"><div class="runtime-bar" title="whisper-small / bottleneck_8k: 42.0 min"><span class="runtime-fill" style="width:50.7%"></span><span class="runtime-value">42.0m</span></div></td><td class="runtime-cell"><div class="runtime-bar" title="whisper-small / mp3_64k: 40.9 min"><span class="runtime-fill" style="width:49.4%"></span><span class="runtime-value">40.9m</span></div></td><td class="runtime-cell"><div class="runtime-bar" title="whisper-small / mp3_32k: 40.8 min"><span class="runtime-fill" style="width:49.2%"></span><span class="runtime-value">40.8m</span></div></td><td class="runtime-cell"><div class="runtime-bar" title="whisper-small / mp3_16k: 42.0 min"><span class="runtime-fill" style="width:50.7%"></span><span class="runtime-value">42.0m</span></div></td></tr><tr><th><code>whisper-medium</code></th><td class="runtime-cell"><div class="runtime-bar" title="whisper-medium / baseline: 57.2 min"><span class="runtime-fill" style="width:69.0%"></span><span class="runtime-value">57.2m</span></div></td><td class="runtime-cell"><div class="runtime-bar" title="whisper-medium / bottleneck_12k: 57.9 min"><span class="runtime-fill" style="width:69.9%"></span><span class="runtime-value">57.9m</span></div></td><td class="runtime-cell"><div class="runtime-bar" title="whisper-medium / bottleneck_8k: 53.6 min"><span class="runtime-fill" style="width:64.8%"></span><span class="runtime-value">53.6m</span></div></td><td class="runtime-cell"><div class="runtime-bar" title="whisper-medium / mp3_64k: 55.1 min"><span class="runtime-fill" style="width:66.5%"></span><span class="runtime-value">55.1m</span></div></td><td class="runtime-cell"><div class="runtime-bar" title="whisper-medium / mp3_32k: 54.6 min"><span class="runtime-fill" style="width:65.9%"></span><span class="runtime-value">54.6m</span></div></td><td class="runtime-cell"><div class="runtime-bar" title="whisper-medium / mp3_16k: 54.8 min"><span class="runtime-fill" style="width:66.2%"></span><span class="runtime-value">54.8m</span></div></td></tr><tr><th><code>whisper-large-v3</code></th><td class="runtime-cell"><div class="runtime-bar" title="whisper-large-v3 / baseline: 72.9 min"><span class="runtime-fill" style="width:88.0%"></span><span class="runtime-value">72.9m</span></div></td><td class="runtime-cell"><div class="runtime-bar" title="whisper-large-v3 / bottleneck_12k: 73.7 min"><span class="runtime-fill" style="width:89.0%"></span><span class="runtime-value">73.7m</span></div></td><td class="runtime-cell"><div class="runtime-bar" title="whisper-large-v3 / bottleneck_8k: 71.6 min"><span class="runtime-fill" style="width:86.5%"></span><span class="runtime-value">71.6m</span></div></td><td class="runtime-cell"><div class="runtime-bar" title="whisper-large-v3 / mp3_64k: 72.0 min"><span class="runtime-fill" style="width:87.0%"></span><span class="runtime-value">72.0m</span></div></td><td class="runtime-cell"><div class="runtime-bar" title="whisper-large-v3 / mp3_32k: 82.8 min"><span class="runtime-fill" style="width:100.0%"></span><span class="runtime-value">82.8m</span></div></td><td class="runtime-cell"><div class="runtime-bar" title="whisper-large-v3 / mp3_16k: 77.1 min"><span class="runtime-fill" style="width:93.1%"></span><span class="runtime-value">77.1m</span></div></td></tr><tr><th><code>qwen3-asr-0.6b</code></th><td class="runtime-cell"><span class="runtime-missing">running</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td></tr><tr><th><code>qwen3-asr-1.7b</code></th><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td></tr><tr><th><code>canary-qwen-2.5b</code></th><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td></tr><tr><th><code>granite-speech-3.3-2b</code></th><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td></tr><tr><th><code>granite-speech-3.3-8b</code></th><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td><td class="runtime-cell"><span class="runtime-missing">-</span></td></tr></tbody></table></div></div>
+<div class="dashboard-grid">
+<div class="state-row"><strong>Model runtime summary</strong><div class="table-wrap"><table class="dense"><thead><tr><th>Model</th><th>Done</th><th>Mean</th><th>Median</th><th>Fastest</th><th>Slowest</th></tr></thead><tbody><tr><td><code>wav2vec2-large</code></td><td>6/6</td><td>39.4m</td><td>39.3m</td><td>38.2m</td><td>40.7m</td></tr><tr><td><code>whisper-small</code></td><td>6/6</td><td>41.3m</td><td>41.0m</td><td>40.8m</td><td>42.0m</td></tr><tr><td><code>whisper-medium</code></td><td>6/6</td><td>55.5m</td><td>54.9m</td><td>53.6m</td><td>57.9m</td></tr><tr><td><code>whisper-large-v3</code></td><td>6/6</td><td>75.0m</td><td>73.3m</td><td>71.6m</td><td>82.8m</td></tr><tr><td><code>qwen3-asr-0.6b</code></td><td>0/6</td><td>-</td><td>-</td><td>-</td><td>-</td></tr><tr><td><code>qwen3-asr-1.7b</code></td><td>0/6</td><td>-</td><td>-</td><td>-</td><td>-</td></tr><tr><td><code>canary-qwen-2.5b</code></td><td>0/6</td><td>-</td><td>-</td><td>-</td><td>-</td></tr><tr><td><code>granite-speech-3.3-2b</code></td><td>0/6</td><td>-</td><td>-</td><td>-</td><td>-</td></tr><tr><td><code>granite-speech-3.3-8b</code></td><td>0/6</td><td>-</td><td>-</td><td>-</td><td>-</td></tr></tbody></table></div></div>
+<div class="state-row"><strong>Variant runtime summary</strong><div class="table-wrap"><table class="dense"><thead><tr><th>Variant</th><th>N</th><th>Mean</th><th>Fastest</th><th>Slowest</th></tr></thead><tbody><tr><td>Baseline PCM</td><td>4</td><td>52.4m</td><td>38.2m</td><td>72.9m</td></tr><tr><td>12 kHz bottleneck</td><td>4</td><td>52.9m</td><td>39.4m</td><td>73.7m</td></tr><tr><td>8 kHz bottleneck</td><td>4</td><td>51.6m</td><td>39.2m</td><td>71.6m</td></tr><tr><td>MP3 64 kbps</td><td>4</td><td>51.7m</td><td>38.8m</td><td>72.0m</td></tr><tr><td>MP3 32 kbps</td><td>4</td><td>54.6m</td><td>40.1m</td><td>82.8m</td></tr><tr><td>MP3 16 kbps</td><td>4</td><td>53.6m</td><td>40.7m</td><td>77.1m</td></tr></tbody></table></div></div>
+</div>
+<h3 id="gpu-guardrails">3.6 GPU safety guardrails</h3>
+<div class="table-wrap"><table class="dense"><thead><tr><th>Guardrail</th><th>Rule</th><th>State</th></tr></thead><tbody><tr><td>Preflight memory</td><td>Run <code>nvidia-smi</code>; avoid launch above 80% VRAM.</td><td><span class="badge pass">enabled</span></td></tr><tr><td>Device targeting</td><td>Use <code>CUDA_VISIBLE_DEVICES</code> on multi-GPU hosts.</td><td><span class="badge pass">supported</span></td></tr><tr><td>Batch failures</td><td>Default fail-fast; empty transcripts require explicit opt-in.</td><td><span class="badge pass">hardened</span></td></tr><tr><td>Runtime root</td><td>Heavy cache/results stay outside the repo working tree.</td><td><span class="badge pass">active</span></td></tr><tr><td>Postprocess</td><td>Watcher validates, computes metrics, then plots when matrix exits.</td><td><span class="badge warn">waiting</span></td></tr></tbody></table></div>
+<h3 id="outputs-postprocessing">4. Outputs and Postprocessing</h3>
+<h4 id="prediction-csvs">4.1 Prediction CSVs</h4>
+<div class="dashboard-grid">
+<div class="state-row"><strong>Prediction inventory</strong><div class="table-wrap"><table class="dense"><thead><tr><th>Model</th><th>Complete</th><th>Partial</th><th>Rows on disk</th><th>Dup IDs</th><th>Blank hyps</th></tr></thead><tbody><tr><td><code>wav2vec2-large</code></td><td>6/6</td><td>0</td><td>158,826</td><td>0</td><td>1</td></tr><tr><td><code>whisper-small</code></td><td>6/6</td><td>0</td><td>158,826</td><td>0</td><td>0</td></tr><tr><td><code>whisper-medium</code></td><td>6/6</td><td>0</td><td>158,826</td><td>0</td><td>0</td></tr><tr><td><code>whisper-large-v3</code></td><td>6/6</td><td>0</td><td>158,826</td><td>0</td><td>0</td></tr><tr><td><code>qwen3-asr-0.6b</code></td><td>0/6</td><td>1</td><td>19,524</td><td>0</td><td>0</td></tr><tr><td><code>qwen3-asr-1.7b</code></td><td>0/6</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr><td><code>canary-qwen-2.5b</code></td><td>0/6</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr><td><code>granite-speech-3.3-2b</code></td><td>0/6</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr><td><code>granite-speech-3.3-8b</code></td><td>0/6</td><td>0</td><td>0</td><td>0</td><td>0</td></tr></tbody></table></div></div>
+<div class="state-row"><strong>Prediction schema</strong><div class="table-wrap"><table class="dense"><thead><tr><th>Column family</th><th>Fields</th><th>Purpose</th></tr></thead><tbody><tr><td>Identity</td><td><code>utterance_id</code>, <code>audio_path</code>, <code>model</code>, <code>audio_variant</code></td><td>Join predictions to manifests and variants.</td></tr><tr><td>Transcript</td><td><code>reference</code>, <code>hypothesis</code>, <code>hypothesis_raw</code></td><td>Raw ASR output plus normalized scoring text.</td></tr><tr><td>Fairness</td><td><code>ethnicity</code> plus retained metadata columns</td><td>Primary group axis for WER/MMR.</td></tr><tr><td>Metric</td><td><code>wer</code></td><td>Per-utterance WER; aggregate tables recompute corpus WER.</td></tr><tr><td>Audit</td><td><code>prediction_file</code> in metric loader</td><td>Trace every row to its CSV artifact.</td></tr></tbody></table></div></div>
+</div>
+<h4 id="file-structure">4.2 File structure</h4>
+<div class="state-row"><strong>Runtime artifact map</strong><pre class="code-block"><code>/workspace/fairspeech-full-eval/
+|-- hf-cache/hub/                  model snapshots
+|-- variants/full/audio/           6 variant folders × 26,471 WAVs
+`-- results/full/                  prediction CSVs + run metadata
 
-    <h3>2.8 Guardrails</h3>
-    <ul class="checklist">
-      <li class="checked">Use real waveform resampling; never fake sample rate by changing only headers.</li>
-      <li class="checked">Keep final model input compatible: 16 kHz mono after each bottleneck.</li>
-      <li class="checked">Keep utterance IDs, transcripts, ethnicity labels, model, and decoding settings fixed.</li>
-      <li class="checked">Log source and derived sample rate, codec, bitrate, duration, and channel count.</li>
-      <li class="checked">Do not hard-code one universal sample-count batch size; record a per-model duration-bucketed batch policy from pilot-gate VM profiling.</li>
-      <li>Interpret sample-rate bottlenecks and codec-bitrate artifacts separately.</li>
-    </ul>
-  </section>
-
-  <section data-section="caveats">
-    <h2 id="caveats">Caveats</h2>
-    <ul class="checklist">
-      <li class="checked"><strong>FairSpeech audio is local.</strong> Raw WAVs and metadata are present and 1:1 matched.</li>
-      <li><strong>FairSpeech predictions still need work.</strong> Only the 28-row <code>wav2vec2-large</code> pilot is complete; run or obtain the full 54-run matrix before making final ethnicity-result claims.</li>
-      <li><strong>Compression types must stay separate.</strong> Sample-rate bottlenecks and MP3 bitrate artifacts answer different questions.</li>
-      <li><strong>Model cache needs a larger root volume or external cache.</strong> <code>whisper-large-v3</code> failed after filling the 50 GiB root volume; larger Gen 3 models should not be attempted until cache placement/capacity is fixed.</li>
-    </ul>
-  </section>
-
+datasets/fairspeech_compression/
+|-- manifests/                     fairspeech_&lt;variant&gt;_manifest.csv
+|-- batch_plans/                   total160s_max16 and max32 JSONL plans
+|-- full_eval/                     matrix, status ledger, interim metrics
+`-- logs/full_eval/                one inference log per model × variant</code></pre></div>
+<h4 id="metric-tables">4.3 Metric tables</h4>
+<div class="callout warning"><strong>Interim:</strong> metrics currently cover <strong>24/54</strong> validated completed runs. The active Qwen partial is counted in inventory only, not in WER/MMR heatmaps.</div>
+<div aria-label="Metric heatmap legend" class="metric-legend">
+<span><i class="scale-low"></i> lower / closer to baseline</span>
+<span><i class="scale-high"></i> higher WER or worse delta</span>
+<span><i class="delta-good"></i> negative delta</span>
+<span><i class="pending-box"></i> pending run</span>
+</div>
+<div class="metric-stack">
+<div class="state-row"><strong>Overall WER heatmap</strong><p class="note">Lower is better. Each cell is the corpus WER for one model x audio variant.</p><div class="table-wrap"><table class="dense metric-matrix"><thead><tr><th>Model</th><th>Baseline PCM</th><th>12 kHz bottleneck</th><th>8 kHz bottleneck</th><th>MP3 64 kbps</th><th>MP3 32 kbps</th><th>MP3 16 kbps</th></tr></thead><tbody><tr><th><code>wav2vec2-large</code></th><td class="heat-cell light" style="background:rgb(142,76,92)">31.7%</td><td class="heat-cell light" style="background:rgb(140,74,90)">32.0%</td><td class="heat-cell light" style="background:rgb(132,61,79)">33.8%</td><td class="heat-cell light" style="background:rgb(142,76,92)">31.7%</td><td class="heat-cell light" style="background:rgb(140,73,89)">32.1%</td><td class="heat-cell light" style="background:rgb(124,48,67)">35.6%</td></tr><tr><th><code>whisper-small</code></th><td class="heat-cell" style="background:rgb(234,223,224)">11.4%</td><td class="heat-cell" style="background:rgb(231,219,221)">11.9%</td><td class="heat-cell" style="background:rgb(229,215,217)">12.4%</td><td class="heat-cell" style="background:rgb(234,223,224)">11.4%</td><td class="heat-cell" style="background:rgb(231,218,219)">12.0%</td><td class="heat-cell" style="background:rgb(217,196,199)">15.2%</td></tr><tr><th><code>whisper-medium</code></th><td class="heat-cell" style="background:rgb(245,242,241)">8.8%</td><td class="heat-cell" style="background:rgb(245,240,239)">9.0%</td><td class="heat-cell" style="background:rgb(241,235,234)">9.7%</td><td class="heat-cell" style="background:rgb(245,241,239)">8.9%</td><td class="heat-cell" style="background:rgb(243,238,237)">9.3%</td><td class="heat-cell" style="background:rgb(234,224,225)">11.2%</td></tr><tr><th><code>whisper-large-v3</code></th><td class="heat-cell" style="background:rgb(250,249,247)">7.8%</td><td class="heat-cell" style="background:rgb(249,248,246)">7.9%</td><td class="heat-cell" style="background:rgb(247,245,243)">8.3%</td><td class="heat-cell" style="background:rgb(249,248,246)">7.9%</td><td class="heat-cell" style="background:rgb(248,246,244)">8.2%</td><td class="heat-cell" style="background:rgb(243,238,237)">9.3%</td></tr><tr><th><code>qwen3-asr-0.6b</code></th><td class="status-cell run">running</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr><tr><th><code>qwen3-asr-1.7b</code></th><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr><tr><th><code>canary-qwen-2.5b</code></th><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr><tr><th><code>granite-speech-3.3-2b</code></th><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr><tr><th><code>granite-speech-3.3-8b</code></th><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr></tbody></table></div></div>
+<div class="state-row"><strong>Ethnicity MMR heatmap</strong><p class="note">Lower is better. MMR is worst-group WER divided by best-group WER on the ethnicity axis.</p><div class="table-wrap"><table class="dense metric-matrix"><thead><tr><th>Model</th><th>Baseline PCM</th><th>12 kHz bottleneck</th><th>8 kHz bottleneck</th><th>MP3 64 kbps</th><th>MP3 32 kbps</th><th>MP3 16 kbps</th></tr></thead><tbody><tr><th><code>wav2vec2-large</code></th><td class="heat-cell" style="background:rgb(250,249,247)">1.58x</td><td class="heat-cell" style="background:rgb(250,249,247)">1.58x</td><td class="heat-cell" style="background:rgb(249,247,245)">1.60x</td><td class="heat-cell" style="background:rgb(250,249,247)">1.58x</td><td class="heat-cell" style="background:rgb(250,249,247)">1.58x</td><td class="heat-cell" style="background:rgb(249,248,246)">1.59x</td></tr><tr><th><code>whisper-small</code></th><td class="heat-cell light" style="background:rgb(127,54,72)">4.08x</td><td class="heat-cell light" style="background:rgb(126,51,69)">4.11x</td><td class="heat-cell light" style="background:rgb(124,48,67)">4.15x</td><td class="heat-cell light" style="background:rgb(133,62,80)">3.96x</td><td class="heat-cell light" style="background:rgb(128,54,73)">4.07x</td><td class="heat-cell light" style="background:rgb(179,135,145)">3.03x</td></tr><tr><th><code>whisper-medium</code></th><td class="heat-cell light" style="background:rgb(168,118,130)">3.25x</td><td class="heat-cell light" style="background:rgb(157,101,114)">3.47x</td><td class="heat-cell light" style="background:rgb(152,93,107)">3.57x</td><td class="heat-cell light" style="background:rgb(167,117,129)">3.26x</td><td class="heat-cell light" style="background:rgb(160,105,118)">3.42x</td><td class="heat-cell light" style="background:rgb(172,125,136)">3.17x</td></tr><tr><th><code>whisper-large-v3</code></th><td class="heat-cell light" style="background:rgb(173,126,137)">3.15x</td><td class="heat-cell light" style="background:rgb(176,130,141)">3.09x</td><td class="heat-cell light" style="background:rgb(159,104,117)">3.43x</td><td class="heat-cell light" style="background:rgb(172,124,135)">3.17x</td><td class="heat-cell light" style="background:rgb(184,144,153)">2.92x</td><td class="heat-cell light" style="background:rgb(158,102,116)">3.45x</td></tr><tr><th><code>qwen3-asr-0.6b</code></th><td class="status-cell run">running</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr><tr><th><code>qwen3-asr-1.7b</code></th><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr><tr><th><code>canary-qwen-2.5b</code></th><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr><tr><th><code>granite-speech-3.3-2b</code></th><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr><tr><th><code>granite-speech-3.3-8b</code></th><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr></tbody></table></div></div>
+<div class="state-row"><strong>Delta WER from baseline</strong><p class="note">Each cell is variant WER minus the same model baseline WER. Green is lower than baseline; burgundy is higher.</p><div class="table-wrap"><table class="dense metric-matrix"><thead><tr><th>Model</th><th>Baseline PCM</th><th>12 kHz bottleneck</th><th>8 kHz bottleneck</th><th>MP3 64 kbps</th><th>MP3 32 kbps</th><th>MP3 16 kbps</th></tr></thead><tbody><tr><th><code>wav2vec2-large</code></th><td class="delta-cell" style="background:rgb(250,249,247)">+0.00 pp</td><td class="delta-cell" style="background:rgb(241,234,234)">+0.28 pp</td><td class="delta-cell light" style="background:rgb(182,141,150)">+2.10 pp</td><td class="delta-cell" style="background:rgb(250,248,246)">+0.01 pp</td><td class="delta-cell" style="background:rgb(236,227,228)">+0.42 pp</td><td class="delta-cell light" style="background:rgb(124,48,67)">+3.89 pp</td></tr><tr><th><code>whisper-small</code></th><td class="delta-cell" style="background:rgb(250,249,247)">+0.00 pp</td><td class="delta-cell" style="background:rgb(235,225,226)">+0.46 pp</td><td class="delta-cell" style="background:rgb(216,195,199)">+1.04 pp</td><td class="delta-cell" style="background:rgb(250,249,247)">-0.01 pp</td><td class="delta-cell" style="background:rgb(229,216,217)">+0.64 pp</td><td class="delta-cell light" style="background:rgb(128,55,73)">+3.75 pp</td></tr><tr><th><code>whisper-medium</code></th><td class="delta-cell" style="background:rgb(250,249,247)">+0.00 pp</td><td class="delta-cell" style="background:rgb(244,239,238)">+0.20 pp</td><td class="delta-cell" style="background:rgb(220,200,203)">+0.94 pp</td><td class="delta-cell" style="background:rgb(244,240,239)">+0.17 pp</td><td class="delta-cell" style="background:rgb(234,223,224)">+0.51 pp</td><td class="delta-cell light" style="background:rgb(170,121,132)">+2.47 pp</td></tr><tr><th><code>whisper-large-v3</code></th><td class="delta-cell" style="background:rgb(250,249,247)">+0.00 pp</td><td class="delta-cell" style="background:rgb(246,243,241)">+0.12 pp</td><td class="delta-cell" style="background:rgb(231,219,220)">+0.57 pp</td><td class="delta-cell" style="background:rgb(245,240,239)">+0.17 pp</td><td class="delta-cell" style="background:rgb(236,227,227)">+0.43 pp</td><td class="delta-cell" style="background:rgb(200,169,175)">+1.55 pp</td></tr><tr><th><code>qwen3-asr-0.6b</code></th><td class="status-cell run">running</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr><tr><th><code>qwen3-asr-1.7b</code></th><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr><tr><th><code>canary-qwen-2.5b</code></th><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr><tr><th><code>granite-speech-3.3-2b</code></th><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr><tr><th><code>granite-speech-3.3-8b</code></th><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr></tbody></table></div></div>
+<div class="state-row"><strong>Delta ethnicity MMR from baseline</strong><p class="note">Each cell is variant MMR minus the same model baseline MMR. Green is a smaller disparity ratio than baseline.</p><div class="table-wrap"><table class="dense metric-matrix"><thead><tr><th>Model</th><th>Baseline PCM</th><th>12 kHz bottleneck</th><th>8 kHz bottleneck</th><th>MP3 64 kbps</th><th>MP3 32 kbps</th><th>MP3 16 kbps</th></tr></thead><tbody><tr><th><code>wav2vec2-large</code></th><td class="delta-cell" style="background:rgb(250,249,247)">+0.00x</td><td class="delta-cell" style="background:rgb(250,249,247)">-0.00x</td><td class="delta-cell" style="background:rgb(247,245,243)">+0.02x</td><td class="delta-cell" style="background:rgb(250,249,247)">-0.00x</td><td class="delta-cell" style="background:rgb(250,249,247)">-0.00x</td><td class="delta-cell" style="background:rgb(248,246,244)">+0.01x</td></tr><tr><th><code>whisper-small</code></th><td class="delta-cell" style="background:rgb(250,249,247)">+0.00x</td><td class="delta-cell" style="background:rgb(246,242,241)">+0.04x</td><td class="delta-cell" style="background:rgb(241,235,235)">+0.07x</td><td class="delta-cell" style="background:rgb(231,235,230)">-0.11x</td><td class="delta-cell" style="background:rgb(248,248,245)">-0.01x</td><td class="delta-cell light" style="background:rgb(75,119,91)">-1.04x</td></tr><tr><th><code>whisper-medium</code></th><td class="delta-cell" style="background:rgb(250,249,247)">+0.00x</td><td class="delta-cell" style="background:rgb(224,207,210)">+0.22x</td><td class="delta-cell" style="background:rgb(211,187,192)">+0.32x</td><td class="delta-cell" style="background:rgb(249,247,246)">+0.01x</td><td class="delta-cell" style="background:rgb(230,218,219)">+0.16x</td><td class="delta-cell" style="background:rgb(236,238,234)">-0.09x</td></tr><tr><th><code>whisper-large-v3</code></th><td class="delta-cell" style="background:rgb(250,249,247)">+0.00x</td><td class="delta-cell" style="background:rgb(241,242,239)">-0.05x</td><td class="delta-cell" style="background:rgb(215,194,197)">+0.29x</td><td class="delta-cell" style="background:rgb(247,245,243)">+0.02x</td><td class="delta-cell" style="background:rgb(212,221,213)">-0.23x</td><td class="delta-cell" style="background:rgb(213,190,194)">+0.30x</td></tr><tr><th><code>qwen3-asr-0.6b</code></th><td class="status-cell run">running</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr><tr><th><code>qwen3-asr-1.7b</code></th><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr><tr><th><code>canary-qwen-2.5b</code></th><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr><tr><th><code>granite-speech-3.3-2b</code></th><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr><tr><th><code>granite-speech-3.3-8b</code></th><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td><td class="status-cell pending">-</td></tr></tbody></table></div></div>
+<div class="state-row"><strong>Baseline WER by ethnicity</strong><p class="note">Rows are group sample counts; heat cells are corpus WER for the baseline PCM path.</p><div class="table-wrap"><table class="dense metric-matrix"><thead><tr><th>Ethnicity</th><th>N</th><th><code>wav2vec2-large</code></th><th><code>whisper-small</code></th><th><code>whisper-medium</code></th><th><code>whisper-large-v3</code></th></tr></thead><tbody><tr><th>Black/AA</th><td class="num">7,807</td><td class="heat-cell light" style="background:rgb(124,48,67)">41.0%</td><td class="heat-cell" style="background:rgb(199,167,174)">18.6%</td><td class="heat-cell" style="background:rgb(219,200,203)">12.4%</td><td class="heat-cell" style="background:rgb(227,212,214)">10.2%</td></tr><tr><th>White</th><td class="num">5,646</td><td class="heat-cell light" style="background:rgb(174,128,139)">25.9%</td><td class="heat-cell" style="background:rgb(226,210,212)">10.5%</td><td class="heat-cell" style="background:rgb(228,214,216)">9.8%</td><td class="heat-cell" style="background:rgb(229,216,218)">9.4%</td></tr><tr><th>Native American</th><td class="num">4,632</td><td class="heat-cell light" style="background:rgb(171,123,134)">26.9%</td><td class="heat-cell" style="background:rgb(231,219,220)">8.9%</td><td class="heat-cell" style="background:rgb(236,226,226)">7.6%</td><td class="heat-cell" style="background:rgb(236,226,227)">7.5%</td></tr><tr><th>Asian</th><td class="num">3,854</td><td class="heat-cell light" style="background:rgb(166,115,127)">28.4%</td><td class="heat-cell" style="background:rgb(246,242,241)">4.6%</td><td class="heat-cell" style="background:rgb(248,246,244)">3.8%</td><td class="heat-cell" style="background:rgb(250,249,247)">3.2%</td></tr><tr><th>Hispanic</th><td class="num">2,814</td><td class="heat-cell light" style="background:rgb(161,107,120)">29.9%</td><td class="heat-cell" style="background:rgb(235,225,226)">7.7%</td><td class="heat-cell" style="background:rgb(240,233,232)">6.3%</td><td class="heat-cell" style="background:rgb(243,238,237)">5.4%</td></tr><tr><th>Pacific Islander</th><td class="num">969</td><td class="heat-cell light" style="background:rgb(160,106,119)">30.1%</td><td class="heat-cell" style="background:rgb(240,232,232)">6.4%</td><td class="heat-cell" style="background:rgb(247,244,242)">4.2%</td><td class="heat-cell" style="background:rgb(249,248,246)">3.5%</td></tr><tr><th>Middle Eastern</th><td class="num">749</td><td class="heat-cell light" style="background:rgb(154,96,110)">32.0%</td><td class="heat-cell" style="background:rgb(229,215,217)">9.6%</td><td class="heat-cell" style="background:rgb(235,225,225)">7.8%</td><td class="heat-cell" style="background:rgb(240,234,233)">6.1%</td></tr></tbody></table></div></div>
+<div class="state-row"><strong>Ethnicity WER by compression format</strong><p class="note">Rows are grouped by completed model; columns are the six audio variants. This makes compression effects easier to compare within each group.</p><div class="table-wrap"><table class="dense full-width variant-ethnicity-matrix"><thead><tr><th>Model</th><th>Ethnicity</th><th>N</th><th>Baseline PCM</th><th>12 kHz bottleneck</th><th>8 kHz bottleneck</th><th>MP3 64 kbps</th><th>MP3 32 kbps</th><th>MP3 16 kbps</th></tr></thead><tbody><tr class="model-break"><td class="model-stub" rowspan="7"><code>wav2vec2-large</code></td><th>Black/AA</th><td class="num">7,807</td><td class="heat-cell light" style="background:rgb(139,72,89)">41.0%</td><td class="heat-cell light" style="background:rgb(138,71,87)">41.4%</td><td class="heat-cell light" style="background:rgb(130,58,76)">44.1%</td><td class="heat-cell light" style="background:rgb(139,72,89)">41.0%</td><td class="heat-cell light" style="background:rgb(138,70,86)">41.6%</td><td class="heat-cell light" style="background:rgb(124,48,67)">46.2%</td></tr><tr><th>White</th><td class="num">5,646</td><td class="heat-cell light" style="background:rgb(183,143,152)">25.9%</td><td class="heat-cell light" style="background:rgb(183,142,151)">26.2%</td><td class="heat-cell light" style="background:rgb(179,135,145)">27.5%</td><td class="heat-cell light" style="background:rgb(183,142,151)">26.0%</td><td class="heat-cell light" style="background:rgb(182,141,150)">26.3%</td><td class="heat-cell light" style="background:rgb(175,129,139)">29.0%</td></tr><tr><th>Native American</th><td class="num">4,632</td><td class="heat-cell light" style="background:rgb(181,138,148)">26.9%</td><td class="heat-cell light" style="background:rgb(180,137,147)">27.1%</td><td class="heat-cell light" style="background:rgb(175,129,140)">28.8%</td><td class="heat-cell light" style="background:rgb(181,139,148)">26.8%</td><td class="heat-cell light" style="background:rgb(179,136,146)">27.3%</td><td class="heat-cell light" style="background:rgb(168,119,130)">31.1%</td></tr><tr><th>Asian</th><td class="num">3,854</td><td class="heat-cell light" style="background:rgb(176,131,142)">28.4%</td><td class="heat-cell light" style="background:rgb(176,131,141)">28.5%</td><td class="heat-cell light" style="background:rgb(172,124,135)">29.9%</td><td class="heat-cell light" style="background:rgb(176,131,142)">28.4%</td><td class="heat-cell light" style="background:rgb(176,130,141)">28.6%</td><td class="heat-cell light" style="background:rgb(168,118,130)">31.2%</td></tr><tr><th>Hispanic</th><td class="num">2,814</td><td class="heat-cell light" style="background:rgb(172,124,135)">29.9%</td><td class="heat-cell light" style="background:rgb(171,122,134)">30.3%</td><td class="heat-cell light" style="background:rgb(167,117,129)">31.4%</td><td class="heat-cell light" style="background:rgb(172,124,135)">30.0%</td><td class="heat-cell light" style="background:rgb(171,123,134)">30.2%</td><td class="heat-cell light" style="background:rgb(163,110,123)">32.9%</td></tr><tr><th>Pacific Islander</th><td class="num">969</td><td class="heat-cell light" style="background:rgb(171,123,135)">30.1%</td><td class="heat-cell light" style="background:rgb(170,121,132)">30.6%</td><td class="heat-cell light" style="background:rgb(165,114,126)">32.1%</td><td class="heat-cell light" style="background:rgb(172,125,136)">29.8%</td><td class="heat-cell light" style="background:rgb(170,121,132)">30.6%</td><td class="heat-cell light" style="background:rgb(160,105,118)">33.9%</td></tr><tr><th>Middle Eastern</th><td class="num">749</td><td class="heat-cell light" style="background:rgb(166,115,127)">32.0%</td><td class="heat-cell light" style="background:rgb(165,114,126)">32.2%</td><td class="heat-cell light" style="background:rgb(161,106,119)">33.7%</td><td class="heat-cell light" style="background:rgb(166,115,127)">31.9%</td><td class="heat-cell light" style="background:rgb(165,114,126)">32.1%</td><td class="heat-cell light" style="background:rgb(155,98,112)">35.5%</td></tr><tr class="model-break"><td class="model-stub" rowspan="7"><code>whisper-small</code></td><th>Black/AA</th><td class="num">7,807</td><td class="heat-cell" style="background:rgb(205,177,183)">18.6%</td><td class="heat-cell" style="background:rgb(205,177,182)">18.7%</td><td class="heat-cell" style="background:rgb(199,168,175)">20.5%</td><td class="heat-cell" style="background:rgb(207,180,185)">18.0%</td><td class="heat-cell" style="background:rgb(204,175,181)">19.0%</td><td class="heat-cell light" style="background:rgb(185,145,154)">25.4%</td></tr><tr><th>White</th><td class="num">5,646</td><td class="heat-cell" style="background:rgb(229,215,217)">10.5%</td><td class="heat-cell" style="background:rgb(228,214,216)">10.7%</td><td class="heat-cell" style="background:rgb(227,212,213)">11.2%</td><td class="heat-cell" style="background:rgb(228,214,215)">10.8%</td><td class="heat-cell" style="background:rgb(227,213,215)">10.9%</td><td class="heat-cell" style="background:rgb(224,207,209)">12.2%</td></tr><tr><th>Native American</th><td class="num">4,632</td><td class="heat-cell" style="background:rgb(233,223,223)">8.9%</td><td class="heat-cell" style="background:rgb(229,216,217)">10.3%</td><td class="heat-cell" style="background:rgb(231,218,220)">9.8%</td><td class="heat-cell" style="background:rgb(232,220,221)">9.4%</td><td class="heat-cell" style="background:rgb(229,215,217)">10.5%</td><td class="heat-cell" style="background:rgb(227,212,213)">11.2%</td></tr><tr><th>Asian</th><td class="num">3,854</td><td class="heat-cell" style="background:rgb(246,243,241)">4.6%</td><td class="heat-cell" style="background:rgb(246,243,242)">4.5%</td><td class="heat-cell" style="background:rgb(245,241,240)">4.9%</td><td class="heat-cell" style="background:rgb(246,243,242)">4.6%</td><td class="heat-cell" style="background:rgb(246,242,241)">4.7%</td><td class="heat-cell" style="background:rgb(235,225,226)">8.4%</td></tr><tr><th>Hispanic</th><td class="num">2,814</td><td class="heat-cell" style="background:rgb(237,228,228)">7.7%</td><td class="heat-cell" style="background:rgb(234,223,224)">8.7%</td><td class="heat-cell" style="background:rgb(236,227,227)">8.0%</td><td class="heat-cell" style="background:rgb(237,228,228)">7.7%</td><td class="heat-cell" style="background:rgb(235,226,226)">8.2%</td><td class="heat-cell" style="background:rgb(231,219,221)">9.6%</td></tr><tr><th>Pacific Islander</th><td class="num">969</td><td class="heat-cell" style="background:rgb(241,234,234)">6.4%</td><td class="heat-cell" style="background:rgb(240,232,232)">6.8%</td><td class="heat-cell" style="background:rgb(238,230,230)">7.2%</td><td class="heat-cell" style="background:rgb(240,233,233)">6.6%</td><td class="heat-cell" style="background:rgb(239,231,231)">7.1%</td><td class="heat-cell" style="background:rgb(230,217,218)">10.1%</td></tr><tr><th>Middle Eastern</th><td class="num">749</td><td class="heat-cell" style="background:rgb(231,219,220)">9.6%</td><td class="heat-cell" style="background:rgb(229,215,216)">10.5%</td><td class="heat-cell" style="background:rgb(228,215,216)">10.6%</td><td class="heat-cell" style="background:rgb(231,219,220)">9.6%</td><td class="heat-cell" style="background:rgb(227,213,215)">11.0%</td><td class="heat-cell" style="background:rgb(223,207,209)">12.3%</td></tr><tr class="model-break"><td class="model-stub" rowspan="7"><code>whisper-medium</code></td><th>Black/AA</th><td class="num">7,807</td><td class="heat-cell" style="background:rgb(223,206,209)">12.4%</td><td class="heat-cell" style="background:rgb(221,203,206)">13.0%</td><td class="heat-cell" style="background:rgb(217,196,199)">14.6%</td><td class="heat-cell" style="background:rgb(221,203,206)">13.0%</td><td class="heat-cell" style="background:rgb(219,200,203)">13.7%</td><td class="heat-cell" style="background:rgb(208,183,188)">17.4%</td></tr><tr><th>White</th><td class="num">5,646</td><td class="heat-cell" style="background:rgb(231,218,219)">9.8%</td><td class="heat-cell" style="background:rgb(230,218,219)">9.9%</td><td class="heat-cell" style="background:rgb(230,217,218)">10.0%</td><td class="heat-cell" style="background:rgb(231,218,220)">9.8%</td><td class="heat-cell" style="background:rgb(230,218,219)">9.9%</td><td class="heat-cell" style="background:rgb(228,214,216)">10.7%</td></tr><tr><th>Native American</th><td class="num">4,632</td><td class="heat-cell" style="background:rgb(237,229,229)">7.6%</td><td class="heat-cell" style="background:rgb(237,228,229)">7.6%</td><td class="heat-cell" style="background:rgb(236,226,227)">8.1%</td><td class="heat-cell" style="background:rgb(238,229,229)">7.5%</td><td class="heat-cell" style="background:rgb(237,228,228)">7.8%</td><td class="heat-cell" style="background:rgb(232,220,221)">9.4%</td></tr><tr><th>Asian</th><td class="num">3,854</td><td class="heat-cell" style="background:rgb(248,246,245)">3.8%</td><td class="heat-cell" style="background:rgb(249,247,245)">3.8%</td><td class="heat-cell" style="background:rgb(248,245,243)">4.1%</td><td class="heat-cell" style="background:rgb(248,246,244)">4.0%</td><td class="heat-cell" style="background:rgb(248,245,244)">4.0%</td><td class="heat-cell" style="background:rgb(243,238,238)">5.5%</td></tr><tr><th>Hispanic</th><td class="num">2,814</td><td class="heat-cell" style="background:rgb(241,235,234)">6.3%</td><td class="heat-cell" style="background:rgb(242,237,236)">5.9%</td><td class="heat-cell" style="background:rgb(241,234,234)">6.4%</td><td class="heat-cell" style="background:rgb(242,236,236)">5.9%</td><td class="heat-cell" style="background:rgb(241,235,234)">6.2%</td><td class="heat-cell" style="background:rgb(238,230,230)">7.2%</td></tr><tr><th>Pacific Islander</th><td class="num">969</td><td class="heat-cell" style="background:rgb(247,245,243)">4.2%</td><td class="heat-cell" style="background:rgb(246,242,241)">4.7%</td><td class="heat-cell" style="background:rgb(243,238,237)">5.5%</td><td class="heat-cell" style="background:rgb(245,241,240)">4.9%</td><td class="heat-cell" style="background:rgb(245,241,240)">5.0%</td><td class="heat-cell" style="background:rgb(239,231,231)">7.1%</td></tr><tr><th>Middle Eastern</th><td class="num">749</td><td class="heat-cell" style="background:rgb(237,228,228)">7.8%</td><td class="heat-cell" style="background:rgb(236,227,228)">7.9%</td><td class="heat-cell" style="background:rgb(234,223,224)">8.8%</td><td class="heat-cell" style="background:rgb(237,227,228)">7.8%</td><td class="heat-cell" style="background:rgb(236,227,227)">7.9%</td><td class="heat-cell" style="background:rgb(234,223,224)">8.8%</td></tr><tr class="model-break"><td class="model-stub" rowspan="7"><code>whisper-large-v3</code></td><th>Black/AA</th><td class="num">7,807</td><td class="heat-cell" style="background:rgb(230,216,218)">10.2%</td><td class="heat-cell" style="background:rgb(229,215,217)">10.4%</td><td class="heat-cell" style="background:rgb(225,210,212)">11.7%</td><td class="heat-cell" style="background:rgb(229,215,217)">10.5%</td><td class="heat-cell" style="background:rgb(228,213,215)">10.9%</td><td class="heat-cell" style="background:rgb(220,201,204)">13.6%</td></tr><tr><th>White</th><td class="num">5,646</td><td class="heat-cell" style="background:rgb(232,220,221)">9.4%</td><td class="heat-cell" style="background:rgb(232,220,221)">9.5%</td><td class="heat-cell" style="background:rgb(231,219,220)">9.6%</td><td class="heat-cell" style="background:rgb(231,219,220)">9.6%</td><td class="heat-cell" style="background:rgb(231,219,220)">9.6%</td><td class="heat-cell" style="background:rgb(231,219,220)">9.7%</td></tr><tr><th>Native American</th><td class="num">4,632</td><td class="heat-cell" style="background:rgb(238,229,229)">7.5%</td><td class="heat-cell" style="background:rgb(237,228,228)">7.7%</td><td class="heat-cell" style="background:rgb(237,229,229)">7.6%</td><td class="heat-cell" style="background:rgb(237,229,229)">7.6%</td><td class="heat-cell" style="background:rgb(236,227,227)">8.0%</td><td class="heat-cell" style="background:rgb(233,222,222)">9.1%</td></tr><tr><th>Asian</th><td class="num">3,854</td><td class="heat-cell" style="background:rgb(250,249,247)">3.2%</td><td class="heat-cell" style="background:rgb(250,248,247)">3.4%</td><td class="heat-cell" style="background:rgb(250,248,246)">3.4%</td><td class="heat-cell" style="background:rgb(250,249,247)">3.3%</td><td class="heat-cell" style="background:rgb(248,246,245)">3.8%</td><td class="heat-cell" style="background:rgb(248,246,244)">3.9%</td></tr><tr><th>Hispanic</th><td class="num">2,814</td><td class="heat-cell" style="background:rgb(244,239,238)">5.4%</td><td class="heat-cell" style="background:rgb(244,239,238)">5.4%</td><td class="heat-cell" style="background:rgb(243,238,237)">5.6%</td><td class="heat-cell" style="background:rgb(243,238,237)">5.5%</td><td class="heat-cell" style="background:rgb(243,238,237)">5.5%</td><td class="heat-cell" style="background:rgb(243,238,237)">5.6%</td></tr><tr><th>Pacific Islander</th><td class="num">969</td><td class="heat-cell" style="background:rgb(249,248,246)">3.5%</td><td class="heat-cell" style="background:rgb(249,247,246)">3.6%</td><td class="heat-cell" style="background:rgb(247,245,243)">4.2%</td><td class="heat-cell" style="background:rgb(249,248,246)">3.5%</td><td class="heat-cell" style="background:rgb(249,247,245)">3.7%</td><td class="heat-cell" style="background:rgb(245,241,240)">4.9%</td></tr><tr><th>Middle Eastern</th><td class="num">749</td><td class="heat-cell" style="background:rgb(242,236,235)">6.1%</td><td class="heat-cell" style="background:rgb(241,235,235)">6.2%</td><td class="heat-cell" style="background:rgb(240,233,233)">6.6%</td><td class="heat-cell" style="background:rgb(242,236,236)">6.0%</td><td class="heat-cell" style="background:rgb(241,234,234)">6.4%</td><td class="heat-cell" style="background:rgb(238,230,230)">7.3%</td></tr></tbody></table></div></div>
+</div>
+<details class="pb"><summary>All completed metric rows <span class="sub">WER, insertion rate, MMR, absolute gap, worst group</span></summary><div class="table-wrap"><table class="dense full-width metric-detail-table"><thead><tr><th>Model</th><th>Variant</th><th>WER</th><th>Insertion rate</th><th>MMR</th><th>Abs gap</th><th>Worst group</th></tr></thead><tbody><tr><td><code>wav2vec2-large</code></td><td>Baseline PCM</td><td class="num">31.7%</td><td class="num">6.6%</td><td class="num">1.58x</td><td class="num">15.04 pp</td><td>Black/AA</td></tr><tr><td><code>wav2vec2-large</code></td><td>12 kHz bottleneck</td><td class="num">32.0%</td><td class="num">6.4%</td><td class="num">1.58x</td><td class="num">15.17 pp</td><td>Black/AA</td></tr><tr><td><code>wav2vec2-large</code></td><td>8 kHz bottleneck</td><td class="num">33.8%</td><td class="num">6.2%</td><td class="num">1.60x</td><td class="num">16.54 pp</td><td>Black/AA</td></tr><tr><td><code>wav2vec2-large</code></td><td>MP3 64 kbps</td><td class="num">31.7%</td><td class="num">6.5%</td><td class="num">1.58x</td><td class="num">15.02 pp</td><td>Black/AA</td></tr><tr><td><code>wav2vec2-large</code></td><td>MP3 32 kbps</td><td class="num">32.1%</td><td class="num">6.4%</td><td class="num">1.58x</td><td class="num">15.24 pp</td><td>Black/AA</td></tr><tr><td><code>wav2vec2-large</code></td><td>MP3 16 kbps</td><td class="num">35.6%</td><td class="num">6.1%</td><td class="num">1.59x</td><td class="num">17.21 pp</td><td>Black/AA</td></tr><tr><td><code>whisper-small</code></td><td>Baseline PCM</td><td class="num">11.4%</td><td class="num">1.8%</td><td class="num">4.08x</td><td class="num">14.04 pp</td><td>Black/AA</td></tr><tr><td><code>whisper-small</code></td><td>12 kHz bottleneck</td><td class="num">11.9%</td><td class="num">2.0%</td><td class="num">4.11x</td><td class="num">14.13 pp</td><td>Black/AA</td></tr><tr><td><code>whisper-small</code></td><td>8 kHz bottleneck</td><td class="num">12.4%</td><td class="num">1.9%</td><td class="num">4.15x</td><td class="num">15.55 pp</td><td>Black/AA</td></tr><tr><td><code>whisper-small</code></td><td>MP3 64 kbps</td><td class="num">11.4%</td><td class="num">1.7%</td><td class="num">3.96x</td><td class="num">13.49 pp</td><td>Black/AA</td></tr><tr><td><code>whisper-small</code></td><td>MP3 32 kbps</td><td class="num">12.0%</td><td class="num">2.0%</td><td class="num">4.07x</td><td class="num">14.35 pp</td><td>Black/AA</td></tr><tr><td><code>whisper-small</code></td><td>MP3 16 kbps</td><td class="num">15.2%</td><td class="num">3.0%</td><td class="num">3.03x</td><td class="num">17.00 pp</td><td>Black/AA</td></tr><tr><td><code>whisper-medium</code></td><td>Baseline PCM</td><td class="num">8.8%</td><td class="num">1.1%</td><td class="num">3.25x</td><td class="num">8.59 pp</td><td>Black/AA</td></tr><tr><td><code>whisper-medium</code></td><td>12 kHz bottleneck</td><td class="num">9.0%</td><td class="num">1.1%</td><td class="num">3.47x</td><td class="num">9.28 pp</td><td>Black/AA</td></tr><tr><td><code>whisper-medium</code></td><td>8 kHz bottleneck</td><td class="num">9.7%</td><td class="num">1.3%</td><td class="num">3.57x</td><td class="num">10.55 pp</td><td>Black/AA</td></tr><tr><td><code>whisper-medium</code></td><td>MP3 64 kbps</td><td class="num">8.9%</td><td class="num">1.2%</td><td class="num">3.26x</td><td class="num">9.01 pp</td><td>Black/AA</td></tr><tr><td><code>whisper-medium</code></td><td>MP3 32 kbps</td><td class="num">9.3%</td><td class="num">1.2%</td><td class="num">3.42x</td><td class="num">9.68 pp</td><td>Black/AA</td></tr><tr><td><code>whisper-medium</code></td><td>MP3 16 kbps</td><td class="num">11.2%</td><td class="num">1.8%</td><td class="num">3.17x</td><td class="num">11.91 pp</td><td>Black/AA</td></tr><tr><td><code>whisper-large-v3</code></td><td>Baseline PCM</td><td class="num">7.8%</td><td class="num">1.1%</td><td class="num">3.15x</td><td class="num">6.98 pp</td><td>Black/AA</td></tr><tr><td><code>whisper-large-v3</code></td><td>12 kHz bottleneck</td><td class="num">7.9%</td><td class="num">1.0%</td><td class="num">3.09x</td><td class="num">7.04 pp</td><td>Black/AA</td></tr><tr><td><code>whisper-large-v3</code></td><td>8 kHz bottleneck</td><td class="num">8.3%</td><td class="num">1.2%</td><td class="num">3.43x</td><td class="num">8.26 pp</td><td>Black/AA</td></tr><tr><td><code>whisper-large-v3</code></td><td>MP3 64 kbps</td><td class="num">7.9%</td><td class="num">1.1%</td><td class="num">3.17x</td><td class="num">7.19 pp</td><td>Black/AA</td></tr><tr><td><code>whisper-large-v3</code></td><td>MP3 32 kbps</td><td class="num">8.2%</td><td class="num">1.2%</td><td class="num">2.92x</td><td class="num">7.15 pp</td><td>Black/AA</td></tr><tr><td><code>whisper-large-v3</code></td><td>MP3 16 kbps</td><td class="num">9.3%</td><td class="num">1.5%</td><td class="num">3.45x</td><td class="num">9.64 pp</td><td>Black/AA</td></tr></tbody></table></div></details>
+<p class="note">Metric artifact: <code>datasets/fairspeech_compression/full_eval/interim_project_state_metrics/group.csv</code> and <code>datasets/fairspeech_compression/full_eval/interim_project_state_metrics/fairness.csv</code>.</p>
+</section>
+<section data-section="references">
+<h2 id="references">References</h2>
+<div class="state-row">
+<strong>Local artifacts used in this page</strong>
+<div class="table-wrap"><table class="dense full-width"><thead><tr><th>Artifact</th><th>Path</th><th>Used for</th></tr></thead><tbody><tr><td>Project-state summary</td><td><code>datasets/fairspeech_compression/full_eval/project_state_summary.json</code></td><td>Run counts, prediction health, runtime tables, metric heatmaps.</td></tr><tr><td>Run matrix</td><td><code>datasets/fairspeech_compression/full_eval/full_eval_run_matrix.json</code></td><td>Model × variant completion state.</td></tr><tr><td>Status ledger</td><td><code>datasets/fairspeech_compression/full_eval/full_eval_status.jsonl</code></td><td>Runtime and completion history.</td></tr><tr><td>Prediction root</td><td><code>/workspace/fairspeech-full-eval/results/full</code></td><td>Prediction CSV inventory and row counts.</td></tr><tr><td>Interim metrics</td><td><code>datasets/fairspeech_compression/full_eval/interim_project_state_metrics</code></td><td>WER, MMR, group metric tables.</td></tr><tr><td>Compression research note</td><td><code>.planning/research/audio-compression-market-2026-RESEARCH.md</code></td><td>Market compression examples and source audit trail.</td></tr></tbody></table></div>
+</div>
+<h3 id="external-sources">External codec and market sources</h3>
+<div class="table-wrap"><table class="dense source-list"><thead><tr><th>Source</th><th>URL</th><th>Used for</th></tr></thead><tbody><tr><td>Spotify audio quality</td><td><a href="https://support.spotify.com/us/article/audio-quality/">support.spotify.com/us/article/audio-quality/</a></td><td>streaming tiers and Spotify examples</td></tr><tr><td>Apple Podcasts audio requirements</td><td><a href="https://podcasters.apple.com/support/893-audio-requirements">podcasters.apple.com/support/893-audio-requirements</a></td><td>podcast codec/bitrate examples</td></tr><tr><td>Apple Music lossless</td><td><a href="https://support.apple.com/en-us/118295">support.apple.com/en-us/118295</a></td><td>Apple Music AAC/ALAC context</td></tr><tr><td>YouTube delivery audio formats</td><td><a href="https://support.google.com/youtube/answer/3506725">support.google.com/youtube/answer/3506725</a></td><td>YouTube/YouTube Music delivery examples</td></tr><tr><td>MDN audio codecs</td><td><a href="https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Formats/Audio_codecs">developer.mozilla.org/en-US/docs/Web/Media/Guides/Formats/Audio_codecs</a></td><td>web codec ranges</td></tr><tr><td>MDN WebRTC codecs</td><td><a href="https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Formats/WebRTC_codecs">developer.mozilla.org/en-US/docs/Web/Media/Guides/Formats/WebRTC_codecs</a></td><td>WebRTC Opus/G.711 defaults</td></tr><tr><td>Twilio SIP trunk codecs</td><td><a href="https://www.twilio.com/docs/sip-trunking/codecs">twilio.com/docs/sip-trunking/codecs</a></td><td>VoIP and AMR/G.711 examples</td></tr><tr><td>Twilio Video codec guide</td><td><a href="https://www.twilio.com/docs/video/managing-codecs">twilio.com/docs/video/managing-codecs</a></td><td>Opus wideband-service example</td></tr><tr><td>Bluetooth LE Audio specifications</td><td><a href="https://www.bluetooth.com/learn-about-bluetooth/feature-enhancements/le-audio/le-audio-specifications/">bluetooth.com/learn-about-bluetooth/feature-enhancements/le-audio/le-audio-specifications/</a></td><td>LC3 / Bluetooth LE Audio examples</td></tr><tr><td>ITU-T G.711</td><td><a href="https://www.itu.int/rec/t-rec-g.711-198811-i/en">www.itu.int/rec/t-rec-g.711-198811-i/en</a></td><td>telephony baseline</td></tr></tbody></table></div>
+</section>
 <footer>
-    <p>Next chapters can be appended here as the project state changes.</p>
-  </footer>
+<p>Served from <code>docs/project-state.html</code>; metrics and references reflect local artifacts refreshed at <code>2026-04-29T02:10:10Z</code>, with hardware/runtime resources refreshed at <code>2026-04-29T02:25:29Z</code>.</p>
+</footer>
 </main>
 </div>
 <script>

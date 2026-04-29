@@ -1,7 +1,7 @@
-# Graph Report - FairSpeechLoRaAndGRPO  (2026-04-28)
+# Graph Report - FairSpeechLoRaAndGRPO  (2026-04-29)
 
 ## Corpus Check
-- 57 files · ~168,701 words
+- 57 files · ~210,754 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
