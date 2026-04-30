@@ -15,6 +15,7 @@ import argparse
 import csv
 import json
 import math
+import random
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -47,6 +48,17 @@ def load_all_predictions(predictions_dir: Path, recursive: bool = False) -> list
     for path in sorted(predictions_dir.glob(pattern)):
         rows.extend(read_predictions(path))
     return rows
+
+
+def filter_complete_run_rows(rows: list[dict[str, str]], expected_rows: int | None) -> list[dict[str, str]]:
+    """Keep only model x variant slots with the expected row count."""
+    if not expected_rows:
+        return rows
+    complete: list[dict[str, str]] = []
+    for _, group_data in group_rows(rows, ("model", "audio_variant")).items():
+        if len(group_data) == expected_rows:
+            complete.extend(group_data)
+    return complete
 
 
 def jiwer_module():
@@ -160,6 +172,174 @@ def compute_group_table(
     return out
 
 
+def row_word_counts(row: dict[str, str]) -> tuple[int, int] | None:
+    """Return reference-word count and edit count for one utterance."""
+    try:
+        ref_words = int(float(row.get("num_ref_words") or 0))
+    except ValueError:
+        ref_words = len((row.get("reference") or "").split())
+    if ref_words <= 0:
+        return None
+    try:
+        row_wer = float(row.get("wer") or 0.0)
+    except ValueError:
+        return None
+    edits = int(round(row_wer * ref_words))
+    return ref_words, edits
+
+
+def percentile(values: list[float], pct: float) -> float:
+    if not values:
+        return math.nan
+    sorted_values = sorted(values)
+    if len(sorted_values) == 1:
+        return sorted_values[0]
+    pos = (len(sorted_values) - 1) * pct / 100
+    lower = math.floor(pos)
+    upper = math.ceil(pos)
+    if lower == upper:
+        return sorted_values[int(pos)]
+    weight = pos - lower
+    return sorted_values[lower] * (1 - weight) + sorted_values[upper] * weight
+
+
+def bootstrap_ratio_ci(
+    ref_words: list[int],
+    edits: list[int],
+    n_resamples: int,
+    seed: int,
+) -> tuple[float, float, float]:
+    if not ref_words or not edits:
+        return math.nan, math.nan, math.nan
+    point = sum(edits) / sum(ref_words)
+    n = len(ref_words)
+    if n_resamples <= 0:
+        return point, math.nan, math.nan
+
+    try:
+        import numpy as np  # type: ignore
+
+        refs = np.asarray(ref_words, dtype=np.int64)
+        errs = np.asarray(edits, dtype=np.int64)
+        rng = np.random.default_rng(seed)
+        samples = []
+        for _ in range(n_resamples):
+            idx = rng.integers(0, n, size=n)
+            denom = int(refs[idx].sum())
+            samples.append(float(errs[idx].sum() / denom) if denom else math.nan)
+    except Exception:
+        rng = random.Random(seed)
+        samples = []
+        for _ in range(n_resamples):
+            denom = 0
+            numer = 0
+            for _ in range(n):
+                idx = rng.randrange(n)
+                denom += ref_words[idx]
+                numer += edits[idx]
+            samples.append(numer / denom if denom else math.nan)
+
+    finite = [value for value in samples if not math.isnan(value)]
+    return point, percentile(finite, 2.5), percentile(finite, 97.5)
+
+
+def compute_bootstrap_group_ci(
+    rows: list[dict[str, str]],
+    group_col: str,
+    n_resamples: int,
+    seed: int,
+    min_group_size: int = MIN_GROUP_SIZE,
+) -> list[dict[str, object]]:
+    out: list[dict[str, object]] = []
+    grouped = group_rows(rows, ("model", "audio_variant", group_col))
+    for group_idx, ((model, variant, group), group_data) in enumerate(sorted(grouped.items())):
+        if not group or len(group_data) < min_group_size:
+            continue
+        ref_words: list[int] = []
+        edits: list[int] = []
+        for row in group_data:
+            counts = row_word_counts(row)
+            if counts is None:
+                continue
+            ref_count, edit_count = counts
+            ref_words.append(ref_count)
+            edits.append(edit_count)
+        if len(ref_words) < min_group_size:
+            continue
+        point, ci_low, ci_high = bootstrap_ratio_ci(
+            ref_words,
+            edits,
+            n_resamples=n_resamples,
+            seed=seed + group_idx,
+        )
+        out.append({
+            "model": model,
+            "audio_variant": variant,
+            "group_axis": group_col,
+            "group": group,
+            "n": len(ref_words),
+            "ref_words": sum(ref_words),
+            "wer": point,
+            "ci_low": ci_low,
+            "ci_high": ci_high,
+            "ci_width": ci_high - ci_low if not math.isnan(ci_low) and not math.isnan(ci_high) else math.nan,
+            "n_resamples": n_resamples,
+            "seed": seed + group_idx,
+        })
+    return out
+
+
+def ci_overlap(row_a: dict[str, object], row_b: dict[str, object]) -> bool:
+    a_low = float(row_a["ci_low"])
+    a_high = float(row_a["ci_high"])
+    b_low = float(row_b["ci_low"])
+    b_high = float(row_b["ci_high"])
+    return max(a_low, b_low) <= min(a_high, b_high)
+
+
+def compute_ci_overlap_table(bootstrap_rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    by_run: dict[tuple[str, str, str], list[dict[str, object]]] = defaultdict(list)
+    for row in bootstrap_rows:
+        by_run[(str(row["model"]), str(row["audio_variant"]), str(row["group_axis"]))].append(row)
+
+    out: list[dict[str, object]] = []
+    for (model, variant, axis), rows in sorted(by_run.items()):
+        by_group = {str(row["group"]): row for row in rows}
+        comparisons: list[tuple[str, dict[str, object], dict[str, object]]] = []
+        if "Black/AA" in by_group and "White" in by_group:
+            comparisons.append(("blackaa_vs_white", by_group["Black/AA"], by_group["White"]))
+        if len(rows) >= 2:
+            best = min(rows, key=lambda row: float(row["wer"]))
+            worst = max(rows, key=lambda row: float(row["wer"]))
+            if best["group"] != worst["group"]:
+                comparisons.append(("worst_vs_best", worst, best))
+
+        seen: set[tuple[str, str, str]] = set()
+        for comparison, row_a, row_b in comparisons:
+            key = (comparison, str(row_a["group"]), str(row_b["group"]))
+            if key in seen:
+                continue
+            seen.add(key)
+            overlap = ci_overlap(row_a, row_b)
+            out.append({
+                "model": model,
+                "audio_variant": variant,
+                "group_axis": axis,
+                "comparison": comparison,
+                "group_a": row_a["group"],
+                "group_a_wer": row_a["wer"],
+                "group_a_ci_low": row_a["ci_low"],
+                "group_a_ci_high": row_a["ci_high"],
+                "group_b": row_b["group"],
+                "group_b_wer": row_b["wer"],
+                "group_b_ci_low": row_b["ci_low"],
+                "group_b_ci_high": row_b["ci_high"],
+                "ci_overlap": overlap,
+                "ci_interpretation": "overlap_uncertain" if overlap else "separated_stable_gap",
+            })
+    return out
+
+
 def compute_fairness_table(group_table: list[dict[str, object]]) -> list[dict[str, object]]:
     grouped: dict[tuple[str, str, str], list[dict[str, object]]] = defaultdict(list)
     for row in group_table:
@@ -270,9 +450,28 @@ def main() -> None:
         default=MIN_GROUP_SIZE,
         help="Minimum rows per demographic group; use 1 for tiny pilot gates.",
     )
+    parser.add_argument(
+        "--expected-rows",
+        type=int,
+        default=0,
+        help="If set, only metric slots with exactly this many rows are included.",
+    )
+    parser.add_argument(
+        "--bootstrap-resamples",
+        type=int,
+        default=0,
+        help="Number of utterance-level bootstrap resamples for group WER CIs.",
+    )
+    parser.add_argument(
+        "--bootstrap-seed",
+        type=int,
+        default=42,
+        help="Base random seed for bootstrap resampling.",
+    )
     args = parser.parse_args()
 
-    rows = load_all_predictions(args.predictions_dir, recursive=args.recursive)
+    raw_rows = load_all_predictions(args.predictions_dir, recursive=args.recursive)
+    rows = filter_complete_run_rows(raw_rows, args.expected_rows)
     if not rows:
         raise SystemExit(f"No predictions_*.csv files found in {args.predictions_dir}")
 
@@ -289,11 +488,32 @@ def main() -> None:
     write_csv(args.output_dir / "fairspeech_compression_group_metrics.csv", group_table)
     write_csv(args.output_dir / "fairspeech_compression_fairness_metrics.csv", fairness_table)
     write_csv(args.output_dir / "fairspeech_compression_paired_delta.csv", paired_delta)
+
+    bootstrap_group_ci: list[dict[str, object]] = []
+    bootstrap_ci_overlap: list[dict[str, object]] = []
+    if args.bootstrap_resamples > 0:
+        bootstrap_group_ci = compute_bootstrap_group_ci(
+            rows,
+            args.group_col,
+            n_resamples=args.bootstrap_resamples,
+            seed=args.bootstrap_seed,
+            min_group_size=args.min_group_size,
+        )
+        bootstrap_ci_overlap = compute_ci_overlap_table(bootstrap_group_ci)
+        write_csv(args.output_dir / "fairspeech_compression_bootstrap_group_ci.csv", bootstrap_group_ci)
+        write_csv(args.output_dir / "fairspeech_compression_bootstrap_ci_overlap.csv", bootstrap_ci_overlap)
+
     summary = {
+        "raw_prediction_rows": len(raw_rows),
         "prediction_rows": len(rows),
+        "expected_rows": args.expected_rows,
         "group_metric_rows": len(group_table),
         "fairness_metric_rows": len(fairness_table),
         "paired_delta_rows": len(paired_delta),
+        "bootstrap_group_ci_rows": len(bootstrap_group_ci),
+        "bootstrap_ci_overlap_rows": len(bootstrap_ci_overlap),
+        "bootstrap_resamples": args.bootstrap_resamples,
+        "bootstrap_seed": args.bootstrap_seed,
         "group_col": args.group_col,
         "baseline_variant": args.baseline_variant,
         "min_group_size": args.min_group_size,

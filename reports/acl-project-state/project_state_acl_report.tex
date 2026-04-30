@@ -1,0 +1,216 @@
+\documentclass[11pt]{article}
+\usepackage[preprint]{acl}
+
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage{inconsolata}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+
+\definecolor{good}{HTML}{2F7D57}
+\definecolor{warn}{HTML}{9A5A00}
+\definecolor{bad}{HTML}{8A2D45}
+\definecolor{muted}{HTML}{6C6C6C}
+\newcommand{\ok}{\textcolor{good}{pass}}
+\newcommand{\run}{\textcolor{warn}{run}}
+\newcommand{\pend}{\textcolor{muted}{--}}
+\newcommand{\pp}{\,pp}
+\newcommand{\xratio}{\,$\times$}
+\newcommand{\barcell}[2]{\textcolor{bad}{\rule{#1mm}{1.15ex}}\hspace{0.35em}#2}
+
+\setlength{\tabcolsep}{3.6pt}
+\renewcommand{\arraystretch}{0.9}
+
+\title{FairSpeech Compression Evaluation: Interim ACL-Style Report}
+
+\author{FairSpeech ASR Fairness Project \\
+  \texttt{docs/project-state.html} snapshot}
+
+\begin{document}
+\maketitle
+\begin{abstract}
+We summarize the current FairSpeech compression evaluation: 34 of 54 model--audio runs are validated, covering 900,014 utterance-level predictions from six ASR systems. Results so far show Qwen3-ASR leading in accuracy and compression robustness, but Black/African-American speakers remain the worst-WER group in every completed condition. Pending Canary and Granite runs can still change the Gen-3 comparison.
+\end{abstract}
+
+\section{Snapshot}
+
+\begin{table}[t]
+\centering
+\scriptsize
+\begin{tabular}{@{}ll@{}}
+\toprule
+Item & Current value \\
+\midrule
+Evaluation matrix & 9 models x 6 variants = 54 runs \\
+Validated complete runs & 34 / 54 \\
+Validated predictions & 900,014 / 1,429,434 rows \\
+Samples per run & 26,471 FairSpeech utterances \\
+Active partial & qwen3-asr-1.7b / MP3 32 kbps \\
+Primary fairness axis & ethnicity, 7 groups \\
+Hardware & RTX 4000 Ada, 20 GB VRAM; 48 CPU threads \\
+\bottomrule
+\end{tabular}
+\caption{Project-state snapshot from the local HTML artifact.}
+\label{tab:snapshot}
+\end{table}
+
+\begin{table}[t]
+\centering
+\scriptsize
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+Model & Base & 12k & 8k & 64 & 32 & 16 \\
+\midrule
+wav2vec2-large & \ok & \ok & \ok & \ok & \ok & \ok \\
+whisper-small & \ok & \ok & \ok & \ok & \ok & \ok \\
+whisper-medium & \ok & \ok & \ok & \ok & \ok & \ok \\
+whisper-large-v3 & \ok & \ok & \ok & \ok & \ok & \ok \\
+qwen3-asr-0.6b & \ok & \ok & \ok & \ok & \ok & \ok \\
+qwen3-asr-1.7b & \ok & \ok & \ok & \ok & \run & \pend \\
+canary-qwen-2.5b & \pend & \pend & \pend & \pend & \pend & \pend \\
+granite-2b & \pend & \pend & \pend & \pend & \pend & \pend \\
+granite-8b & \pend & \pend & \pend & \pend & \pend & \pend \\
+\bottomrule
+\end{tabular}
+\caption{Completion matrix. Columns are baseline PCM, 12 kHz, 8 kHz, and MP3 64/32/16 kbps.}
+\label{tab:completion}
+\end{table}
+
+\section{Evaluation Design}
+
+\paragraph{Data and model sources.}
+The current report follows the local project-state dashboard and the project COLM draft \citep{projectstate2026,ginjala2026listenfairly}; core external anchors include Fair-Speech \citep{veliche2024fairspeech}, Common Voice \citep{ardila2020commonvoice}, LibriSpeech \citep{panayotov2015librispeech}, wav2vec2 \citep{baevski2020wav2vec}, Whisper \citep{radford2023whisper}, Qwen3-ASR \citep{qwen2026asr}, and Granite-Speech \citep{saon2025granite}.
+
+\begin{table}[t]
+\centering
+\scriptsize
+\begin{tabular}{@{}lll@{}}
+\toprule
+Variant & Transformation & Stress tested \\
+\midrule
+Baseline & 16 kHz PCM WAV & reference path \\
+12k bottleneck & 16$\rightarrow$12$\rightarrow$16 kHz & mild bandwidth loss \\
+8k bottleneck & 16$\rightarrow$8$\rightarrow$16 kHz & telephony-like loss \\
+MP3 64 & MP3 64 kbps round trip & mild codec artifact \\
+MP3 32 & MP3 32 kbps round trip & moderate codec artifact \\
+MP3 16 & MP3 16 kbps round trip & severe lossy codec \\
+\bottomrule
+\end{tabular}
+\caption{Six audio variants. Every completed slot uses the same utterance IDs and transcripts.}
+\label{tab:variants}
+\end{table}
+
+\section{Accuracy Results}
+
+\begin{table*}[t]
+\centering
+\scriptsize
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+Model & Base & 12k & 8k & MP3 64 & MP3 32 & MP3 16 \\
+\midrule
+qwen3-asr-1.7b & 4.74 & 4.80 & 5.05 & \textbf{4.70} & -- & -- \\
+qwen3-asr-0.6b & 5.92 & 5.89 & 6.16 & \textbf{5.77} & 5.96 & 6.61 \\
+whisper-large-v3 & \textbf{7.77} & 7.89 & 8.34 & 7.93 & 8.19 & 9.32 \\
+whisper-medium & \textbf{8.77} & 8.97 & 9.71 & 8.94 & 9.28 & 11.25 \\
+whisper-small & 11.40 & 11.86 & 12.43 & \textbf{11.39} & 12.04 & 15.15 \\
+wav2vec2-large & \textbf{31.72} & 32.00 & 33.81 & 31.73 & 32.13 & 35.60 \\
+\bottomrule
+\end{tabular}
+\caption{Overall WER (\%) for validated runs. Bold marks the best completed variant per model.}
+\label{tab:wer}
+\end{table*}
+
+\begin{table}[t]
+\centering
+\scriptsize
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Model & 8k delta & MP3 16 delta & MP3 16 visual \\
+\midrule
+wav2vec2-large & +2.10 & +3.89 & \barcell{13.0}{3.89} \\
+whisper-small & +1.04 & +3.75 & \barcell{12.5}{3.75} \\
+whisper-medium & +0.94 & +2.47 & \barcell{8.2}{2.47} \\
+whisper-large-v3 & +0.57 & +1.55 & \barcell{5.2}{1.55} \\
+qwen3-asr-0.6b & +0.25 & +0.69 & \barcell{2.3}{0.69} \\
+qwen3-asr-1.7b & +0.31 & -- & -- \\
+\bottomrule
+\end{tabular}
+\caption{WER degradation vs. each model's baseline, in percentage points. Severe MP3 hurts older and Whisper models more than Qwen3.}
+\label{tab:stress}
+\end{table}
+
+\section{Fairness Results}
+
+\begin{table}[t]
+\centering
+\scriptsize
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Model & Base MMR & MP3 64 MMR & MP3 16 MMR \\
+\midrule
+wav2vec2-large & 1.58 & 1.58 & 1.59 \\
+whisper-small & 4.08 & 3.96 & 3.03 \\
+whisper-medium & 3.25 & 3.26 & 3.17 \\
+whisper-large-v3 & 3.15 & 3.17 & 3.45 \\
+qwen3-asr-0.6b & 3.66 & 3.33 & 3.60 \\
+qwen3-asr-1.7b & 3.03 & \textbf{2.82} & -- \\
+\bottomrule
+\end{tabular}
+\caption{Max/min WER ratio (MMR) by ethnicity. Lower ratio does not necessarily mean usable quality; wav2vec2 has low MMR because all groups have high WER.}
+\label{tab:mmr}
+\end{table}
+
+\begin{table*}[t]
+\centering
+\scriptsize
+\begin{tabular}{@{}llrrrr@{}}
+\toprule
+Model & Worst group & Worst WER & Best group & Best WER & Abs. gap \\
+\midrule
+qwen3-asr-1.7b & Black/AA & 8.5 & White & 2.8 & 5.7 \\
+qwen3-asr-0.6b & Black/AA & 11.0 & White & 3.0 & 8.0 \\
+whisper-large-v3 & Black/AA & 10.2 & Asian & 3.2 & 7.0 \\
+whisper-medium & Black/AA & 12.4 & Asian & 3.8 & 8.6 \\
+whisper-small & Black/AA & 18.6 & Asian & 4.6 & 14.0 \\
+wav2vec2-large & Black/AA & 41.0 & White & 25.9 & 15.0 \\
+\bottomrule
+\end{tabular}
+\caption{Baseline ethnicity disparity. Black/AA is the worst-WER group in every completed baseline and every completed compressed condition.}
+\label{tab:groups}
+\end{table*}
+
+\section{Current Takeaways}
+
+\begin{table}[t]
+\centering
+\scriptsize
+\begin{tabular}{@{}p{0.46\columnwidth}p{0.46\columnwidth}@{}}
+\toprule
+Observation & Interpretation \\
+\midrule
+Qwen3-ASR-1.7B has 4.70--5.05\% WER on completed variants. & Best current accuracy and robust to mild compression. \\
+MP3 64 kbps is nearly neutral. & Mild codec stress is not enough to expose large robustness gaps. \\
+MP3 16 kbps and 8 kHz are the real stressors. & They separate wav2vec2/Whisper sensitivity from Qwen3 robustness. \\
+Black/AA remains worst in all completed slots. & Compression robustness does not remove the primary fairness gap. \\
+MMR can improve while WER worsens. & Report WER, MMR, and absolute gaps together. \\
+\bottomrule
+\end{tabular}
+\caption{Analysis summary for the current validated data.}
+\label{tab:takeaways}
+\end{table}
+
+\paragraph{Status.}
+This is an interim report. The strongest unresolved comparison is Gen-3 breadth: Canary-Qwen and Granite-Speech are still pending, and qwen3-asr-1.7b lacks MP3 32/16 metrics.
+
+\paragraph{Next.}
+Finish the remaining 20 runs, recompute WER/MMR tables, then rerank Gen-3 models by the joint objective: low WER, low absolute Black/AA gap, and stable degradation under 8 kHz and MP3 16 kbps.
+
+\bibliography{project_state_acl_report}
+
+\end{document}

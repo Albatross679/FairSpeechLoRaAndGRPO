@@ -3,7 +3,7 @@ fileClass: Log
 name: FairSpeech full eval supervisor
 description: Added supervised full-matrix orchestration for the FairSpeech compression evaluation after the pilot gate.
 created: 2026-04-27
-updated: 2026-04-28
+updated: 2026-04-30
 tags:
   - fairspeech
   - compression
@@ -47,7 +47,7 @@ Execution follow-up on 2026-04-28 for the full nine-model run:
 - Hardened inference so batch exceptions fail fast by default for all model families; `--allow_batch_failures` is now required to write empty transcripts after batch failures.
 - Added Whisper attention-mask passing for padded batched generation after the first full `whisper-small/baseline` attempt emitted a Transformers warning. That partial run was intentionally terminated, its partial CSV removed, and the matrix restarted from the six validated wav2vec2 outputs.
 - Wrote and launched the full nine-model, six-variant 54-run matrix in `tmux` session `fairspeech-full-eval`, with a postprocess watcher in `fairspeech-full-eval-post`.
-- Current full-run state at this note: `wav2vec2-large` and `whisper-small` completed and validated across all six variants; `whisper-medium/baseline` is running with the attention-mask fix. Final matrix validation, metrics, and plots are still pending completion of the remaining inference runs.
+- Checkpoint state at this note: `wav2vec2-large` and `whisper-small` completed and validated across all six variants; `whisper-medium/baseline` was running with the attention-mask fix. Final matrix validation, metrics, and plots were awaiting completion of the remaining inference runs.
 
 Acceleration follow-up on 2026-04-28:
 
@@ -56,3 +56,14 @@ Acceleration follow-up on 2026-04-28:
 - Updated the active matrix so only `whisper-medium` and `whisper-large-v3` use the max-32 plans; `wav2vec2-large`, Qwen3-ASR, Canary-Qwen, and Granite remain on the proven max-16 plans.
 - Let `whisper-medium/bottleneck_12k` finish cleanly, then restarted `fairspeech-full-eval` and `fairspeech-full-eval-post` so the next run picked up the mixed matrix.
 - Verified that the restarted active run, `whisper-medium/bottleneck_8k`, is using `fairspeech_bottleneck_8k_total160s_max32_plan.jsonl`; early rows were writing cleanly with no duplicate utterance IDs, no blank hypotheses, and no missing WERs.
+
+Final completion follow-up on 2026-04-30:
+
+- Completed the full nine-model, six-variant FairSpeech compression inference matrix: 54/54 prediction CSVs, 26,471 rows per CSV, 1,429,434 utterance-level predictions total.
+- No target model remained excluded after the smoke gate. The models that were not part of the first four-model pass were downloaded, one-file smoke-tested, and then included in the final full matrix: `qwen3-asr-0.6b`, `qwen3-asr-1.7b`, `canary-qwen-2.5b`, `granite-speech-3.3-2b`, and `granite-speech-3.3-8b`.
+- Ran final prediction validation. `datasets/fairspeech_compression/full_eval/full_prediction_validation.json` reports `status: pass`, `validated_csvs: 54`, `passed_csvs: 54`, and `failed_csvs: 0`.
+- Extended `scripts/metrics/compute_fairspeech_compression_metrics.py` with complete-run filtering and utterance-level bootstrap group WER confidence intervals, then computed final metrics from the complete matrix.
+- Final metric artifacts live under `/workspace/fairspeech-full-eval/results/full_metrics/`; the 200-resample bootstrap CI artifacts live under `datasets/fairspeech_compression/full_eval/bootstrap_ci_200/`.
+- Generated the final figure set under `/workspace/fairspeech-full-eval/results/full_plots/`: nine model-specific group WER bar charts, one degradation-curve figure, one fairness-gap heatmap, and one insertion-subtype stacked chart. All 12 PNGs were present and nonblank in the final check.
+- Updated `docs/project-state.html` to mark FairSpeech compression data collection finished and updated `tasks/prd-fairspeech-full-eval-inference.md` so every execution item is complete.
+- Wrote the final result memo at `reports/fairspeech-compression-final-results.md` and the reproducibility note at `reports/fairspeech-full-eval-reproducibility.md`.
